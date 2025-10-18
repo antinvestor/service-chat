@@ -2,12 +2,9 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/framedata"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 )
@@ -37,12 +34,13 @@ func (rer *roomEventRepository) Delete(ctx context.Context, id string) error {
 	return rer.Svc().DB(ctx, false).Delete(event).Error
 }
 
-// GetByRoomID retrieves all events for a specific room, ordered by sequence.
+// GetByRoomID retrieves all events for a specific room, ordered by ID (naturally time-sorted).
 func (rer *roomEventRepository) GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomEvent, error) {
 	var events []*models.RoomEvent
 	query := rer.Svc().DB(ctx, true).
-		Where("room_id = ?", roomID).
-		Order("sequence ASC")
+		Unscoped(). // Disable GORM's automatic soft delete filtering
+		Where("room_id = ? AND deleted_at = 0", roomID).
+		Order("id ASC")
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -53,32 +51,34 @@ func (rer *roomEventRepository) GetByRoomID(ctx context.Context, roomID string, 
 }
 
 // GetHistory retrieves room events with pagination support.
-// beforeSequence: get events before this sequence (exclusive)
-// afterSequence: get events after this sequence (exclusive)
+// beforeEventID: get events before this event ID (exclusive)
+// afterEventID: get events after this event ID (exclusive)
 // limit: maximum number of events to return
 func (rer *roomEventRepository) GetHistory(
 	ctx context.Context,
 	roomID string,
-	beforeSequence int64,
-	afterSequence int64,
+	beforeEventID string,
+	afterEventID string,
 	limit int,
 ) ([]*models.RoomEvent, error) {
 	var events []*models.RoomEvent
-	query := rer.Svc().DB(ctx, true).Where("room_id = ?", roomID)
+	query := rer.Svc().DB(ctx, true).
+		Unscoped(). // Disable GORM's automatic soft delete filtering
+		Where("room_id = ? AND deleted_at = 0", roomID)
 
-	if beforeSequence > 0 {
-		query = query.Where("sequence < ?", beforeSequence)
+	if beforeEventID != "" {
+		query = query.Where("id < ?", beforeEventID)
 	}
 
-	if afterSequence > 0 {
-		query = query.Where("sequence > ?", afterSequence)
+	if afterEventID != "" {
+		query = query.Where("id > ?", afterEventID)
 	}
 
-	// Order by sequence descending for "before" queries, ascending for "after"
-	if beforeSequence > 0 {
-		query = query.Order("sequence DESC")
+	// Order by ID descending for "before" queries, ascending for "after"
+	if beforeEventID != "" {
+		query = query.Order("id DESC")
 	} else {
-		query = query.Order("sequence ASC")
+		query = query.Order("id ASC")
 	}
 
 	if limit > 0 {
@@ -89,68 +89,15 @@ func (rer *roomEventRepository) GetHistory(
 	return events, err
 }
 
-// GetBySequenceRange retrieves events within a sequence range (inclusive).
-func (rer *roomEventRepository) GetBySequenceRange(
-	ctx context.Context,
-	roomID string,
-	fromSequence int64,
-	toSequence int64,
-) ([]*models.RoomEvent, error) {
-	var events []*models.RoomEvent
-	err := rer.Svc().DB(ctx, true).
-		Where("room_id = ? AND sequence >= ? AND sequence <= ?", roomID, fromSequence, toSequence).
-		Order("sequence ASC").
-		Find(&events).Error
-	return events, err
-}
 
-// GetNextSequence generates the next monotonic sequence number for a room.
-// Uses row-level locking to ensure gapless sequences.
-func (rer *roomEventRepository) GetNextSequence(ctx context.Context, roomID string) (int64, error) {
-	var maxSequence int64
 
-	err := rer.Svc().DB(ctx, false).Transaction(func(tx *gorm.DB) error {
-		// Lock the room row to prevent concurrent sequence generation
-		var room models.Room
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ?", roomID).
-			First(&room).Error; err != nil {
-			return fmt.Errorf("failed to lock room: %w", err)
-		}
-
-		// Get the maximum sequence for this room
-		result := tx.Model(&models.RoomEvent{}).
-			Where("room_id = ?", roomID).
-			Select("COALESCE(MAX(sequence), 0)").
-			Scan(&maxSequence)
-
-		if result.Error != nil {
-			return fmt.Errorf("failed to get max sequence: %w", result.Error)
-		}
-
-		maxSequence++
-		return nil
-	})
-
-	return maxSequence, err
-}
-
-// GetLatestSequence retrieves the latest sequence number for a room.
-func (rer *roomEventRepository) GetLatestSequence(ctx context.Context, roomID string) (int64, error) {
-	var maxSequence int64
-	err := rer.Svc().DB(ctx, true).
-		Model(&models.RoomEvent{}).
-		Where("room_id = ?", roomID).
-		Select("COALESCE(MAX(sequence), 0)").
-		Scan(&maxSequence).Error
-	return maxSequence, err
-}
 
 // GetByEventID retrieves a room event by its event ID (xid).
 func (rer *roomEventRepository) GetByEventID(ctx context.Context, roomID, eventID string) (*models.RoomEvent, error) {
 	event := &models.RoomEvent{}
 	err := rer.Svc().DB(ctx, true).
-		Where("room_id = ? AND id = ?", roomID, eventID).
+		Unscoped().
+		Where("room_id = ? AND id = ? AND deleted_at = 0", roomID, eventID).
 		First(event).Error
 	return event, err
 }
@@ -160,7 +107,8 @@ func (rer *roomEventRepository) CountByRoomID(ctx context.Context, roomID string
 	var count int64
 	err := rer.Svc().DB(ctx, true).
 		Model(&models.RoomEvent{}).
-		Where("room_id = ?", roomID).
+		Unscoped().
+		Where("room_id = ? AND deleted_at = 0", roomID).
 		Count(&count).Error
 	return count, err
 }

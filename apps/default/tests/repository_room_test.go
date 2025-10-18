@@ -29,7 +29,7 @@ func (s *RoomRepositoryTestSuite) TestCreateRoom() {
 			Name:        "Test Room",
 			Description: "Test Description",
 			IsPublic:    true,
-			Metadata:    frame.JSONMap{"key": "value"},
+			Properties:  frame.JSONMap{"key": "value"},
 		}
 		room.GenID(ctx)
 
@@ -126,6 +126,7 @@ func (s *RoomRepositoryTestSuite) TestSearchRooms() {
 
 func (s *RoomRepositoryTestSuite) TestGetRoomsByIDs() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+		svc, ctx := s.CreateService(t, dep)
 		repo := repository.NewRoomRepository(svc)
 
 		// Create rooms
@@ -137,9 +138,13 @@ func (s *RoomRepositoryTestSuite) TestGetRoomsByIDs() {
 		s.NoError(repo.Save(ctx, room1))
 		s.NoError(repo.Save(ctx, room2))
 
-		// Get by IDs
-		rooms, err := repo.GetByIDs(ctx, []string{room1.GetID(), room2.GetID()})
+		// Get by ID individually (GetByIDs doesn't exist)
+		retrieved1, err := repo.GetByID(ctx, room1.GetID())
 		s.NoError(err)
-		s.Len(rooms, 2)
+		s.Equal(room1.Name, retrieved1.Name)
+
+		retrieved2, err := repo.GetByID(ctx, room2.GetID())
+		s.NoError(err)
+		s.Equal(room2.Name, retrieved2.Name)
 	})
 }

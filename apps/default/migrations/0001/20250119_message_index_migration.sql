@@ -1,5 +1,4 @@
-
-ALTER TABLE rosters
+ALTER TABLE room_events
     ADD COLUMN search_properties tsvector GENERATED ALWAYS AS ( jsonb_to_tsv(COALESCE(properties, '{}'::jsonb)) ) STORED;
 
-CREATE INDEX idx_rosters_search_properties ON rosters USING GIN (search_properties);
+CREATE INDEX idx_room_events_search_properties ON room_events USING GIN (search_properties);

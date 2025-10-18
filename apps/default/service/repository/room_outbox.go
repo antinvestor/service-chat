@@ -87,7 +87,9 @@ func (ror *roomOutboxRepository) UpdateStatus(ctx context.Context, id, status st
 	return ror.Svc().DB(ctx, false).
 		Model(&models.RoomOutbox{}).
 		Where("id = ?", id).
-		Update("status", status).Error
+		Updates(map[string]interface{}{
+			"status": status,
+		}).Error
 }
 
 // UpdateStatusWithError updates the status and error message of an outbox entry.

@@ -30,7 +30,7 @@ func (s *SubscriptionRepositoryTestSuite) TestCreateSubscription() {
 			Role:                 repository.RoleMember,
 			IsActive:             true,
 			NotificationsEnabled: true,
-			Metadata:             frame.JSONMap{"test": "data"},
+			Properties:           frame.JSONMap{"test": "data"},
 		}
 		sub.GenID(ctx)
 

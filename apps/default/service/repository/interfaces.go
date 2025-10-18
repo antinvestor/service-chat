@@ -20,10 +20,7 @@ type RoomRepository interface {
 type RoomEventRepository interface {
 	framedata.BaseRepository[*models.RoomEvent]
 	GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomEvent, error)
-	GetHistory(ctx context.Context, roomID string, beforeSequence, afterSequence int64, limit int) ([]*models.RoomEvent, error)
-	GetBySequenceRange(ctx context.Context, roomID string, fromSequence, toSequence int64) ([]*models.RoomEvent, error)
-	GetNextSequence(ctx context.Context, roomID string) (int64, error)
-	GetLatestSequence(ctx context.Context, roomID string) (int64, error)
+	GetHistory(ctx context.Context, roomID string, beforeEventID, afterEventID string, limit int) ([]*models.RoomEvent, error)
 	GetByEventID(ctx context.Context, roomID, eventID string) (*models.RoomEvent, error)
 	CountByRoomID(ctx context.Context, roomID string) (int64, error)
 }
@@ -54,7 +51,7 @@ type RoomSubscriptionRepository interface {
 	GetMembersByRoomID(ctx context.Context, roomID string) ([]string, error)
 	GetByRole(ctx context.Context, roomID, role string) ([]*models.RoomSubscription, error)
 	UpdateRole(ctx context.Context, id, role string) error
-	UpdateLastReadSequence(ctx context.Context, id string, sequence int64) error
+	UpdateLastReadEventID(ctx context.Context, id string, eventID string) error
 	Deactivate(ctx context.Context, id string) error
 	Activate(ctx context.Context, id string) error
 	CountActiveMembers(ctx context.Context, roomID string) (int64, error)

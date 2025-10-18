@@ -283,7 +283,7 @@ func (cb *connectBusiness) SendReadReceipt(ctx context.Context, profileID string
 
 	// Update to the new event ID
 	// UnreadCount is now a generated column and will be automatically calculated
-	sub.LastReadSequence = eventID
+	sub.LastReadEventID = eventID
 	sub.LastReadAt = time.Now().Unix()
 	
 	if err := cb.subRepo.Save(ctx, sub); err != nil {
@@ -291,7 +291,7 @@ func (cb *connectBusiness) SendReadReceipt(ctx context.Context, profileID string
 	}
 
 	// Broadcast read receipt to other room members
-	event := &chatv1.ServerEvent{
+	receiptEvent := &chatv1.ServerEvent{
 		Payload: &chatv1.ServerEvent_ReceiptEvent{
 			ReceiptEvent: &chatv1.ReceiptEvent{
 				ProfileId: profileID,
@@ -302,7 +302,7 @@ func (cb *connectBusiness) SendReadReceipt(ctx context.Context, profileID string
 		},
 	}
 
-	return cb.BroadcastEvent(ctx, roomID, event)
+	return cb.BroadcastEvent(ctx, roomID, receiptEvent)
 }
 
 // Helper methods for connection management

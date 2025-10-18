@@ -4,7 +4,6 @@ import (
 	"time"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
-	profilev1 "github.com/antinvestor/apis/go/profile/v1"
 	"github.com/pitabwire/frame"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,7 +15,7 @@ type Room struct {
 	RoomType    string `json:"room_type"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Metadata    frame.JSONMap
+	Properties  frame.JSONMap
 	IsPublic    bool
 }
 
@@ -27,8 +26,8 @@ func (r *Room) ToAPI() *chatv1.Room {
 	}
 
 	var metadata *structpb.Struct
-	if r.Metadata != nil {
-		metadata, _ = structpb.NewStruct(r.Metadata)
+	if r.Properties != nil {
+		metadata, _ = structpb.NewStruct(r.Properties)
 	}
 
 	return &chatv1.Room{
@@ -54,14 +53,15 @@ type RoomCall struct {
 }
 
 // RoomEvent represents a message or event in a room.
+// The ID field (from BaseModel) is naturally time-sorted and used for ordering.
 type RoomEvent struct {
 	frame.BaseModel
-	RoomID      string `gorm:"type:varchar(50)"`
+	RoomID      string `gorm:"type:varchar(50);index:idx_room_id"`
 	SenderID    string `gorm:"type:varchar(50)"`
 	MessageType string
 	Content     frame.JSONMap
-	Metadata    frame.JSONMap
-	DeletedAt   int64
+	Properties  frame.JSONMap
+	DeletedAt   int64  `gorm:"column:deleted_at"`
 }
 
 // ToAPI converts RoomEvent model to API RoomEvent representation.
@@ -71,8 +71,8 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 	}
 
 	var payload *structpb.Struct
-	if re.Metadata != nil {
-		payload, _ = structpb.NewStruct(re.Metadata)
+	if re.Properties != nil {
+		payload, _ = structpb.NewStruct(re.Properties)
 	}
 
 	// Map message type to RoomEventType
@@ -111,11 +111,11 @@ type RoomSubscription struct {
 	ProfileID            string `gorm:"type:varchar(50)"`
 	Role                 string
 	IsActive             bool
-	LastReadSequence     string
+	LastReadEventID      string `gorm:"type:varchar(50)"` // ID of the last read event (naturally time-sorted)
 	LastReadAt           int64
-	UnreadCount          int `gorm:"->;type:int;default:(SELECT COUNT(*) FROM room_outboxes WHERE room_outboxes.subscription_id = room_subscriptions.id AND room_outboxes.status = 'pending' AND room_outboxes.deleted_at = 0)"`
+	UnreadCount          int `gorm:"->"` // Read-only field, calculated via application logic or database trigger
 	NotificationsEnabled bool
-	Metadata             frame.JSONMap
+	Properties           frame.JSONMap
 }
 
 // ToAPI converts RoomSubscription model to API representation.
@@ -136,42 +136,4 @@ func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 		JoinedAt:   timestamppb.New(rs.CreatedAt),
 		LastActive: lastActive,
 	}
-}
-
-// Address represents a physical address (from profile service).
-type Address struct {
-	frame.BaseModel
-	Name      string `gorm:"type:varchar(250)"`
-	AdminUnit string `gorm:"type:varchar(250)"`
-	CountryID string `gorm:"type:varchar(3)"`
-	Country   *Country
-}
-
-// ToAPI converts Address model to API representation.
-func (a *Address) ToAPI() *profilev1.AddressObject {
-	if a == nil {
-		return nil
-	}
-	return &profilev1.AddressObject{
-		Id:      a.GetID(),
-		Name:    a.Name,
-		Area:    a.AdminUnit,
-		Country: a.CountryID,
-	}
-}
-
-// ProfileAddress represents the link between a profile and an address.
-type ProfileAddress struct {
-	frame.BaseModel
-	Name      string `gorm:"type:varchar(250)"`
-	AddressID string `gorm:"type:varchar(50)"`
-	ProfileID string `gorm:"type:varchar(50)"`
-	Address   *Address
-}
-
-// Country represents a country entity.
-type Country struct {
-	ISO3 string `gorm:"primaryKey;type:varchar(3)"`
-	ISO2 string `gorm:"type:varchar(2)"`
-	Name string `gorm:"type:varchar(250)"`
 }

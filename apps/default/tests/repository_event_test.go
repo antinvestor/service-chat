@@ -30,7 +30,7 @@ func (s *EventRepositoryTestSuite) TestCreateEvent() {
 			SenderID:    util.IDString(),
 			MessageType: chatv1.RoomEventType_MESSAGE_TYPE_TEXT.String(),
 			Content:     frame.JSONMap{"text": "Hello World"},
-			Metadata:    frame.JSONMap{"key": "value"},
+			Properties:  frame.JSONMap{"key": "value"},
 		}
 		event.GenID(ctx)
 
@@ -68,7 +68,7 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 		}
 
 		// Get history with limit
-		events, err := repo.GetHistory(ctx, roomID, 0, 0, 5)
+		events, err := repo.GetHistory(ctx, roomID, "", "", 5)
 		s.NoError(err)
 		s.Len(events, 5)
 

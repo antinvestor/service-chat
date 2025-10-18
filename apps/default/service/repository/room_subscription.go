@@ -121,12 +121,12 @@ func (rsr *roomSubscriptionRepository) UpdateRole(ctx context.Context, id, role 
 		Update("role", role).Error
 }
 
-// UpdateLastReadSequence updates the last read sequence for a subscription.
-func (rsr *roomSubscriptionRepository) UpdateLastReadSequence(ctx context.Context, id string, sequence int64) error {
+// UpdateLastReadEventID updates the last read event ID for a subscription.
+func (rsr *roomSubscriptionRepository) UpdateLastReadEventID(ctx context.Context, id string, eventID string) error {
 	return rsr.Svc().DB(ctx, false).
 		Model(&models.RoomSubscription{}).
 		Where("id = ?", id).
-		Update("last_read_sequence", sequence).Error
+		Update("last_read_event_id", eventID).Error
 }
 
 // Deactivate marks a subscription as inactive.

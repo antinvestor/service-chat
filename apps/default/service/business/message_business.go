@@ -184,7 +184,7 @@ func (mb *messageBusiness) GetHistory(ctx context.Context, req *chatv1.GetHistor
 	}
 
 	// Get messages
-	events, err := mb.eventRepo.GetHistory(ctx, req.RoomId, 0, 0, limit)
+	events, err := mb.eventRepo.GetHistory(ctx, req.RoomId, "", "", limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get message history: %w", err)
 	}
@@ -256,7 +256,7 @@ func (mb *messageBusiness) MarkMessagesAsRead(ctx context.Context, roomID string
 
 	// Update the last read event ID
 	// UnreadCount is now a generated column and will be automatically calculated
-	sub.LastReadSequence = eventID
+	sub.LastReadEventID = eventID
 	sub.LastReadAt = time.Now().Unix()
 
 	if err := mb.subRepo.Save(ctx, sub); err != nil {
