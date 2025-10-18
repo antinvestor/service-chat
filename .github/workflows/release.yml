@@ -1,0 +1,104 @@
+name: Release docker images for all apps
+
+on:
+  create:
+    tags:
+      - "v*.*.*"
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.set-matrix.outputs.apps }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - id: set-matrix
+        name: Find all apps with Dockerfiles
+        run: |
+          APPS=$(find ./apps -name "Dockerfile" -exec dirname {} \; | sed 's|^\./||' | jq -R -s -c 'split("\n")[:-1]')
+          echo "apps=$APPS" >> $GITHUB_OUTPUT
+          echo "Found apps: $APPS"
+
+  build-and-push-images:
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.build-matrix.outputs.apps) }}
+    steps:
+      - name: Checkout code for performing a release
+        uses: actions/checkout@v5
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Get app name from directory path and set image name based on app type
+      - name: Extract app name and set image name
+        id: app-name
+        run: |
+          APP_NAME=$(basename ${{ matrix.app }})
+          APP_PATH=${{ matrix.app }}
+          
+          # Check if this is the default app or an integration
+          if [[ "${{ matrix.app }}" == "apps/default" ]]; then
+            # Default app uses repository name
+            IMAGE_NAME=${{ github.repository }}
+          elif [[ "${{ matrix.app }}" == apps/integrations/* ]]; then
+            # Integration apps use <repo name>-integration-<app name>
+            IMAGE_NAME="${{ github.repository }}-integration-${APP_NAME}"
+          else
+            # Fallback for any other apps
+            IMAGE_NAME="${{ github.repository }}-${APP_NAME}"
+          fi
+          
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "App name: $APP_NAME, Path: $APP_PATH, Image name: $IMAGE_NAME"
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # list of Docker images to use as base name for tags
+          images: |
+            ghcr.io/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=true
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{raw}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value={{tag}}
+            type=sha
+            type=sha,format=long
+
+      # Push to Github Container Registry
+      - name: Build and Push Image to Github Container Registry
+        uses: docker/build-push-action@v6
+        with:
+          context: ./
+          file: ./${{ env.APP_PATH }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}

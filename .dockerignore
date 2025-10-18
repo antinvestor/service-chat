@@ -1,0 +1,33 @@
+# Git files
+.git
+.gitignore
+
+# IDE files
+.idea
+.vscode
+
+# Build artifacts
+bin
+vendor
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Logs
+*.log
+
+# Local development config
+.env
+.env.local
+.env.development
+
+# Other unnecessary files
+README.md
+LICENSE
+*.md
+docs
+apps/default/tests

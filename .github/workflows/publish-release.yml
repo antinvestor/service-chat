@@ -1,0 +1,32 @@
+name: Publish New Release
+
+on:
+  schedule:
+    - cron: "0 0 */5 * *"  # Runs every 3 days at midnight UTC
+
+jobs:
+  check-draft-exists:
+    runs-on: ubuntu-latest
+    outputs:
+      draft_id: ${{ steps.check_draft.outputs.draft_id }}
+    steps:
+      - name: Check if draft release exists
+        id: check_draft
+        run: |
+          DRAFT_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                                -H "Accept: application/vnd.github.v3+json" \
+                                https://api.github.com/repos/${{ github.repository }}/releases)
+          DRAFT_RELEASE_ID=$(echo "$DRAFT_RELEASE" | jq -r '.[] | select(.draft == true) | .id // empty')
+          echo "draft_id=$DRAFT_RELEASE_ID" >> $GITHUB_OUTPUT
+
+  publish-release:
+    needs: check-draft-exists
+    runs-on: ubuntu-latest
+    if: needs.check-draft-exists.outputs.draft_id != ''
+    steps:
+      - name: Publish the release
+        uses: eregon/publish-release@v1
+        with:
+          release_id: ${{ needs.check-draft-exists.outputs.draft_id }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

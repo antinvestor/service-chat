@@ -1,0 +1,24 @@
+name: Service testing action
+
+on: [push]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout new code for testing
+        uses: actions/checkout@v5
+      - name: Setup go testing infrastructure
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+      - name: Set up gotestfmt
+        uses: gotesttools/gotestfmt-action@v2
+        with:
+          # Optional: pass GITHUB_TOKEN to avoid rate limiting.
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: go test -json -v ./... 2>&1 | gotestfmt -hide all
+
