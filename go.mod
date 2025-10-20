@@ -7,7 +7,7 @@ require (
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.8.0
 	github.com/antinvestor/apis/go/chat v1.46.6
-	github.com/antinvestor/apis/go/common v1.46.4
+	github.com/antinvestor/apis/go/common v1.46.6
 	github.com/antinvestor/apis/go/notification v1.46.6
 	github.com/antinvestor/apis/go/profile v1.46.6
 	github.com/pitabwire/frame v1.61.1
