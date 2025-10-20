@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Connection represents an active client connection
+// Connection represents an active client connection.
 type Connection struct {
 	ProfileID  string
 	DeviceID   string
@@ -28,17 +28,17 @@ type connectBusiness struct {
 	subRepo         repository.RoomSubscriptionRepository
 	eventRepo       repository.RoomEventRepository
 	subscriptionSvc SubscriptionService
-	
+
 	// Connection management
 	connections map[string]*Connection // key: profileID:deviceID
 	connMu      sync.RWMutex
-	
+
 	// Room-based connection tracking for efficient broadcasting
 	roomConnections map[string]map[string]*Connection // roomID -> (profileID:deviceID -> Connection)
 	roomMu          sync.RWMutex
 }
 
-// NewConnectBusiness creates a new instance of ConnectBusiness
+// NewConnectBusiness creates a new instance of ConnectBusiness.
 func NewConnectBusiness(
 	service *frame.Service,
 	subRepo repository.RoomSubscriptionRepository,
@@ -55,8 +55,13 @@ func NewConnectBusiness(
 	}
 }
 
-// HandleConnection manages a bidirectional streaming connection for real-time events
-func (cb *connectBusiness) HandleConnection(ctx context.Context, profileID string, deviceID string, stream ConnectionStream) error {
+// HandleConnection manages a bidirectional streaming connection for real-time events.
+func (cb *connectBusiness) HandleConnection(
+	ctx context.Context,
+	profileID string,
+	deviceID string,
+	stream ConnectionStream,
+) error {
 	if profileID == "" {
 		return service.ErrUnspecifiedID
 	}
@@ -140,9 +145,13 @@ func (cb *connectBusiness) HandleConnection(ctx context.Context, profileID strin
 	}
 }
 
-// handleClientCommand processes commands from the client
-func (cb *connectBusiness) handleClientCommand(ctx context.Context, conn *Connection, req *chatv1.ConnectRequest) error {
-	switch cmd := req.Payload.(type) {
+// handleClientCommand processes commands from the client.
+func (cb *connectBusiness) handleClientCommand(
+	ctx context.Context,
+	conn *Connection,
+	req *chatv1.ConnectRequest,
+) error {
+	switch cmd := req.GetPayload().(type) {
 	case *chatv1.ConnectRequest_Command:
 		return cb.handleCommand(ctx, conn, cmd.Command)
 	case *chatv1.ConnectRequest_Ack:
@@ -153,27 +162,32 @@ func (cb *connectBusiness) handleClientCommand(ctx context.Context, conn *Connec
 	}
 }
 
-// handleCommand processes specific client commands
+// handleCommand processes specific client commands.
 func (cb *connectBusiness) handleCommand(ctx context.Context, conn *Connection, cmd *chatv1.ClientCommand) error {
-	switch payload := cmd.Cmd.(type) {
+	switch payload := cmd.GetCmd().(type) {
 	case *chatv1.ClientCommand_Typing:
 		// Handle typing indicator
-		return cb.SendTypingIndicator(ctx, conn.ProfileID, payload.Typing.RoomId, payload.Typing.Typing)
-		
+		return cb.SendTypingIndicator(ctx, conn.ProfileID, payload.Typing.GetRoomId(), payload.Typing.GetTyping())
+
 	case *chatv1.ClientCommand_ReadMarker:
 		// Handle read receipt - use event ID directly
-		eventID := payload.ReadMarker.UpToEventId
+		eventID := payload.ReadMarker.GetUpToEventId()
 		if eventID == "" {
 			return nil
 		}
-		return cb.SendReadReceipt(ctx, conn.ProfileID, payload.ReadMarker.RoomId, eventID)
-		
+		return cb.SendReadReceipt(ctx, conn.ProfileID, payload.ReadMarker.GetRoomId(), eventID)
+
 	default:
 		return nil
 	}
 }
 
-// BroadcastEvent sends an event to all subscribers of a room
+// ReceiveEvent receives an event from a connected user.
+func (cb *connectBusiness) ReceiveEvent(ctx context.Context, event *chatv1.RoomEvent) (error, *chatv1.StreamAck) {
+	return nil, nil
+}
+
+// BroadcastEvent sends an event to all subscribers of a room.
 func (cb *connectBusiness) BroadcastEvent(ctx context.Context, roomID string, event *chatv1.ServerEvent) error {
 	if roomID == "" {
 		return service.ErrRoomIDRequired
@@ -203,8 +217,13 @@ func (cb *connectBusiness) BroadcastEvent(ctx context.Context, roomID string, ev
 	return nil
 }
 
-// SendPresenceUpdate sends presence updates to room subscribers
-func (cb *connectBusiness) SendPresenceUpdate(ctx context.Context, profileID string, roomID string, status chatv1.PresenceStatus) error {
+// SendPresenceUpdate sends presence updates to room subscribers.
+func (cb *connectBusiness) SendPresenceUpdate(
+	ctx context.Context,
+	profileID string,
+	roomID string,
+	status chatv1.PresenceStatus,
+) error {
 	if profileID == "" {
 		return service.ErrUnspecifiedID
 	}
@@ -225,8 +244,13 @@ func (cb *connectBusiness) SendPresenceUpdate(ctx context.Context, profileID str
 	return cb.BroadcastEvent(ctx, roomID, event)
 }
 
-// SendTypingIndicator sends typing indicators to room subscribers
-func (cb *connectBusiness) SendTypingIndicator(ctx context.Context, profileID string, roomID string, isTyping bool) error {
+// SendTypingIndicator sends typing indicators to room subscribers.
+func (cb *connectBusiness) SendTypingIndicator(
+	ctx context.Context,
+	profileID string,
+	roomID string,
+	isTyping bool,
+) error {
 	if profileID == "" {
 		return service.ErrUnspecifiedID
 	}
@@ -257,7 +281,7 @@ func (cb *connectBusiness) SendTypingIndicator(ctx context.Context, profileID st
 	return cb.BroadcastEvent(ctx, roomID, event)
 }
 
-// SendReadReceipt sends read receipts to room subscribers
+// SendReadReceipt sends read receipts to room subscribers.
 func (cb *connectBusiness) SendReadReceipt(ctx context.Context, profileID string, roomID string, eventID string) error {
 	if profileID == "" {
 		return service.ErrUnspecifiedID
@@ -285,7 +309,7 @@ func (cb *connectBusiness) SendReadReceipt(ctx context.Context, profileID string
 	// UnreadCount is now a generated column and will be automatically calculated
 	sub.LastReadEventID = eventID
 	sub.LastReadAt = time.Now().Unix()
-	
+
 	if err := cb.subRepo.Save(ctx, sub); err != nil {
 		return fmt.Errorf("failed to update subscription: %w", err)
 	}

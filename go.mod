@@ -3,12 +3,13 @@ module github.com/antinvestor/service-chat
 go 1.25.2
 
 require (
+	buf.build/go/protovalidate v1.0.0
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.8.0
-	github.com/antinvestor/apis/go/chat v1.46.0
-	github.com/antinvestor/apis/go/common v1.45.1
-	github.com/antinvestor/apis/go/notification v1.45.3
-	github.com/antinvestor/apis/go/profile v1.45.3
+	github.com/antinvestor/apis/go/chat v1.46.6
+	github.com/antinvestor/apis/go/common v1.46.4
+	github.com/antinvestor/apis/go/notification v1.46.6
+	github.com/antinvestor/apis/go/profile v1.46.6
 	github.com/pitabwire/frame v1.61.1
 	github.com/pitabwire/util v0.3.5
 	github.com/stretchr/testify v1.11.1
@@ -20,7 +21,6 @@ require (
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.10-20250912141014-52f32327d4b0.1 // indirect
-	buf.build/go/protovalidate v1.0.0 // indirect
 	cel.dev/expr v0.24.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -50,6 +50,8 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/google/cel-go v0.26.1 // indirect
+	github.com/google/gnostic v0.7.1 // indirect
+	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
@@ -59,7 +61,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/klauspost/compress v1.18.1 // indirect
 	github.com/lmittmann/tint v1.1.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
@@ -72,7 +74,7 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/nats.go v1.46.1 // indirect
+	github.com/nats-io/nats.go v1.47.0 // indirect
 	github.com/nats-io/nkeys v0.4.11 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nicksnyder/go-i18n/v2 v2.6.0 // indirect
@@ -129,6 +131,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.8.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	gocloud.dev v0.43.0 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
@@ -139,8 +142,8 @@ require (
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/api v0.252.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251007200510-49b9836ed3ff // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251007200510-49b9836ed3ff // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20251014184007-4626949a642f // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251014184007-4626949a642f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/postgres v1.6.0 // indirect
 )

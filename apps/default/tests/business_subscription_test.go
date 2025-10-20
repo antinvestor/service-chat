@@ -20,7 +20,9 @@ func TestSubscriptionServiceTestSuite(t *testing.T) {
 	suite.Run(t, new(SubscriptionServiceTestSuite))
 }
 
-func (s *SubscriptionServiceTestSuite) setupBusinessLayer(svc *frame.Service) (business.SubscriptionService, business.RoomBusiness) {
+func (s *SubscriptionServiceTestSuite) setupBusinessLayer(
+	svc *frame.Service,
+) (business.SubscriptionService, business.RoomBusiness) {
 	roomRepo := repository.NewRoomRepository(svc)
 	eventRepo := repository.NewRoomEventRepository(svc)
 	subRepo := repository.NewRoomSubscriptionRepository(svc)
@@ -53,17 +55,17 @@ func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 		s.NoError(err)
 
 		// Creator should have access
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.Id)
+		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
 		// Member should have access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
 		// Non-member should not have access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.GetId())
 		s.NoError(err)
 		s.False(hasAccess)
 	})
@@ -88,17 +90,17 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 		s.NoError(err)
 
 		// Creator should have owner role
-		hasRole, err := subscriptionSvc.HasRole(ctx, creatorID, room.Id, repository.RoleOwner)
+		hasRole, err := subscriptionSvc.HasRole(ctx, creatorID, room.GetId(), repository.RoleOwner)
 		s.NoError(err)
 		s.True(hasRole)
 
 		// Member should not have owner role
-		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.Id, repository.RoleOwner)
+		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleOwner)
 		s.NoError(err)
 		s.False(hasRole)
 
 		// Member should have member role
-		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.Id, repository.RoleMember)
+		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleMember)
 		s.NoError(err)
 		s.True(hasRole)
 	})
@@ -113,7 +115,7 @@ func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 		userID := util.IDString()
 		roomCount := 5
 
-		for i := 0; i < roomCount; i++ {
+		for range roomCount {
 			roomReq := &chatv1.CreateRoomRequest{
 				Name:      util.RandomString(10),
 				IsPrivate: false,
@@ -150,15 +152,15 @@ func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 		s.NoError(err)
 
 		// Check membership via HasAccess
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.Id)
+		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.GetId())
 		s.NoError(err)
 		s.False(hasAccess)
 	})
@@ -183,13 +185,13 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 		s.NoError(err)
 
 		// Verify member has access
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, memberID, room.Id)
+		hasAccess, err := subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
 		// Remove member
 		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
-			RoomId:     room.Id,
+			RoomId:     room.GetId(),
 			ProfileIds: []string{memberID},
 		}
 
@@ -197,7 +199,7 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 		s.NoError(err)
 
 		// Verify member no longer has access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
 		s.NoError(err)
 		s.False(hasAccess)
 	})

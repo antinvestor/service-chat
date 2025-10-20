@@ -21,7 +21,9 @@ func TestIntegrationTestSuite(t *testing.T) {
 	suite.Run(t, new(IntegrationTestSuite))
 }
 
-func (s *IntegrationTestSuite) setupBusinessLayer(svc *frame.Service) (business.RoomBusiness, business.MessageBusiness, business.SubscriptionService) {
+func (s *IntegrationTestSuite) setupBusinessLayer(
+	svc *frame.Service,
+) (business.RoomBusiness, business.MessageBusiness, business.SubscriptionService) {
 	roomRepo := repository.NewRoomRepository(svc)
 	eventRepo := repository.NewRoomEventRepository(svc)
 	subRepo := repository.NewRoomSubscriptionRepository(svc)
@@ -56,24 +58,24 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		s.NotNil(room)
 
 		// 2. Verify all members have access
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.Id)
+		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, member1ID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, member1ID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
 		// 3. Send messages
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(20),
 			})
 
-			msgReq := &chatv1.SendMessageRequest{
+			msgReq := &chatv1.SendEventRequest{
 				Message: []*chatv1.RoomEvent{
 					{
-						RoomId:   room.Id,
+						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 						Payload:  payload,
@@ -81,14 +83,14 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 				},
 			}
 
-			acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 			s.NoError(err)
 			s.Len(acks, 1)
 		}
 
 		// 4. Get history
 		historyReq := &chatv1.GetHistoryRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 			Limit:  10,
 		}
 
@@ -98,19 +100,19 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 
 		// 5. Update room
 		updateReq := &chatv1.UpdateRoomRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 			Name:   "Updated Room Name",
 			Topic:  "Updated Description",
 		}
 
 		updated, err := roomBusiness.UpdateRoom(ctx, updateReq, creatorID)
 		s.NoError(err)
-		s.Equal("Updated Room Name", updated.Name)
+		s.Equal("Updated Room Name", updated.GetName())
 
 		// 6. Add new member
 		newMemberID := util.IDString()
 		addReq := &chatv1.AddRoomSubscriptionsRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 			Members: []*chatv1.RoomSubscription{
 				{
 					ProfileId: newMemberID,
@@ -123,13 +125,13 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		s.NoError(err)
 
 		// 7. Verify new member has access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, newMemberID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, newMemberID, room.GetId())
 		s.NoError(err)
 		s.True(hasAccess)
 
 		// 8. Remove member
 		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
-			RoomId:     room.Id,
+			RoomId:     room.GetId(),
 			ProfileIds: []string{member2ID},
 		}
 
@@ -137,20 +139,20 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		s.NoError(err)
 
 		// 9. Verify removed member no longer has access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, member2ID, room.Id)
+		hasAccess, err = subscriptionSvc.HasAccess(ctx, member2ID, room.GetId())
 		s.NoError(err)
 		s.False(hasAccess)
 
 		// 10. Delete room
 		deleteReq := &chatv1.DeleteRoomRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 		}
 
 		err = roomBusiness.DeleteRoom(ctx, deleteReq, creatorID)
 		s.NoError(err)
 
 		// 11. Verify room is deleted
-		_, err = roomBusiness.GetRoom(ctx, room.Id, creatorID)
+		_, err = roomBusiness.GetRoom(ctx, room.GetId(), creatorID)
 		s.Error(err)
 	})
 }
@@ -164,7 +166,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 
 		// Create multiple rooms
 		rooms := []*chatv1.Room{}
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			createReq := &chatv1.CreateRoomRequest{
 				Name:      util.RandomString(10),
 				IsPrivate: false,
@@ -177,15 +179,15 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 
 		// Send messages to each room
 		for _, room := range rooms {
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				payload, _ := structpb.NewStruct(map[string]interface{}{
 					"text": util.RandomString(15),
 				})
 
-				msgReq := &chatv1.SendMessageRequest{
+				msgReq := &chatv1.SendEventRequest{
 					Message: []*chatv1.RoomEvent{
 						{
-							RoomId:   room.Id,
+							RoomId:   room.GetId(),
 							SenderId: userID,
 							Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 							Payload:  payload,
@@ -193,7 +195,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 					},
 				}
 
-				_, err := messageBusiness.SendMessage(ctx, msgReq, userID)
+				_, err := messageBusiness.SendEvents(ctx, msgReq, userID)
 				s.NoError(err)
 			}
 		}
@@ -201,7 +203,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 		// Verify each room has its messages
 		for _, room := range rooms {
 			historyReq := &chatv1.GetHistoryRequest{
-				RoomId: room.Id,
+				RoomId: room.GetId(),
 				Limit:  10,
 			}
 
@@ -211,7 +213,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 
 			// Verify all messages belong to this room
 			for _, event := range events {
-				s.Equal(room.Id, event.RoomId)
+				s.Equal(room.GetId(), event.GetRoomId())
 			}
 		}
 	})
@@ -238,7 +240,7 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 
 		// Promote one member to admin
 		updateRoleReq := &chatv1.UpdateSubscriptionRoleRequest{
-			RoomId:    room.Id,
+			RoomId:    room.GetId(),
 			ProfileId: adminID,
 			Roles:     []string{"admin"},
 		}
@@ -247,21 +249,21 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		s.NoError(err)
 
 		// Verify roles
-		hasRole, err := subscriptionSvc.HasRole(ctx, ownerID, room.Id, repository.RoleOwner)
+		hasRole, err := subscriptionSvc.HasRole(ctx, ownerID, room.GetId(), repository.RoleOwner)
 		s.NoError(err)
 		s.True(hasRole)
 
-		hasRole, err = subscriptionSvc.HasRole(ctx, adminID, room.Id, repository.RoleAdmin)
+		hasRole, err = subscriptionSvc.HasRole(ctx, adminID, room.GetId(), repository.RoleAdmin)
 		s.NoError(err)
 		s.True(hasRole)
 
-		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.Id, repository.RoleMember)
+		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleMember)
 		s.NoError(err)
 		s.True(hasRole)
 
 		// Admin should be able to update room
 		updateReq := &chatv1.UpdateRoomRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 			Name:   "Updated by Admin",
 		}
 
@@ -275,7 +277,7 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 
 		// Only owner should be able to delete room
 		deleteReq := &chatv1.DeleteRoomRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 		}
 
 		err = roomBusiness.DeleteRoom(ctx, deleteReq, adminID)
@@ -304,15 +306,15 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 
 		// Send messages
 		messageIDs := []string{}
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(10),
 			})
 
-			msgReq := &chatv1.SendMessageRequest{
+			msgReq := &chatv1.SendEventRequest{
 				Message: []*chatv1.RoomEvent{
 					{
-						RoomId:   room.Id,
+						RoomId:   room.GetId(),
 						SenderId: userID,
 						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 						Payload:  payload,
@@ -320,20 +322,20 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 				},
 			}
 
-			acks, err := messageBusiness.SendMessage(ctx, msgReq, userID)
+			acks, err := messageBusiness.SendEvents(ctx, msgReq, userID)
 			s.NoError(err)
-			messageIDs = append(messageIDs, acks[0].EventId)
+			messageIDs = append(messageIDs, acks[0].GetEventId())
 		}
 
 		// Delete some messages via repository
 		eventRepo := repository.NewRoomEventRepository(svc)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			err := eventRepo.Delete(ctx, messageIDs[i])
 			s.NoError(err)
 		}
 
 		// Verify deleted messages cannot be retrieved
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			_, err := eventRepo.GetByID(ctx, messageIDs[i])
 			s.Error(err)
 		}
@@ -384,7 +386,7 @@ func (s *IntegrationTestSuite) TestSearchFunctionality() {
 		// Verify results contain "Alpha"
 		alphaCount := 0
 		for _, room := range results {
-			if room.Name == "Project Alpha Discussion" || room.Name == "Alpha Team Standup" {
+			if room.GetName() == "Project Alpha Discussion" || room.GetName() == "Alpha Team Standup" {
 				alphaCount++
 			}
 		}

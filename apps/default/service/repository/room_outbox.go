@@ -4,11 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/framedata"
 	"gorm.io/gorm"
-
-	"github.com/antinvestor/service-chat/apps/default/service/models"
 )
 
 const (
@@ -68,7 +67,11 @@ func (ror *roomOutboxRepository) GetPendingEntries(ctx context.Context, limit in
 }
 
 // GetFailedEntries retrieves outbox entries with failed status that can be retried.
-func (ror *roomOutboxRepository) GetFailedEntries(ctx context.Context, maxRetries int, limit int) ([]*models.RoomOutbox, error) {
+func (ror *roomOutboxRepository) GetFailedEntries(
+	ctx context.Context,
+	maxRetries int,
+	limit int,
+) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Svc().DB(ctx, true).
 		Where("status = ? AND retry_count < ?", OutboxStatusFailed, maxRetries).
@@ -112,7 +115,11 @@ func (ror *roomOutboxRepository) IncrementRetryCount(ctx context.Context, id str
 }
 
 // GetByRoomID retrieves all outbox entries for a specific room.
-func (ror *roomOutboxRepository) GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomOutbox, error) {
+func (ror *roomOutboxRepository) GetByRoomID(
+	ctx context.Context,
+	roomID string,
+	limit int,
+) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Svc().DB(ctx, true).
 		Where("room_id = ?", roomID).
@@ -146,7 +153,11 @@ func (ror *roomOutboxRepository) CleanupOldEntries(ctx context.Context, olderTha
 }
 
 // GetByStatus retrieves outbox entries by status.
-func (ror *roomOutboxRepository) GetByStatus(ctx context.Context, status string, limit int) ([]*models.RoomOutbox, error) {
+func (ror *roomOutboxRepository) GetByStatus(
+	ctx context.Context,
+	status string,
+	limit int,
+) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Svc().DB(ctx, true).
 		Where("status = ?", status).
@@ -161,7 +172,11 @@ func (ror *roomOutboxRepository) GetByStatus(ctx context.Context, status string,
 }
 
 // GetPendingBySubscription retrieves pending outbox entries for a specific subscription.
-func (ror *roomOutboxRepository) GetPendingBySubscription(ctx context.Context, subscriptionID string, limit int) ([]*models.RoomOutbox, error) {
+func (ror *roomOutboxRepository) GetPendingBySubscription(
+	ctx context.Context,
+	subscriptionID string,
+	limit int,
+) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Svc().DB(ctx, true).
 		Where("subscription_id = ? AND status = ?", subscriptionID, OutboxStatusPending).
@@ -178,6 +193,9 @@ func (ror *roomOutboxRepository) GetPendingBySubscription(ctx context.Context, s
 // NewRoomOutboxRepository creates a new room outbox repository instance.
 func NewRoomOutboxRepository(service *frame.Service) RoomOutboxRepository {
 	return &roomOutboxRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomOutbox](service, func() *models.RoomOutbox { return &models.RoomOutbox{} }),
+		BaseRepository: framedata.NewBaseRepository[*models.RoomOutbox](
+			service,
+			func() *models.RoomOutbox { return &models.RoomOutbox{} },
+		),
 	}
 }

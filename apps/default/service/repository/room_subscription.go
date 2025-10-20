@@ -3,11 +3,10 @@ package repository
 import (
 	"context"
 
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/framedata"
 	"gorm.io/gorm/clause"
-
-	"github.com/antinvestor/service-chat/apps/default/service/models"
 )
 
 const (
@@ -49,6 +48,7 @@ func (rsr *roomSubscriptionRepository) GetByRoomAndProfile(
 ) (*models.RoomSubscription, error) {
 	subscription := &models.RoomSubscription{}
 	err := rsr.Svc().DB(ctx, true).
+		Select("*"). // Explicitly select all columns including read-only unread_count
 		Where("room_id = ? AND profile_id = ?", roomID, profileID).
 		First(subscription).Error
 	return subscription, err
@@ -67,7 +67,11 @@ func (rsr *roomSubscriptionRepository) GetActiveByRoomAndProfile(
 }
 
 // GetByRoomID retrieves all subscriptions for a specific room.
-func (rsr *roomSubscriptionRepository) GetByRoomID(ctx context.Context, roomID string, activeOnly bool) ([]*models.RoomSubscription, error) {
+func (rsr *roomSubscriptionRepository) GetByRoomID(
+	ctx context.Context,
+	roomID string,
+	activeOnly bool,
+) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
 	query := rsr.Svc().DB(ctx, true).Where("room_id = ?", roomID)
 
@@ -80,7 +84,11 @@ func (rsr *roomSubscriptionRepository) GetByRoomID(ctx context.Context, roomID s
 }
 
 // GetByProfileID retrieves all subscriptions for a specific profile.
-func (rsr *roomSubscriptionRepository) GetByProfileID(ctx context.Context, profileID string, activeOnly bool) ([]*models.RoomSubscription, error) {
+func (rsr *roomSubscriptionRepository) GetByProfileID(
+	ctx context.Context,
+	profileID string,
+	activeOnly bool,
+) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
 	query := rsr.Svc().DB(ctx, true).
 		Preload(clause.Associations).
@@ -105,7 +113,10 @@ func (rsr *roomSubscriptionRepository) GetMembersByRoomID(ctx context.Context, r
 }
 
 // GetByRole retrieves subscriptions by room ID and role.
-func (rsr *roomSubscriptionRepository) GetByRole(ctx context.Context, roomID, role string) ([]*models.RoomSubscription, error) {
+func (rsr *roomSubscriptionRepository) GetByRole(
+	ctx context.Context,
+	roomID, role string,
+) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
 	err := rsr.Svc().DB(ctx, true).
 		Where("room_id = ? AND role = ? AND is_active = ?", roomID, role, true).
@@ -156,7 +167,10 @@ func (rsr *roomSubscriptionRepository) CountActiveMembers(ctx context.Context, r
 }
 
 // HasPermission checks if a profile has a specific role or higher in a room.
-func (rsr *roomSubscriptionRepository) HasPermission(ctx context.Context, roomID, profileID, minRole string) (bool, error) {
+func (rsr *roomSubscriptionRepository) HasPermission(
+	ctx context.Context,
+	roomID, profileID, minRole string,
+) (bool, error) {
 	subscription, err := rsr.GetActiveByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
 		if frame.ErrorIsNoRows(err) {
@@ -199,6 +213,9 @@ func (rsr *roomSubscriptionRepository) BulkCreate(ctx context.Context, subscript
 // NewRoomSubscriptionRepository creates a new room subscription repository instance.
 func NewRoomSubscriptionRepository(service *frame.Service) RoomSubscriptionRepository {
 	return &roomSubscriptionRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomSubscription](service, func() *models.RoomSubscription { return &models.RoomSubscription{} }),
+		BaseRepository: framedata.NewBaseRepository[*models.RoomSubscription](
+			service,
+			func() *models.RoomSubscription { return &models.RoomSubscription{} },
+		),
 	}
 }

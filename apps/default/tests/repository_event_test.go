@@ -56,7 +56,7 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 		senderID := util.IDString()
 
 		// Create multiple events
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			event := &models.RoomEvent{
 				RoomID:      roomID,
 				SenderID:    senderID,
@@ -73,7 +73,7 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 		s.Len(events, 5)
 
 		// Verify order (most recent first)
-		for i := 0; i < len(events)-1; i++ {
+		for i := range len(events) - 1 {
 			s.True(events[i].CreatedAt.After(events[i+1].CreatedAt) ||
 				events[i].CreatedAt.Equal(events[i+1].CreatedAt))
 		}
@@ -88,7 +88,7 @@ func (s *EventRepositoryTestSuite) TestGetByRoomID() {
 		roomID := util.IDString()
 
 		// Create events
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			event := &models.RoomEvent{
 				RoomID:      roomID,
 				SenderID:    util.IDString(),
@@ -114,7 +114,7 @@ func (s *EventRepositoryTestSuite) TestCountByRoomID() {
 		roomID := util.IDString()
 
 		// Create events
-		for i := 0; i < 7; i++ {
+		for range 7 {
 			event := &models.RoomEvent{
 				RoomID:      roomID,
 				SenderID:    util.IDString(),
@@ -141,7 +141,7 @@ func (s *EventRepositoryTestSuite) TestGetBySenderID() {
 		senderID := util.IDString()
 
 		// Create events from specific sender
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			event := &models.RoomEvent{
 				RoomID:      roomID,
 				SenderID:    senderID,
@@ -203,7 +203,7 @@ func (s *EventRepositoryTestSuite) TestPagination() {
 		roomID := util.IDString()
 
 		// Create many events
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			event := &models.RoomEvent{
 				RoomID:      roomID,
 				SenderID:    util.IDString(),

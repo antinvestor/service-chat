@@ -13,19 +13,19 @@ import (
 )
 
 const (
-	bearerScheme         = "Bearer"
-	bearerTokenParts     = 2
-	grpcAuthHeader       = "authorization"
+	bearerScheme     = "Bearer"
+	bearerTokenParts = 2
+	grpcAuthHeader   = "authorization"
 )
 
-// AuthInterceptor implements connect.Interceptor for authentication
+// AuthInterceptor implements connect.Interceptor for authentication.
 type AuthInterceptor struct {
 	svc      *frame.Service
 	audience string
 	issuer   string
 }
 
-// NewAuthInterceptor creates a new authentication interceptor
+// NewAuthInterceptor creates a new authentication interceptor.
 func NewAuthInterceptor(svc *frame.Service, audience string, issuer string) *AuthInterceptor {
 	return &AuthInterceptor{
 		svc:      svc,
@@ -34,13 +34,12 @@ func NewAuthInterceptor(svc *frame.Service, audience string, issuer string) *Aut
 	}
 }
 
-// WrapUnary implements the unary interceptor for authentication
+// WrapUnary implements the unary interceptor for authentication.
 func (a *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return connect.UnaryFunc(func(
 		ctx context.Context,
 		req connect.AnyRequest,
 	) (connect.AnyResponse, error) {
-
 		rawConfig := a.svc.Config()
 		runsSecurely := true
 		config, ok := rawConfig.(frame.ConfigurationSecurity)
@@ -91,18 +90,17 @@ func (a *AuthInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	})
 }
 
-// WrapStreamingClient implements the streaming client interceptor (pass-through for server-side)
+// WrapStreamingClient implements the streaming client interceptor (pass-through for server-side).
 func (a *AuthInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return next
 }
 
-// WrapStreamingHandler implements the streaming handler interceptor for authentication
+// WrapStreamingHandler implements the streaming handler interceptor for authentication.
 func (a *AuthInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return connect.StreamingHandlerFunc(func(
 		ctx context.Context,
 		conn connect.StreamingHandlerConn,
 	) error {
-
 		rawConfig := a.svc.Config()
 		runsSecurely := true
 		config, ok := rawConfig.(frame.ConfigurationSecurity)
@@ -153,12 +151,12 @@ func (a *AuthInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc
 	})
 }
 
-// ValidationInterceptor implements connect.Interceptor for protovalidate validation
+// ValidationInterceptor implements connect.Interceptor for protovalidate validation.
 type ValidationInterceptor struct {
 	validator protovalidate.Validator
 }
 
-// NewValidationInterceptor creates a new validation interceptor
+// NewValidationInterceptor creates a new validation interceptor.
 func NewValidationInterceptor() (*ValidationInterceptor, error) {
 	validator, err := protovalidate.New()
 	if err != nil {
@@ -170,13 +168,12 @@ func NewValidationInterceptor() (*ValidationInterceptor, error) {
 	}, nil
 }
 
-// WrapUnary validates unary requests and responses
+// WrapUnary validates unary requests and responses.
 func (v *ValidationInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return connect.UnaryFunc(func(
 		ctx context.Context,
 		req connect.AnyRequest,
 	) (connect.AnyResponse, error) {
-
 		// Validate request if it's a proto message
 		if msg, ok := req.Any().(proto.Message); ok {
 			if err := v.validator.Validate(msg); err != nil {
@@ -207,12 +204,12 @@ func (v *ValidationInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryF
 	})
 }
 
-// WrapStreamingClient validates streaming client messages
+// WrapStreamingClient validates streaming client messages.
 func (v *ValidationInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
 	return next // Client-side validation not needed on server
 }
 
-// WrapStreamingHandler validates streaming messages
+// WrapStreamingHandler validates streaming messages.
 func (v *ValidationInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return connect.StreamingHandlerFunc(func(
 		ctx context.Context,
@@ -228,13 +225,13 @@ func (v *ValidationInterceptor) WrapStreamingHandler(next connect.StreamingHandl
 	})
 }
 
-// validatingStreamConn wraps a StreamingHandlerConn to validate messages
+// validatingStreamConn wraps a StreamingHandlerConn to validate messages.
 type validatingStreamConn struct {
 	connect.StreamingHandlerConn
 	validator protovalidate.Validator
 }
 
-// Receive validates incoming stream messages
+// Receive validates incoming stream messages.
 func (v *validatingStreamConn) Receive(msg any) error {
 	if err := v.StreamingHandlerConn.Receive(msg); err != nil {
 		return err
@@ -253,7 +250,7 @@ func (v *validatingStreamConn) Receive(msg any) error {
 	return nil
 }
 
-// Send validates outgoing stream messages
+// Send validates outgoing stream messages.
 func (v *validatingStreamConn) Send(msg any) error {
 	// Validate before sending
 	if protoMsg, ok := msg.(proto.Message); ok {

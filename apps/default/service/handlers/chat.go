@@ -8,12 +8,11 @@ import (
 	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
 	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
 	profilev1 "github.com/antinvestor/apis/go/profile/v1"
+	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/antinvestor/service-chat/apps/default/service/business"
 )
 
 // Constants for pagination and batch sizes.
@@ -40,7 +39,6 @@ func NewChatServer(
 	notificationCli *notificationv1.NotificationClient,
 	profileCli *profilev1.ProfileClient,
 ) *ChatServer {
-
 	roomRepo := repository.NewRoomRepository(service)
 	eventRepo := repository.NewRoomEventRepository(service)
 	subRepo := repository.NewRoomSubscriptionRepository(service)
@@ -78,11 +76,17 @@ func (ps *ChatServer) toAPIError(err error) error {
 // These methods are for profile service - not needed for chat service
 // Removed GetById and ListRelationships
 
-func (ps *ChatServer) Connect(ctx context.Context, stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent]) error {
+func (ps *ChatServer) Connect(
+	ctx context.Context,
+	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent],
+) error {
 	// Extract profile ID from context metadata
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -105,29 +109,41 @@ func (ps *ChatServer) Connect(ctx context.Context, stream *connect.BidiStream[ch
 	return nil
 }
 
-func (ps *ChatServer) SendMessage(ctx context.Context, req *connect.Request[chatv1.SendMessageRequest]) (*connect.Response[chatv1.SendMessageResponse], error) {
+func (ps *ChatServer) SendEvent(
+	ctx context.Context,
+	req *connect.Request[chatv1.SendEventRequest],
+) (*connect.Response[chatv1.SendEventResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
 
 	// Send the message
-	acks, err := ps.MessageBusiness.SendMessage(ctx, req.Msg, profileID)
+	acks, err := ps.MessageBusiness.SendEvents(ctx, req.Msg, profileID)
 	if err != nil {
 		return nil, err
 	}
 
-	return connect.NewResponse(&chatv1.SendMessageResponse{
+	return connect.NewResponse(&chatv1.SendEventResponse{
 		Ack: acks,
 	}), nil
 }
 
-func (ps *ChatServer) GetHistory(ctx context.Context, req *connect.Request[chatv1.GetHistoryRequest]) (*connect.Response[chatv1.GetHistoryResponse], error) {
+func (ps *ChatServer) GetHistory(
+	ctx context.Context,
+	req *connect.Request[chatv1.GetHistoryRequest],
+) (*connect.Response[chatv1.GetHistoryResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -152,10 +168,16 @@ func (ps *ChatServer) GetHistory(ctx context.Context, req *connect.Request[chatv
 	}), nil
 }
 
-func (ps *ChatServer) CreateRoom(ctx context.Context, req *connect.Request[chatv1.CreateRoomRequest]) (*connect.Response[chatv1.CreateRoomResponse], error) {
+func (ps *ChatServer) CreateRoom(
+	ctx context.Context,
+	req *connect.Request[chatv1.CreateRoomRequest],
+) (*connect.Response[chatv1.CreateRoomResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -170,10 +192,17 @@ func (ps *ChatServer) CreateRoom(ctx context.Context, req *connect.Request[chatv
 	}), nil
 }
 
-func (ps *ChatServer) SearchRooms(ctx context.Context, req *connect.Request[chatv1.SearchRoomsRequest], stream *connect.ServerStream[chatv1.SearchRoomsResponse]) error {
+func (ps *ChatServer) SearchRooms(
+	ctx context.Context,
+	req *connect.Request[chatv1.SearchRoomsRequest],
+	stream *connect.ServerStream[chatv1.SearchRoomsResponse],
+) error {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -189,11 +218,16 @@ func (ps *ChatServer) SearchRooms(ctx context.Context, req *connect.Request[chat
 	})
 }
 
-func (ps *ChatServer) UpdateRoom(ctx context.Context, req *connect.Request[chatv1.UpdateRoomRequest]) (*connect.Response[chatv1.UpdateRoomResponse], error) {
-
+func (ps *ChatServer) UpdateRoom(
+	ctx context.Context,
+	req *connect.Request[chatv1.UpdateRoomRequest],
+) (*connect.Response[chatv1.UpdateRoomResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -208,10 +242,16 @@ func (ps *ChatServer) UpdateRoom(ctx context.Context, req *connect.Request[chatv
 	}), nil
 }
 
-func (ps *ChatServer) DeleteRoom(ctx context.Context, req *connect.Request[chatv1.DeleteRoomRequest]) (*connect.Response[chatv1.DeleteRoomResponse], error) {
+func (ps *ChatServer) DeleteRoom(
+	ctx context.Context,
+	req *connect.Request[chatv1.DeleteRoomRequest],
+) (*connect.Response[chatv1.DeleteRoomResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -224,10 +264,16 @@ func (ps *ChatServer) DeleteRoom(ctx context.Context, req *connect.Request[chatv
 	return connect.NewResponse(&chatv1.DeleteRoomResponse{}), nil
 }
 
-func (ps *ChatServer) AddRoomSubscriptions(ctx context.Context, req *connect.Request[chatv1.AddRoomSubscriptionsRequest]) (*connect.Response[chatv1.AddRoomSubscriptionsResponse], error) {
+func (ps *ChatServer) AddRoomSubscriptions(
+	ctx context.Context,
+	req *connect.Request[chatv1.AddRoomSubscriptionsRequest],
+) (*connect.Response[chatv1.AddRoomSubscriptionsResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -240,10 +286,16 @@ func (ps *ChatServer) AddRoomSubscriptions(ctx context.Context, req *connect.Req
 	return connect.NewResponse(&chatv1.AddRoomSubscriptionsResponse{}), nil
 }
 
-func (ps *ChatServer) RemoveRoomSubscriptions(ctx context.Context, req *connect.Request[chatv1.RemoveRoomSubscriptionsRequest]) (*connect.Response[chatv1.RemoveRoomSubscriptionsResponse], error) {
+func (ps *ChatServer) RemoveRoomSubscriptions(
+	ctx context.Context,
+	req *connect.Request[chatv1.RemoveRoomSubscriptionsRequest],
+) (*connect.Response[chatv1.RemoveRoomSubscriptionsResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -256,10 +308,16 @@ func (ps *ChatServer) RemoveRoomSubscriptions(ctx context.Context, req *connect.
 	return connect.NewResponse(&chatv1.RemoveRoomSubscriptionsResponse{}), nil
 }
 
-func (ps *ChatServer) UpdateSubscriptionRole(ctx context.Context, req *connect.Request[chatv1.UpdateSubscriptionRoleRequest]) (*connect.Response[chatv1.UpdateSubscriptionRoleResponse], error) {
+func (ps *ChatServer) UpdateSubscriptionRole(
+	ctx context.Context,
+	req *connect.Request[chatv1.UpdateSubscriptionRoleRequest],
+) (*connect.Response[chatv1.UpdateSubscriptionRoleResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -272,10 +330,16 @@ func (ps *ChatServer) UpdateSubscriptionRole(ctx context.Context, req *connect.R
 	return connect.NewResponse(&chatv1.UpdateSubscriptionRoleResponse{}), nil
 }
 
-func (ps *ChatServer) SearchRoomSubscriptions(ctx context.Context, req *connect.Request[chatv1.SearchRoomSubscriptionsRequest]) (*connect.Response[chatv1.SearchRoomSubscriptionsResponse], error) {
+func (ps *ChatServer) SearchRoomSubscriptions(
+	ctx context.Context,
+	req *connect.Request[chatv1.SearchRoomSubscriptionsRequest],
+) (*connect.Response[chatv1.SearchRoomSubscriptionsResponse], error) {
 	authClaims := frame.ClaimsFromContext(ctx)
 	if authClaims == nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, status.Error(codes.Unauthenticated, "request needs to be authenticated"))
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
 	}
 
 	profileID, _ := authClaims.GetSubject()
@@ -292,7 +356,7 @@ func (ps *ChatServer) SearchRoomSubscriptions(ctx context.Context, req *connect.
 
 // Helper methods
 
-// bidiStreamWrapper wraps connect.BidiStream to implement business.ConnectionStream
+// bidiStreamWrapper wraps connect.BidiStream to implement business.ConnectionStream.
 type bidiStreamWrapper struct {
 	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent]
 }

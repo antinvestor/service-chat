@@ -4,9 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/pitabwire/frame/framedata"
-
 	"github.com/antinvestor/service-chat/apps/default/service/models"
+	"github.com/pitabwire/frame/framedata"
 )
 
 // RoomRepository defines the interface for room data access operations.
@@ -20,7 +19,12 @@ type RoomRepository interface {
 type RoomEventRepository interface {
 	framedata.BaseRepository[*models.RoomEvent]
 	GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomEvent, error)
-	GetHistory(ctx context.Context, roomID string, beforeEventID, afterEventID string, limit int) ([]*models.RoomEvent, error)
+	GetHistory(
+		ctx context.Context,
+		roomID string,
+		beforeEventID, afterEventID string,
+		limit int,
+	) ([]*models.RoomEvent, error)
 	GetByEventID(ctx context.Context, roomID, eventID string) (*models.RoomEvent, error)
 	CountByRoomID(ctx context.Context, roomID string) (int64, error)
 }

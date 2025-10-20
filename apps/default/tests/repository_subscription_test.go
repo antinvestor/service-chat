@@ -112,7 +112,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
 		roomID := util.IDString()
 
 		// Create multiple subscriptions
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			sub := &models.RoomSubscription{
 				RoomID:    roomID,
 				ProfileID: util.IDString(),
@@ -143,7 +143,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
 		profileID := util.IDString()
 
 		// Create subscriptions for different rooms
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			sub := &models.RoomSubscription{
 				RoomID:    util.IDString(),
 				ProfileID: profileID,
@@ -235,7 +235,7 @@ func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
 		roomID := util.IDString()
 
 		// Create 5 subscriptions, 3 active
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			sub := &models.RoomSubscription{
 				RoomID:    roomID,
 				ProfileID: util.IDString(),
@@ -260,7 +260,7 @@ func (s *SubscriptionRepositoryTestSuite) TestBulkCreate() {
 		roomID := util.IDString()
 		subs := []*models.RoomSubscription{}
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			sub := &models.RoomSubscription{
 				RoomID:    roomID,
 				ProfileID: util.IDString(),

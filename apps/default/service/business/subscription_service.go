@@ -9,7 +9,7 @@ import (
 	"github.com/pitabwire/frame"
 )
 
-// SubscriptionService defines the interface for subscription-related operations
+// SubscriptionService defines the interface for subscription-related operations.
 type SubscriptionService interface {
 	// HasAccess checks if a user has access to a room
 	HasAccess(ctx context.Context, profileID, roomID string) (bool, error)
@@ -32,7 +32,7 @@ type subscriptionService struct {
 	subRepo repository.RoomSubscriptionRepository
 }
 
-// NewSubscriptionService creates a new subscription service
+// NewSubscriptionService creates a new subscription service.
 func NewSubscriptionService(
 	service *frame.Service,
 	subRepo repository.RoomSubscriptionRepository,
@@ -130,7 +130,7 @@ func (ss *subscriptionService) GetSubscribedRoomIDs(ctx context.Context, profile
 	return roomIDs, nil
 }
 
-// hasMinimumRole checks if the user's role meets or exceeds the required role
+// hasMinimumRole checks if the user's role meets or exceeds the required role.
 func hasMinimumRole(userRole, requiredRole string) bool {
 	// Define role hierarchy (highest to lowest)
 	roleHierarchy := map[string]int{

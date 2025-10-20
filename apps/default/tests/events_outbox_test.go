@@ -22,7 +22,9 @@ func TestOutboxEventTestSuite(t *testing.T) {
 	suite.Run(t, new(OutboxEventTestSuite))
 }
 
-func (s *OutboxEventTestSuite) setupBusinessLayer(svc *frame.Service) (business.RoomBusiness, business.MessageBusiness) {
+func (s *OutboxEventTestSuite) setupBusinessLayer(
+	svc *frame.Service,
+) (business.RoomBusiness, business.MessageBusiness) {
 	roomRepo := repository.NewRoomRepository(svc)
 	eventRepo := repository.NewRoomEventRepository(svc)
 	subRepo := repository.NewRoomSubscriptionRepository(svc)
@@ -115,10 +117,10 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 			"text": "Test message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -126,13 +128,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
 		queuePayload := map[string]string{
-			"room_id":       room.Id,
+			"room_id":       room.GetId(),
 			"room_event_id": eventID,
 			"sender_id":     creatorID,
 		}
@@ -142,7 +144,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 
 		// Verify outbox entries were created for all subscribers
 		// Should have entries for all members (creator is skipped in outbox)
-		subs, err := subRepo.GetByRoomID(ctx, room.Id, true)
+		subs, err := subRepo.GetByRoomID(ctx, room.GetId(), true)
 		s.NoError(err)
 
 		// Count outbox entries
@@ -181,7 +183,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		s.NoError(err)
 
 		// Get member's subscription
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.Id, memberID)
+		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
 		s.NoError(err)
 
 		// Initial unread count should be 0
@@ -192,10 +194,10 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 			"text": "Test message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -203,13 +205,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
 		queuePayload := map[string]string{
-			"room_id":       room.Id,
+			"room_id":       room.GetId(),
 			"room_event_id": eventID,
 			"sender_id":     creatorID,
 		}
@@ -218,7 +220,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		s.NoError(err)
 
 		// Verify unread count increased (generated column)
-		memberSub, err = subRepo.GetByRoomAndProfile(ctx, room.Id, memberID)
+		memberSub, err = subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
 		s.NoError(err)
 		s.Equal(1, memberSub.UnreadCount)
 	})
@@ -244,7 +246,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		s.NoError(err)
 
 		// Get sender's subscription
-		senderSub, err := subRepo.GetByRoomAndProfile(ctx, room.Id, senderID)
+		senderSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), senderID)
 		s.NoError(err)
 
 		// Send a message
@@ -252,10 +254,10 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 			"text": "Test message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: senderID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -263,13 +265,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, senderID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, senderID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
 		queuePayload := map[string]string{
-			"room_id":       room.Id,
+			"room_id":       room.GetId(),
 			"room_event_id": eventID,
 			"sender_id":     senderID,
 		}
@@ -280,10 +282,10 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		// Verify sender has no outbox entries (they sent the message)
 		pending, err := outboxRepo.GetPendingBySubscription(ctx, senderSub.GetID(), 10)
 		s.NoError(err)
-		s.Len(pending, 0, "Sender should not have outbox entries for their own messages")
+		s.Empty(pending, "Sender should not have outbox entries for their own messages")
 
 		// Verify sender's unread count is 0
-		senderSub, err = subRepo.GetByRoomAndProfile(ctx, room.Id, senderID)
+		senderSub, err = subRepo.GetByRoomAndProfile(ctx, room.GetId(), senderID)
 		s.NoError(err)
 		s.Equal(0, senderSub.UnreadCount)
 	})
@@ -310,15 +312,15 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 		s.NoError(err)
 
 		// Send multiple messages
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(10),
 			})
 
-			msgReq := &chatv1.SendMessageRequest{
+			msgReq := &chatv1.SendEventRequest{
 				Message: []*chatv1.RoomEvent{
 					{
-						RoomId:   room.Id,
+						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 						Payload:  payload,
@@ -326,13 +328,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 				},
 			}
 
-			acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 			s.NoError(err)
-			eventID := acks[0].EventId
+			eventID := acks[0].GetEventId()
 
 			// Execute the outbox logging queue for each message
 			queuePayload := map[string]string{
-				"room_id":       room.Id,
+				"room_id":       room.GetId(),
 				"room_event_id": eventID,
 				"sender_id":     creatorID,
 			}
@@ -342,7 +344,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 		}
 
 		// Verify member's unread count is 5
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.Id, memberID)
+		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
 		s.NoError(err)
 		s.Equal(5, memberSub.UnreadCount)
 	})
@@ -370,7 +372,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		s.NoError(err)
 
 		// Deactivate member's subscription
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.Id, memberID)
+		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
 		s.NoError(err)
 		err = subRepo.Deactivate(ctx, memberSub.GetID())
 		s.NoError(err)
@@ -380,10 +382,10 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 			"text": "Test message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -391,13 +393,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
 		queuePayload := map[string]string{
-			"room_id":       room.Id,
+			"room_id":       room.GetId(),
 			"room_event_id": eventID,
 			"sender_id":     creatorID,
 		}
@@ -408,7 +410,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		// Verify inactive member has no outbox entries
 		pending, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10)
 		s.NoError(err)
-		s.Len(pending, 0, "Inactive subscription should not receive outbox entries")
+		s.Empty(pending, "Inactive subscription should not receive outbox entries")
 	})
 }
 
@@ -472,15 +474,15 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 		messageCount := 10
 		eventIDs := make([]string, messageCount)
 
-		for i := 0; i < messageCount; i++ {
+		for i := range messageCount {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(10),
 			})
 
-			msgReq := &chatv1.SendMessageRequest{
+			msgReq := &chatv1.SendEventRequest{
 				Message: []*chatv1.RoomEvent{
 					{
-						RoomId:   room.Id,
+						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 						Payload:  payload,
@@ -488,15 +490,15 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 				},
 			}
 
-			acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 			s.NoError(err)
-			eventIDs[i] = acks[0].EventId
+			eventIDs[i] = acks[0].GetEventId()
 		}
 
 		// Execute queue for all messages
 		for _, eventID := range eventIDs {
 			queuePayload := map[string]string{
-				"room_id":       room.Id,
+				"room_id":       room.GetId(),
 				"room_event_id": eventID,
 				"sender_id":     creatorID,
 			}
@@ -506,7 +508,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 		}
 
 		// Verify member's unread count matches message count
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.Id, memberID)
+		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
 		s.NoError(err)
 		s.Equal(messageCount, memberSub.UnreadCount)
 	})
@@ -538,10 +540,10 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 			"text": "Test message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -549,12 +551,12 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		queuePayload := map[string]string{
-			"room_id":       room.Id,
+			"room_id":       room.GetId(),
 			"room_event_id": eventID,
 			"sender_id":     creatorID,
 		}
@@ -564,7 +566,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 		s.NoError(err)
 
 		// Get member subscription
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.Id, memberID)
+		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
 		s.NoError(err)
 
 		// Count outbox entries

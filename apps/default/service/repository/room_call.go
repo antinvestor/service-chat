@@ -4,10 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/framedata"
-
-	"github.com/antinvestor/service-chat/apps/default/service/models"
 )
 
 const (
@@ -121,7 +120,10 @@ func (rcr *roomCallRepository) EndCall(ctx context.Context, id string) error {
 }
 
 // GetTimedOutCalls retrieves calls that have been ringing for longer than the timeout duration.
-func (rcr *roomCallRepository) GetTimedOutCalls(ctx context.Context, timeout time.Duration) ([]*models.RoomCall, error) {
+func (rcr *roomCallRepository) GetTimedOutCalls(
+	ctx context.Context,
+	timeout time.Duration,
+) ([]*models.RoomCall, error) {
 	cutoffTime := time.Now().Add(-timeout)
 	var calls []*models.RoomCall
 	err := rcr.Svc().DB(ctx, true).
@@ -168,6 +170,9 @@ func (rcr *roomCallRepository) GetCallsBySFUNode(ctx context.Context, sfuNodeID 
 // NewRoomCallRepository creates a new room call repository instance.
 func NewRoomCallRepository(service *frame.Service) RoomCallRepository {
 	return &roomCallRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomCall](service, func() *models.RoomCall { return &models.RoomCall{} }),
+		BaseRepository: framedata.NewBaseRepository[*models.RoomCall](
+			service,
+			func() *models.RoomCall { return &models.RoomCall{} },
+		),
 	}
 }

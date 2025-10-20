@@ -10,6 +10,9 @@ import (
 	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
 	notificationv1_mocks "github.com/antinvestor/apis/go/notification/v1_mocks"
 	profilev1 "github.com/antinvestor/apis/go/profile/v1"
+	"github.com/antinvestor/service-chat/apps/default/config"
+	"github.com/antinvestor/service-chat/apps/default/service/events"
+	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
@@ -18,10 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
-
-	"github.com/antinvestor/service-chat/apps/default/config"
-	"github.com/antinvestor/service-chat/apps/default/service/events"
-	"github.com/antinvestor/service-chat/apps/default/service/repository"
 )
 
 const PostgresqlDBImage = "postgres:latest"

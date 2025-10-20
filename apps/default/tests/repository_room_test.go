@@ -108,7 +108,7 @@ func (s *RoomRepositoryTestSuite) TestSearchRooms() {
 		repo := repository.NewRoomRepository(svc)
 
 		// Create multiple rooms
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			room := &models.Room{
 				RoomType: "group",
 				Name:     util.RandomString(10),

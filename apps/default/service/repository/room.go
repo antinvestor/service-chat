@@ -3,10 +3,9 @@ package repository
 import (
 	"context"
 
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/framedata"
-
-	"github.com/antinvestor/service-chat/apps/default/service/models"
 )
 
 type roomRepository struct {
@@ -35,6 +34,9 @@ func (rr *roomRepository) GetRoomsByProfileID(ctx context.Context, profileID str
 // NewRoomRepository creates a new room repository instance.
 func NewRoomRepository(service *frame.Service) RoomRepository {
 	return &roomRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.Room](service, func() *models.Room { return &models.Room{} }),
+		BaseRepository: framedata.NewBaseRepository[*models.Room](
+			service,
+			func() *models.Room { return &models.Room{} },
+		),
 	}
 }

@@ -54,7 +54,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 		roomID := util.IDString()
 
 		// Create pending outbox entries
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			outbox := &models.RoomOutbox{
 				RoomID:         roomID,
 				SubscriptionID: subscriptionID,
@@ -96,7 +96,7 @@ func (s *OutboxRepositoryTestSuite) TestGetByRoomID() {
 		roomID := util.IDString()
 
 		// Create outbox entries
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			outbox := &models.RoomOutbox{
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
@@ -209,7 +209,7 @@ func (s *OutboxRepositoryTestSuite) TestDeleteOldEntries() {
 		roomID := util.IDString()
 
 		// Create outbox entries
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			outbox := &models.RoomOutbox{
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
@@ -236,7 +236,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 		roomID := util.IDString()
 
 		// Create pending entries
-		for i := 0; i < 7; i++ {
+		for range 7 {
 			outbox := &models.RoomOutbox{
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
@@ -249,7 +249,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 		}
 
 		// Create sent entries
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			outbox := &models.RoomOutbox{
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
@@ -274,7 +274,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 		}
 		err = nil
 		s.NoError(err)
-		s.Equal(int64(7), count)
+		s.Equal(7, count)
 	})
 }
 
@@ -299,7 +299,7 @@ func (s *OutboxRepositoryTestSuite) TestUnreadCountGeneration() {
 		s.NoError(subRepo.Save(ctx, sub))
 
 		// Create pending outbox entries for this subscription
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			outbox := &models.RoomOutbox{
 				RoomID:         roomID,
 				SubscriptionID: subscriptionID,
@@ -332,21 +332,25 @@ func (s *OutboxRepositoryTestSuite) TestUnreadCountGeneration() {
 		pending, err := outboxRepo.GetPendingBySubscription(ctx, subscriptionID, 1)
 		s.NoError(err)
 		s.Len(pending, 1)
-		
+
 		// Update status to 'sent' using direct SQL (since UpdateStatus isn't working)
 		outboxID := pending[0].GetID()
 		t.Logf("Updating outbox ID: %s to status: %s", outboxID, repository.OutboxStatusSent)
-		err = svc.DB(ctx, false).Exec("UPDATE room_outboxes SET status = ? WHERE id = ?", repository.OutboxStatusSent, outboxID).Error
+		err = svc.DB(ctx, false).
+			Exec("UPDATE room_outboxes SET status = ? WHERE id = ?", repository.OutboxStatusSent, outboxID).
+			Error
 		s.NoError(err)
-		
+
 		// Verify the status was actually updated
 		var statusCheck string
 		svc.DB(ctx, true).Raw("SELECT status FROM room_outboxes WHERE id = ?", pending[0].GetID()).Scan(&statusCheck)
 		t.Logf("Status after update: %s", statusCheck)
-		
+
 		// Check how many are still pending
 		var pendingCount int
-		svc.DB(ctx, true).Raw("SELECT COUNT(*) FROM room_outboxes WHERE subscription_id = ? AND status = 'pending' AND deleted_at IS NULL", subscriptionID).Scan(&pendingCount)
+		svc.DB(ctx, true).
+			Raw("SELECT COUNT(*) FROM room_outboxes WHERE subscription_id = ? AND status = 'pending' AND deleted_at IS NULL", subscriptionID).
+			Scan(&pendingCount)
 		t.Logf("Pending count after marking one as sent: %d", pendingCount)
 
 		// Manually update unread count again

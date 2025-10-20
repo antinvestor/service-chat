@@ -61,7 +61,7 @@ type RoomEvent struct {
 	MessageType string
 	Content     frame.JSONMap
 	Properties  frame.JSONMap
-	DeletedAt   int64  `gorm:"column:deleted_at"`
+	DeletedAt   int64 `gorm:"column:deleted_at"`
 }
 
 // ToAPI converts RoomEvent model to API RoomEvent representation.
@@ -99,9 +99,9 @@ type RoomOutbox struct {
 	RoomID         string `gorm:"type:varchar(50)"`
 	SubscriptionID string `gorm:"type:varchar(50);index:idx_subscription_status"`
 	EventID        string `gorm:"type:varchar(50)"`
-	Status         string `json:"status" gorm:"index:idx_subscription_status"` // pending, sent, failed
-	RetryCount     int    `json:"retry_count"`
-	ErrorMessage   string `json:"error_message"`
+	Status         string `gorm:"index:idx_subscription_status"                  json:"status"` // pending, sent, failed
+	RetryCount     int    `                                                      json:"retry_count"`
+	ErrorMessage   string `                                                      json:"error_message"`
 }
 
 // RoomSubscription represents a user's subscription to a room.
@@ -113,7 +113,7 @@ type RoomSubscription struct {
 	IsActive             bool
 	LastReadEventID      string `gorm:"type:varchar(50)"` // ID of the last read event (naturally time-sorted)
 	LastReadAt           int64
-	UnreadCount          int `gorm:"->"` // Read-only field, calculated via application logic or database trigger
+	UnreadCount          int `gorm:"column:unread_count;default:0"` // Unread message count
 	NotificationsEnabled bool
 	Properties           frame.JSONMap
 }

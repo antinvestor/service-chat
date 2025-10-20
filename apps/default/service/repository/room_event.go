@@ -3,10 +3,9 @@ package repository
 import (
 	"context"
 
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/framedata"
-
-	"github.com/antinvestor/service-chat/apps/default/service/models"
 )
 
 type roomEventRepository struct {
@@ -35,7 +34,11 @@ func (rer *roomEventRepository) Delete(ctx context.Context, id string) error {
 }
 
 // GetByRoomID retrieves all events for a specific room, ordered by ID (naturally time-sorted).
-func (rer *roomEventRepository) GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomEvent, error) {
+func (rer *roomEventRepository) GetByRoomID(
+	ctx context.Context,
+	roomID string,
+	limit int,
+) ([]*models.RoomEvent, error) {
 	var events []*models.RoomEvent
 	query := rer.Svc().DB(ctx, true).
 		Unscoped(). // Disable GORM's automatic soft delete filtering
@@ -89,9 +92,6 @@ func (rer *roomEventRepository) GetHistory(
 	return events, err
 }
 
-
-
-
 // GetByEventID retrieves a room event by its event ID (xid).
 func (rer *roomEventRepository) GetByEventID(ctx context.Context, roomID, eventID string) (*models.RoomEvent, error) {
 	event := &models.RoomEvent{}
@@ -116,6 +116,9 @@ func (rer *roomEventRepository) CountByRoomID(ctx context.Context, roomID string
 // NewRoomEventRepository creates a new room event repository instance.
 func NewRoomEventRepository(service *frame.Service) RoomEventRepository {
 	return &roomEventRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomEvent](service, func() *models.RoomEvent { return &models.RoomEvent{} }),
+		BaseRepository: framedata.NewBaseRepository[*models.RoomEvent](
+			service,
+			func() *models.RoomEvent { return &models.RoomEvent{} },
+		),
 	}
 }

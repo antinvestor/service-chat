@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
-
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
@@ -22,7 +21,9 @@ func TestMessageBusinessTestSuite(t *testing.T) {
 	suite.Run(t, new(MessageBusinessTestSuite))
 }
 
-func (s *MessageBusinessTestSuite) setupBusinessLayer(svc *frame.Service) (business.MessageBusiness, business.RoomBusiness) {
+func (s *MessageBusinessTestSuite) setupBusinessLayer(
+	svc *frame.Service,
+) (business.MessageBusiness, business.RoomBusiness) {
 	roomRepo := repository.NewRoomRepository(svc)
 	eventRepo := repository.NewRoomEventRepository(svc)
 	subRepo := repository.NewRoomSubscriptionRepository(svc)
@@ -55,10 +56,10 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 			"text": "Hello World",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -66,10 +67,10 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
 		s.Len(acks, 1)
-		s.NotEmpty(acks[0].EventId)
+		s.NotEmpty(acks[0].GetEventId())
 	})
 }
 
@@ -82,7 +83,7 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 			"text": "Hello",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
 					RoomId:   util.IDString(), // Non-existent room
@@ -93,11 +94,11 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, util.IDString())
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, util.IDString())
 		s.NoError(err) // Should return acks with errors
 		s.Len(acks, 1)
 		// Check if ack contains error in metadata
-		s.NotNil(acks[0].Metadata)
+		s.NotNil(acks[0].GetMetadata())
 	})
 }
 
@@ -118,29 +119,29 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 
 		// Send multiple messages
 		messages := []*chatv1.RoomEvent{}
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(10),
 			})
 
 			messages = append(messages, &chatv1.RoomEvent{
-				RoomId:   room.Id,
+				RoomId:   room.GetId(),
 				SenderId: creatorID,
 				Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 				Payload:  payload,
 			})
 		}
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: messages,
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
 		s.Len(acks, 5)
 
 		for _, ack := range acks {
-			s.NotEmpty(ack.EventId)
+			s.NotEmpty(ack.GetEventId())
 		}
 	})
 }
@@ -161,15 +162,15 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 		s.NoError(err)
 
 		// Send 10 messages
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(10),
 			})
 
-			msgReq := &chatv1.SendMessageRequest{
+			msgReq := &chatv1.SendEventRequest{
 				Message: []*chatv1.RoomEvent{
 					{
-						RoomId:   room.Id,
+						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 						Payload:  payload,
@@ -177,13 +178,13 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 				},
 			}
 
-			_, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+			_, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 			s.NoError(err)
 		}
 
 		// Get history
 		historyReq := &chatv1.GetHistoryRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 			Limit:  5,
 		}
 
@@ -212,10 +213,10 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 			"text": "Test Message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -223,13 +224,13 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		messageID := acks[0].EventId
+		messageID := acks[0].GetEventId()
 
 		// Get the message via history
 		historyReq := &chatv1.GetHistoryRequest{
-			RoomId: room.Id,
+			RoomId: room.GetId(),
 			Limit:  10,
 		}
 
@@ -240,7 +241,7 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 		// Find our message
 		found := false
 		for _, event := range events {
-			if event.Id == messageID {
+			if event.GetId() == messageID {
 				found = true
 				break
 			}
@@ -269,10 +270,10 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 			"text": "Message to Delete",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -280,9 +281,9 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		messageID := acks[0].EventId
+		messageID := acks[0].GetEventId()
 
 		// Delete the message via repository
 		err = eventRepo.Delete(ctx, messageID)
@@ -317,10 +318,10 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 			"text": "Test Message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -328,12 +329,12 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		// Mark as read by member
-		err = messageBusiness.MarkMessagesAsRead(ctx, room.Id, eventID, memberID)
+		err = messageBusiness.MarkMessagesAsRead(ctx, room.GetId(), eventID, memberID)
 		s.NoError(err)
 	})
 }
@@ -364,10 +365,10 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 				"data": "test",
 			})
 
-			msgReq := &chatv1.SendMessageRequest{
+			msgReq := &chatv1.SendEventRequest{
 				Message: []*chatv1.RoomEvent{
 					{
-						RoomId:   room.Id,
+						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     msgType,
 						Payload:  payload,
@@ -375,10 +376,10 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 				},
 			}
 
-			acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 			s.NoError(err)
 			s.Len(acks, 1)
-			s.NotEmpty(acks[0].EventId)
+			s.NotEmpty(acks[0].GetEventId())
 		}
 	})
 }

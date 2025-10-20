@@ -10,7 +10,6 @@ BEGIN
         FROM room_outboxes
         WHERE subscription_id = subscription_id_param
           AND status = 'pending'
-          AND deleted_at IS NULL
     );
 END;
 $$ LANGUAGE plpgsql STABLE;
@@ -54,13 +53,7 @@ CREATE TRIGGER trigger_outbox_update_update_unread
     WHEN (OLD.status IS DISTINCT FROM NEW.status)
     EXECUTE FUNCTION update_subscription_unread_count();
 
--- Trigger on room_outboxes DELETE (soft delete)
-DROP TRIGGER IF EXISTS trigger_outbox_delete_update_unread ON room_outboxes;
-CREATE TRIGGER trigger_outbox_delete_update_unread
-    AFTER UPDATE OF deleted_at ON room_outboxes
-    FOR EACH ROW
-    WHEN (OLD.deleted_at IS DISTINCT FROM NEW.deleted_at)
-    EXECUTE FUNCTION update_subscription_unread_count();
+-- Note: RoomOutbox doesn't use soft deletes, so no delete trigger needed
 
 -- Add unread_count column if it doesn't exist (with default 0)
 DO $$

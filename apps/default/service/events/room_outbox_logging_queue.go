@@ -7,6 +7,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"gorm.io/gorm"
 )
 
 const RoomOutboxLoggingQueueName = "room.outbox.logging.queue"
@@ -30,7 +31,7 @@ func (csq *RoomOutboxLoggingQueue) Name() string {
 }
 
 func (csq *RoomOutboxLoggingQueue) PayloadType() any {
-	return map[string]string{}
+	return &map[string]string{}
 }
 
 func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) error {
@@ -71,7 +72,6 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	outboxEntries := make([]*models.RoomOutbox, 0, len(subscriptions))
 
 	for _, sub := range subscriptions {
-
 		outbox := &models.RoomOutbox{
 			RoomID:         roomID,
 			EventID:        roomEventID,
@@ -84,13 +84,23 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		outboxEntries = append(outboxEntries, outbox)
 	}
 
-	// Save outbox entries in batch
-	// The unread_count will be automatically calculated as a generated column
+	// Save outbox entries and update unread counts
 	if len(outboxEntries) > 0 {
 		for _, outbox := range outboxEntries {
 			err = csq.outboxRepo.Save(ctx, outbox)
 			if err != nil {
 				logger.WithError(err).Error("failed to create new outbox users")
+				return err
+			}
+
+			// Increment unread count for the subscription
+			err = csq.Service.DB(ctx, false).
+				Model(&models.RoomSubscription{}).
+				Where("id = ?", outbox.SubscriptionID).
+				UpdateColumn("unread_count", gorm.Expr("unread_count + ?", 1)).
+				Error
+			if err != nil {
+				logger.WithError(err).Error("failed to update unread count")
 				return err
 			}
 		}

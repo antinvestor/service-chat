@@ -6,7 +6,7 @@ import (
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 )
 
-// RoomBusiness defines the business logic for room operations
+// RoomBusiness defines the business logic for room operations.
 type RoomBusiness interface {
 	// CreateRoom creates a new room with the given parameters and adds the creator as an admin
 	CreateRoom(ctx context.Context, req *chatv1.CreateRoomRequest, createdBy string) (*chatv1.Room, error)
@@ -33,13 +33,17 @@ type RoomBusiness interface {
 	UpdateSubscriptionRole(ctx context.Context, req *chatv1.UpdateSubscriptionRoleRequest, updaterID string) error
 
 	// SearchRoomSubscriptions retrieves all members of a room with their roles
-	SearchRoomSubscriptions(ctx context.Context, req *chatv1.SearchRoomSubscriptionsRequest, profileID string) ([]*chatv1.RoomSubscription, error)
+	SearchRoomSubscriptions(
+		ctx context.Context,
+		req *chatv1.SearchRoomSubscriptionsRequest,
+		profileID string,
+	) ([]*chatv1.RoomSubscription, error)
 }
 
-// MessageBusiness defines the business logic for message operations
+// MessageBusiness defines the business logic for message operations.
 type MessageBusiness interface {
-	// SendMessage sends a message to a room with proper validation and permissions
-	SendMessage(ctx context.Context, req *chatv1.SendMessageRequest, senderID string) ([]*chatv1.StreamAck, error)
+	// SendEvents sends an event to a room with proper validation and permissions
+	SendEvents(ctx context.Context, req *chatv1.SendEventRequest, senderID string) ([]*chatv1.StreamAck, error)
 
 	// GetHistory retrieves message history for a room with pagination
 	GetHistory(ctx context.Context, req *chatv1.GetHistoryRequest, profileID string) ([]*chatv1.RoomEvent, error)
@@ -48,10 +52,13 @@ type MessageBusiness interface {
 	MarkMessagesAsRead(ctx context.Context, roomID string, eventID string, profileID string) error
 }
 
-// ConnectBusiness defines the business logic for real-time connection operations
+// ConnectBusiness defines the business logic for real-time connection operations.
 type ConnectBusiness interface {
 	// HandleConnection manages a bidirectional streaming connection for real-time events
 	HandleConnection(ctx context.Context, profileID string, deviceID string, stream ConnectionStream) error
+
+	// ReceiveEvent receives an event from a connected user
+	ReceiveEvent(ctx context.Context, event *chatv1.RoomEvent) (error, *chatv1.StreamAck)
 
 	// BroadcastEvent sends an event to all subscribers of a room
 	BroadcastEvent(ctx context.Context, roomID string, event *chatv1.ServerEvent) error
@@ -66,7 +73,7 @@ type ConnectBusiness interface {
 	SendReadReceipt(ctx context.Context, profileID string, roomID string, eventID string) error
 }
 
-// ConnectionStream abstracts the bidirectional stream for testing
+// ConnectionStream abstracts the bidirectional stream for testing.
 type ConnectionStream interface {
 	Receive() (*chatv1.ConnectRequest, error)
 	Send(*chatv1.ServerEvent) error

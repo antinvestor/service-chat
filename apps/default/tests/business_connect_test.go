@@ -21,7 +21,9 @@ func TestConnectBusinessTestSuite(t *testing.T) {
 	suite.Run(t, new(ConnectBusinessTestSuite))
 }
 
-func (s *ConnectBusinessTestSuite) setupBusinessLayer(svc *frame.Service) (business.ConnectBusiness, business.RoomBusiness, business.MessageBusiness) {
+func (s *ConnectBusinessTestSuite) setupBusinessLayer(
+	svc *frame.Service,
+) (business.ConnectBusiness, business.RoomBusiness, business.MessageBusiness) {
 	roomRepo := repository.NewRoomRepository(svc)
 	eventRepo := repository.NewRoomEventRepository(svc)
 	subRepo := repository.NewRoomSubscriptionRepository(svc)
@@ -60,7 +62,7 @@ func (s *ConnectBusinessTestSuite) TestBroadcastEvent() {
 		})
 
 		roomEvent := &chatv1.RoomEvent{
-			RoomId:   room.Id,
+			RoomId:   room.GetId(),
 			SenderId: creatorID,
 			Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 			Payload:  payload,
@@ -73,7 +75,7 @@ func (s *ConnectBusinessTestSuite) TestBroadcastEvent() {
 		}
 
 		// Broadcast event (should not error even without active connections)
-		err = connectBusiness.BroadcastEvent(ctx, room.Id, event)
+		err = connectBusiness.BroadcastEvent(ctx, room.GetId(), event)
 		s.NoError(err)
 	})
 }
@@ -94,11 +96,11 @@ func (s *ConnectBusinessTestSuite) TestSendPresenceUpdate() {
 		s.NoError(err)
 
 		// Send presence update
-		err = connectBusiness.SendPresenceUpdate(ctx, userID, room.Id, chatv1.PresenceStatus_PRESENCE_ONLINE)
+		err = connectBusiness.SendPresenceUpdate(ctx, userID, room.GetId(), chatv1.PresenceStatus_PRESENCE_ONLINE)
 		s.NoError(err)
 
 		// Send offline status
-		err = connectBusiness.SendPresenceUpdate(ctx, userID, room.Id, chatv1.PresenceStatus_PRESENCE_OFFLINE)
+		err = connectBusiness.SendPresenceUpdate(ctx, userID, room.GetId(), chatv1.PresenceStatus_PRESENCE_OFFLINE)
 		s.NoError(err)
 	})
 }
@@ -119,11 +121,11 @@ func (s *ConnectBusinessTestSuite) TestSendTypingIndicator() {
 		s.NoError(err)
 
 		// Send typing indicator
-		err = connectBusiness.SendTypingIndicator(ctx, userID, room.Id, true)
+		err = connectBusiness.SendTypingIndicator(ctx, userID, room.GetId(), true)
 		s.NoError(err)
 
 		// Send stopped typing
-		err = connectBusiness.SendTypingIndicator(ctx, userID, room.Id, false)
+		err = connectBusiness.SendTypingIndicator(ctx, userID, room.GetId(), false)
 		s.NoError(err)
 	})
 }
@@ -148,10 +150,10 @@ func (s *ConnectBusinessTestSuite) TestSendReadReceipt() {
 			"text": "Test message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: userID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -159,12 +161,12 @@ func (s *ConnectBusinessTestSuite) TestSendReadReceipt() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, userID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, userID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		// Send read receipt
-		err = connectBusiness.SendReadReceipt(ctx, userID, room.Id, eventID)
+		err = connectBusiness.SendReadReceipt(ctx, userID, room.GetId(), eventID)
 		s.NoError(err)
 	})
 }
@@ -191,10 +193,10 @@ func (s *ConnectBusinessTestSuite) TestSendReadReceiptAccessDenied() {
 			"text": "Test message",
 		})
 
-		msgReq := &chatv1.SendMessageRequest{
+		msgReq := &chatv1.SendEventRequest{
 			Message: []*chatv1.RoomEvent{
 				{
-					RoomId:   room.Id,
+					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
 					Payload:  payload,
@@ -202,12 +204,12 @@ func (s *ConnectBusinessTestSuite) TestSendReadReceiptAccessDenied() {
 			},
 		}
 
-		acks, err := messageBusiness.SendMessage(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
 		s.NoError(err)
-		eventID := acks[0].EventId
+		eventID := acks[0].GetEventId()
 
 		// Try to send read receipt as non-member
-		err = connectBusiness.SendReadReceipt(ctx, nonMemberID, room.Id, eventID)
+		err = connectBusiness.SendReadReceipt(ctx, nonMemberID, room.GetId(), eventID)
 		s.Error(err)
 	})
 }
@@ -284,13 +286,13 @@ func (s *ConnectBusinessTestSuite) TestMultiplePresenceUpdates() {
 		// Send presence updates for all members
 		allUsers := append([]string{creatorID}, members...)
 		for _, userID := range allUsers {
-			err = connectBusiness.SendPresenceUpdate(ctx, userID, room.Id, chatv1.PresenceStatus_PRESENCE_ONLINE)
+			err = connectBusiness.SendPresenceUpdate(ctx, userID, room.GetId(), chatv1.PresenceStatus_PRESENCE_ONLINE)
 			s.NoError(err)
 		}
 
 		// Send typing indicators
 		for _, userID := range allUsers {
-			err = connectBusiness.SendTypingIndicator(ctx, userID, room.Id, true)
+			err = connectBusiness.SendTypingIndicator(ctx, userID, room.GetId(), true)
 			s.NoError(err)
 		}
 	})

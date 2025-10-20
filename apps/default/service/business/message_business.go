@@ -23,7 +23,7 @@ type messageBusiness struct {
 	subscriptionSvc SubscriptionService
 }
 
-// NewMessageBusiness creates a new instance of MessageBusiness
+// NewMessageBusiness creates a new instance of MessageBusiness.
 func NewMessageBusiness(
 	service *frame.Service,
 	eventRepo repository.RoomEventRepository,
@@ -40,7 +40,11 @@ func NewMessageBusiness(
 	}
 }
 
-func (mb *messageBusiness) SendMessage(ctx context.Context, req *chatv1.SendMessageRequest, senderID string) ([]*chatv1.StreamAck, error) {
+func (mb *messageBusiness) SendEvents(
+	ctx context.Context,
+	req *chatv1.SendEventRequest,
+	senderID string,
+) ([]*chatv1.StreamAck, error) {
 	// Validate request
 	if len(req.GetMessage()) == 0 {
 		return nil, service.ErrMessageContentRequired
@@ -49,15 +53,15 @@ func (mb *messageBusiness) SendMessage(ctx context.Context, req *chatv1.SendMess
 	var responses []*chatv1.StreamAck
 
 	for _, msg := range req.GetMessage() {
-
-		if msg.RoomId == "" {
+		if msg.GetRoomId() == "" {
 			return nil, service.ErrMessageRoomIDRequired
 		}
 		// Check if the sender has access to the room
-		hasAccess, err := mb.subscriptionSvc.HasAccess(ctx, senderID, msg.RoomId)
+		hasAccess, err := mb.subscriptionSvc.HasAccess(ctx, senderID, msg.GetRoomId())
 		if err != nil {
-
-			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to check room access: %v", err)})
+			errorD, _ := structpb.NewStruct(
+				map[string]any{"error": fmt.Sprintf("failed to check room access: %v", err)},
+			)
 			responses = append(responses, &chatv1.StreamAck{
 				EventId:  msg.GetId(),
 				AckAt:    timestamppb.Now(),
@@ -68,7 +72,6 @@ func (mb *messageBusiness) SendMessage(ctx context.Context, req *chatv1.SendMess
 		}
 
 		if !hasAccess {
-
 			errorD, _ := structpb.NewStruct(map[string]any{"error": service.ErrMessageSendDenied.Error()})
 			responses = append(responses, &chatv1.StreamAck{
 				EventId:  msg.GetId(),
@@ -135,7 +138,11 @@ func (mb *messageBusiness) SendMessage(ctx context.Context, req *chatv1.SendMess
 	return responses, nil
 }
 
-func (mb *messageBusiness) GetMessage(ctx context.Context, messageID string, profileID string) (*models.RoomEvent, error) {
+func (mb *messageBusiness) GetMessage(
+	ctx context.Context,
+	messageID string,
+	profileID string,
+) (*models.RoomEvent, error) {
 	if messageID == "" {
 		return nil, service.ErrUnspecifiedID
 	}
@@ -162,13 +169,17 @@ func (mb *messageBusiness) GetMessage(ctx context.Context, messageID string, pro
 	return event, nil
 }
 
-func (mb *messageBusiness) GetHistory(ctx context.Context, req *chatv1.GetHistoryRequest, profileID string) ([]*chatv1.RoomEvent, error) {
-	if req.RoomId == "" {
+func (mb *messageBusiness) GetHistory(
+	ctx context.Context,
+	req *chatv1.GetHistoryRequest,
+	profileID string,
+) ([]*chatv1.RoomEvent, error) {
+	if req.GetRoomId() == "" {
 		return nil, service.ErrMessageRoomIDRequired
 	}
 
 	// Check if the user has access to the room
-	hasAccess, err := mb.subscriptionSvc.HasAccess(ctx, profileID, req.RoomId)
+	hasAccess, err := mb.subscriptionSvc.HasAccess(ctx, profileID, req.GetRoomId())
 	if err != nil {
 		return nil, fmt.Errorf("failed to check room access: %w", err)
 	}
@@ -178,13 +189,13 @@ func (mb *messageBusiness) GetHistory(ctx context.Context, req *chatv1.GetHistor
 	}
 
 	// Build the query - use cursor for pagination
-	limit := int(req.Limit)
+	limit := int(req.GetLimit())
 	if limit == 0 {
 		limit = 50 // default limit
 	}
 
 	// Get messages
-	events, err := mb.eventRepo.GetHistory(ctx, req.RoomId, "", "", limit)
+	events, err := mb.eventRepo.GetHistory(ctx, req.GetRoomId(), "", "", limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get message history: %w", err)
 	}
@@ -196,8 +207,8 @@ func (mb *messageBusiness) GetHistory(ctx context.Context, req *chatv1.GetHistor
 	}
 
 	// Update last read sequence for the user if we have events
-	if len(events) > 0 && req.Cursor == "" {
-		_ = mb.MarkMessagesAsRead(ctx, req.RoomId, events[0].GetID(), profileID)
+	if len(events) > 0 && req.GetCursor() == "" {
+		_ = mb.MarkMessagesAsRead(ctx, req.GetRoomId(), events[0].GetID(), profileID)
 	}
 
 	return protoEvents, nil
@@ -237,7 +248,12 @@ func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, 
 	return nil
 }
 
-func (mb *messageBusiness) MarkMessagesAsRead(ctx context.Context, roomID string, eventID string, profileID string) error {
+func (mb *messageBusiness) MarkMessagesAsRead(
+	ctx context.Context,
+	roomID string,
+	eventID string,
+	profileID string,
+) error {
 	if roomID == "" {
 		return service.ErrMessageRoomIDRequired
 	}
