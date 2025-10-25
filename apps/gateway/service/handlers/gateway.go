@@ -20,7 +20,7 @@ type GatewayServer struct {
 	ChatServiceClient chatv1connect.ChatServiceClient
 	ConnectionManager *business.ConnectionManager
 
-	chatv1connect.UnimplementedChatServiceHandler
+	chatv1connect.UnimplementedGatewayServiceHandler
 }
 
 // NewGatewayServer creates a new gateway server instance.

@@ -21,4 +21,8 @@ type GatewayConfig struct {
 	// and allow multiple gateway instances to coordinate
 	CacheName string `envDefault:"defaultCache" env:"CACHE_NAME"`
 	CacheURI  string `envDefault:"redis://localhost:6379" env:"CACHE_URI"`
+
+	// Queue for receiving user-targeted deliveries from default service
+	QueueUserEventDeliveryName string `envDefault:"user.event.delivery" env:"QUEUE_USER_EVENT_DELIVERY_NAME"`
+	QueueUserEventDeliveryURI  string `envDefault:"mem://user.event.delivery" env:"QUEUE_USER_EVENT_DELIVERY_URI"`
 }

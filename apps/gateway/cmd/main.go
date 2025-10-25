@@ -62,7 +62,7 @@ func main() {
 	)
 
 	// Setup gateway server
-	gatewayHandler := setupGatewayServer(ctx, svc, chatServiceClient, connectionManager, cfg, serviceName, log)
+	gatewayHandler := setupGatewayServer(ctx, svc, chatServiceClient, connectionManager)
 
 	serviceOptions = append(serviceOptions, frame.WithHTTPHandler(gatewayHandler))
 
@@ -113,21 +113,18 @@ func setupGatewayServer(
 	svc *frame.Service,
 	chatServiceClient chatv1connect.ChatServiceClient,
 	connectionManager *business.ConnectionManager,
-	cfg gtwconfig.GatewayConfig,
-	serviceName string,
-	log *util.LogEntry,
 ) http.Handler {
 
 	securityMan := svc.SecurityManager()
 
 	otelInterceptor, err := otelconnect.NewInterceptor()
 	if err != nil {
-		log.WithError(err).Fatal("could not configure open telemetry")
+		util.Log(ctx).WithError(err).Fatal("could not configure open telemetry")
 	}
 
 	validateInterceptor, err := securityconnect.NewValidationInterceptor()
 	if err != nil {
-		log.WithError(err).Fatal("could not configure validation interceptor")
+		util.Log(ctx).WithError(err).Fatal("could not configure validation interceptor")
 	}
 
 	authInterceptor := securityconnect.NewAuthInterceptor(securityMan.GetAuthenticator(ctx))
@@ -135,8 +132,7 @@ func setupGatewayServer(
 	gatewayServer := handlers.NewGatewayServer(svc, chatServiceClient, connectionManager)
 
 	_, serverHandler := chatv1connect.NewGatewayServiceHandler(
-		gatewayServer,
-		connect.WithInterceptors(authInterceptor, otelInterceptor, validateInterceptor),
+		gatewayServer, connect.WithInterceptors(authInterceptor, otelInterceptor, validateInterceptor),
 	)
 
 	return serverHandler
