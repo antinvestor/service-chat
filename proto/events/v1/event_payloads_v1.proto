@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package events.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/antinvestor/service-chat/proto/events/v1;eventsv1";
+
+// ChatEvent represents an event in the chat system, the core unit of data flowing
+// through the system in real-time to end-user devices.
+message ChatEvent {
+  // Unique identifier for the event, constrained for quick parsing and validation.
+  string event_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40,
+    (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
+  ];
+  // Identifies the chat room or context, ensuring data is routed to the correct group.
+  string room_id = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40,
+    (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
+  ];
+  // Identifies the originator of the event, crucial for attribution and security.
+  // Marked optional as it may not be required for system messages.
+  optional string sender_id = 3 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40,
+    (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
+  ];
+
+  // Allowed message types. Extendable via new enum values.
+  enum EventType {
+    UNSPECIFIED = 0;
+    EVENT = 1;
+    TEXT = 2;
+    ATTACHMENT = 3;
+    REACTION = 7;
+    ENCRYPTED = 6; // opaque ciphertext
+    SYSTEM = 10;
+    CALL_OFFER = 21;
+    CALL_ANSWER = 22;
+    CALL_ICE = 23;
+    CALL_END = 24;
+  }
+
+  // Categorizes the event (e.g., TEXT, ATTACHMENT) for efficient handling.
+  EventType event_type = 4;
+  // Timestamp for event creation, aiding in ordering and latency debugging.
+  google.protobuf.Timestamp created_at = 5;
+  // Version field to handle future changes without breaking existing clients.
+  int32 version = 6;
+}
+
+// DeliveryTarget represents an entry for delivery to a specific recipient,
+// facilitating the distribution phase of data flow.
+message DeliveryTarget {
+  // Identifies the target user or device for precise routing.
+  string recepient_id = 1 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40,
+    (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
+  ];
+  // Unique identifier for tracking delivery status and retries in real-time.
+  string outbox_id = 2 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40,
+    (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
+  ];
+}
+
+// EventBroadcast encapsulates an event and its delivery targets for bulk distribution
+// to multiple recipients, optimizing the initial broadcast phase.
+message EventBroadcast {
+  // The event to be distributed.
+  ChatEvent event = 1;
+  // List of delivery targets specifying recipients for batch processing efficiency.
+  repeated DeliveryTarget targets = 2;
+  // Indicates priority of delivery to prioritize critical events (e.g., CALL_OFFER).
+  enum Priority {
+    NORMAL = 0;
+    HIGH = 1;
+  }
+  Priority priority = 3;
+}
+
+// UserDelivery represents the final payload delivered to an end-user device,
+// containing the event, specific delivery target, and detailed data.
+message UserDelivery {
+  // The event data being delivered.
+  ChatEvent event = 1;
+  // Specific delivery target for this delivery, aiding in tracking.
+  DeliveryTarget target = 2;
+  // Flexible struct for detailed event data (e.g., message text, media metadata).
+  google.protobuf.Struct payload = 3;
+  // Indicates if payload data is compressed to save bandwidth for large messages.
+  bool is_compressed = 4;
+  // Metadata for retry logic to ensure robust delivery to end-user devices.
+  int32 retry_count = 5;
+}

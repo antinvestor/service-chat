@@ -3,11 +3,12 @@ module github.com/antinvestor/service-chat
 go 1.25.2
 
 require (
-	buf.build/go/protovalidate v1.0.0
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.10-20250912141014-52f32327d4b0.1
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.8.0
 	github.com/antinvestor/apis/go/chat v1.46.6
 	github.com/antinvestor/apis/go/common v1.46.4
+	github.com/antinvestor/apis/go/device v1.46.6
 	github.com/antinvestor/apis/go/notification v1.46.6
 	github.com/antinvestor/apis/go/profile v1.46.6
 	github.com/pitabwire/frame v1.63.3
@@ -20,7 +21,7 @@ require (
 )
 
 require (
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.10-20250912141014-52f32327d4b0.1 // indirect
+	buf.build/go/protovalidate v1.0.0 // indirect
 	cel.dev/expr v0.24.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect

@@ -13,7 +13,9 @@ VERSION		?= $(shell git describe --tags --always --dirty --match=v* 2> /dev/null
 PACKAGE		?= $(shell go list)
 PACKAGES	?= $(shell go list ./...)
 FILES		?= $(shell find . -type f -name '*.go' -not -path "./vendor/*")
-
+BIN			:= $(shell go env GOPATH)/bin
+# Set to use a different compiler. For example, `GO=go1.18rc1 make test`.
+GO ?= go
 
 
 default: help
@@ -41,21 +43,10 @@ vet:    ## run go vet on the source files
 doc:    ## generate godocs and start a local documentation webserver on port 8085
 	godoc -http=:8085 -index
 
-# this command will start docker components that we set in docker-compose.yml
-docker-setup: ## sets up docker container images
-	docker compose up -d --remove-orphans --force-recreate
-
-pg_wait:
-	@count=0; \
-	until  nc -z localhost 5434; do \
-	  if [ $$count -gt 30 ]; then echo "can't wait forever for pg"; exit 1; fi; \
-	    sleep 1; echo "waiting for postgresql" $$count; count=$$(($$count+1)); done; \
-	    sleep 5;
-
-# shutting down docker components
-docker-stop: ## stops all docker containers
-	docker compose down
-
+generate:
+	$(GO) install github.com/bufbuild/buf/cmd/buf@latest
+	cd proto/events/v1 && PATH=$(BIN):$$PATH $(BIN)/buf dep update
+	cd proto/events/v1 && PATH=$(BIN):$$PATH $(BIN)/buf generate
 
 # this command will run all tests in the repo
 # INTEGRATION_TEST_SUITE_PATH is used to run specific tests in Golang,
@@ -71,4 +62,4 @@ tests: ## runs all system tests
 	fi;\
 	go tool cover -html=coverage.out -o coverage.html
 
-build: clean fmt vet tests ## run all preliminary steps and tests the setup
+build: clean  fmt vet tests ## run all preliminary steps and tests the setup

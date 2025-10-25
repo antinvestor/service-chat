@@ -8,17 +8,19 @@ import (
 	"connectrpc.com/otelconnect"
 	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
 	apis "github.com/antinvestor/apis/go/common"
+	devicev1 "github.com/antinvestor/apis/go/device/v1"
 	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
 	profilev1 "github.com/antinvestor/apis/go/profile/v1"
 	aconfig "github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
+	"github.com/antinvestor/service-chat/apps/default/service/queues"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/security"
-	security_connect "github.com/pitabwire/frame/security/interceptors/connect"
+	securityconnect "github.com/pitabwire/frame/security/interceptors/connect"
 	"github.com/pitabwire/frame/security/openid"
 	"github.com/pitabwire/util"
 )
@@ -47,14 +49,19 @@ func main() {
 	sm := svc.SecurityManager()
 
 	// Setup clients and services
+	deviceCli, err := setupDeviceClient(ctx, sm, cfg)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup device client")
+	}
+
 	notificationCli, err := setupNotificationClient(ctx, sm, cfg)
 	if err != nil {
-		log.WithError(err).Fatal("main -- Could not setup notification svc")
+		log.WithError(err).Fatal("main -- Could not setup notification client")
 	}
 
 	profileCli, err := setupProfileClient(ctx, sm, cfg)
 	if err != nil {
-		log.WithError(err).Fatal("main -- Could not setup profile svc")
+		log.WithError(err).Fatal("main -- Could not setup profile client")
 	}
 
 	// Setup Connect server
@@ -66,17 +73,18 @@ func main() {
 		log.WithError(err).Fatal("could not setup HTTP handlers")
 	}
 
-	relationshipConnectQueuePublisher := frame.WithRegisterPublisher(
-		cfg.QueueRelationshipConnectName,
-		cfg.QueueRelationshipConnectURI,
+	userDeliveryQueuePublisher := frame.WithRegisterPublisher(
+		cfg.QueueUserEventDeliveryName,
+		cfg.QueueUserEventDeliveryURI,
 	)
-	relationshipDisConnectQueuePublisher := frame.WithRegisterPublisher(
-		cfg.QueueRelationshipDisConnectName,
-		cfg.QueueRelationshipDisConnectURI,
+	userDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
+		cfg.QueueUserEventDeliveryName,
+		cfg.QueueUserEventDeliveryURI,
+		queues.NewUserDeliveryQueueHandler(svc, deviceCli),
 	)
 	// Register queue handlers
 	serviceOptions = append(serviceOptions,
-		relationshipConnectQueuePublisher, relationshipDisConnectQueuePublisher,
+		userDeliveryQueuePublisher, userDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(svc),
 		))
@@ -147,6 +155,20 @@ func setupProfileClient(
 		apis.WithAudiences("service_profile"))
 }
 
+// setupDeviceClient creates and configures the device client.
+func setupDeviceClient(
+	ctx context.Context,
+	clHolder security.InternalOauth2ClientHolder,
+	cfg aconfig.ChatConfig) (*devicev1.DeviceClient, error) {
+	return devicev1.NewDeviceClient(ctx,
+		apis.WithEndpoint(cfg.DeviceServiceURI),
+		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
+		apis.WithTokenUsername(clHolder.JwtClientID()),
+		apis.WithTokenPassword(clHolder.JwtClientSecret()),
+		apis.WithScopes(openid.ConstSystemScopeInternal),
+		apis.WithAudiences("service_device"))
+}
+
 // setupConnectServer initializes and configures the gRPC server.
 func setupConnectServer(ctx context.Context, svc *frame.Service,
 	notificationCli *notificationv1.NotificationClient,
@@ -162,12 +184,12 @@ func setupConnectServer(ctx context.Context, svc *frame.Service,
 		log.WithError(err).Fatal("could not configure open telemetry")
 	}
 
-	validateInterceptor, err := security_connect.NewValidationInterceptor()
+	validateInterceptor, err := securityconnect.NewValidationInterceptor()
 	if err != nil {
 		log.WithError(err).Fatal("could not configure validation interceptor")
 	}
 
-	authInterceptor := security_connect.NewAuthInterceptor(securityMan.GetAuthenticator(ctx))
+	authInterceptor := securityconnect.NewAuthInterceptor(securityMan.GetAuthenticator(ctx))
 
 	implementation := handlers.NewChatServer(ctx, svc, notificationCli, profileCli)
 
