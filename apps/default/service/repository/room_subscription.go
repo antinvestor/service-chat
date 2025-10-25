@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/framedata"
+	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/workerpool"
 	"gorm.io/gorm/clause"
 )
 
@@ -17,7 +19,7 @@ const (
 )
 
 type roomSubscriptionRepository struct {
-	framedata.BaseRepository[*models.RoomSubscription]
+	datastore.BaseRepository[*models.RoomSubscription]
 }
 
 // GetByID retrieves a room subscription by its ID.
@@ -173,7 +175,7 @@ func (rsr *roomSubscriptionRepository) HasPermission(
 ) (bool, error) {
 	subscription, err := rsr.GetActiveByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return false, nil
 		}
 		return false, err
@@ -197,7 +199,7 @@ func (rsr *roomSubscriptionRepository) HasPermission(
 func (rsr *roomSubscriptionRepository) IsActiveMember(ctx context.Context, roomID, profileID string) (bool, error) {
 	subscription, err := rsr.GetActiveByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return false, nil
 		}
 		return false, err
@@ -211,11 +213,10 @@ func (rsr *roomSubscriptionRepository) BulkCreate(ctx context.Context, subscript
 }
 
 // NewRoomSubscriptionRepository creates a new room subscription repository instance.
-func NewRoomSubscriptionRepository(service *frame.Service) RoomSubscriptionRepository {
+func NewRoomSubscriptionRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomSubscriptionRepository {
 	return &roomSubscriptionRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomSubscription](
-			service,
-			func() *models.RoomSubscription { return &models.RoomSubscription{} },
+		BaseRepository: datastore.NewBaseRepository[*models.RoomSubscription](
+			dbPool, workMan, func() *models.RoomSubscription { return &models.RoomSubscription{} },
 		),
 	}
 }

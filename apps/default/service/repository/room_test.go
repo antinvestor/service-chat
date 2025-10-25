@@ -1,18 +1,18 @@
-package tests
+package repository
 
 import (
 	"testing"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/antinvestor/service-chat/apps/default/service/repository"
-	"github.com/pitabwire/frame"
+	"github.com/antinvestor/service-chat/apps/default/tests"
+	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 )
 
 type RoomRepositoryTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestRoomRepositoryTestSuite(t *testing.T) {
@@ -22,14 +22,14 @@ func TestRoomRepositoryTestSuite(t *testing.T) {
 func (s *RoomRepositoryTestSuite) TestCreateRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomRepository(svc)
+		repo := NewRoomRepository(svc)
 
 		room := &models.Room{
 			RoomType:    "group",
 			Name:        "Test Room",
 			Description: "Test Description",
 			IsPublic:    true,
-			Properties:  frame.JSONMap{"key": "value"},
+			Properties:  data.JSONMap{"key": "value"},
 		}
 		room.GenID(ctx)
 
@@ -49,7 +49,7 @@ func (s *RoomRepositoryTestSuite) TestCreateRoom() {
 func (s *RoomRepositoryTestSuite) TestUpdateRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomRepository(svc)
+		repo := NewRoomRepository(svc)
 
 		// Create room
 		room := &models.Room{
@@ -79,7 +79,7 @@ func (s *RoomRepositoryTestSuite) TestUpdateRoom() {
 func (s *RoomRepositoryTestSuite) TestDeleteRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomRepository(svc)
+		repo := NewRoomRepository(svc)
 
 		// Create room
 		room := &models.Room{
@@ -105,7 +105,7 @@ func (s *RoomRepositoryTestSuite) TestDeleteRoom() {
 func (s *RoomRepositoryTestSuite) TestSearchRooms() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomRepository(svc)
+		repo := NewRoomRepository(svc)
 
 		// Create multiple rooms
 		for range 3 {
@@ -127,7 +127,7 @@ func (s *RoomRepositoryTestSuite) TestSearchRooms() {
 func (s *RoomRepositoryTestSuite) TestGetRoomsByIDs() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomRepository(svc)
+		repo := NewRoomRepository(svc)
 
 		// Create rooms
 		room1 := &models.Room{RoomType: "group", Name: "Room 1", IsPublic: true}

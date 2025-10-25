@@ -1,18 +1,18 @@
-package tests
+package repository
 
 import (
 	"testing"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/antinvestor/service-chat/apps/default/service/repository"
-	"github.com/pitabwire/frame"
+	"github.com/antinvestor/service-chat/apps/default/tests"
+	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 )
 
 type SubscriptionRepositoryTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestSubscriptionRepositoryTestSuite(t *testing.T) {
@@ -22,15 +22,15 @@ func TestSubscriptionRepositoryTestSuite(t *testing.T) {
 func (s *SubscriptionRepositoryTestSuite) TestCreateSubscription() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		sub := &models.RoomSubscription{
 			RoomID:               util.IDString(),
 			ProfileID:            util.IDString(),
-			Role:                 repository.RoleMember,
+			Role:                 RoleMember,
 			IsActive:             true,
 			NotificationsEnabled: true,
-			Properties:           frame.JSONMap{"test": "data"},
+			Properties:           data.JSONMap{"test": "data"},
 		}
 		sub.GenID(ctx)
 
@@ -50,7 +50,7 @@ func (s *SubscriptionRepositoryTestSuite) TestCreateSubscription() {
 func (s *SubscriptionRepositoryTestSuite) TestGetByRoomAndProfile() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		roomID := util.IDString()
 		profileID := util.IDString()
@@ -58,7 +58,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomAndProfile() {
 		sub := &models.RoomSubscription{
 			RoomID:    roomID,
 			ProfileID: profileID,
-			Role:      repository.RoleAdmin,
+			Role:      RoleAdmin,
 			IsActive:  true,
 		}
 		sub.GenID(ctx)
@@ -68,14 +68,14 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomAndProfile() {
 		retrieved, err := repo.GetByRoomAndProfile(ctx, roomID, profileID)
 		s.NoError(err)
 		s.Equal(sub.GetID(), retrieved.GetID())
-		s.Equal(repository.RoleAdmin, retrieved.Role)
+		s.Equal(RoleAdmin, retrieved.Role)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestGetActiveByRoomAndProfile() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		roomID := util.IDString()
 		profileID := util.IDString()
@@ -84,7 +84,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetActiveByRoomAndProfile() {
 		activeSub := &models.RoomSubscription{
 			RoomID:    roomID,
 			ProfileID: profileID,
-			Role:      repository.RoleMember,
+			Role:      RoleMember,
 			IsActive:  true,
 		}
 		activeSub.GenID(ctx)
@@ -107,7 +107,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetActiveByRoomAndProfile() {
 func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		roomID := util.IDString()
 
@@ -116,7 +116,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
 			sub := &models.RoomSubscription{
 				RoomID:    roomID,
 				ProfileID: util.IDString(),
-				Role:      repository.RoleMember,
+				Role:      RoleMember,
 				IsActive:  i < 2, // First two active, last one inactive
 			}
 			sub.GenID(ctx)
@@ -138,7 +138,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
 func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		profileID := util.IDString()
 
@@ -147,7 +147,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
 			sub := &models.RoomSubscription{
 				RoomID:    util.IDString(),
 				ProfileID: profileID,
-				Role:      repository.RoleMember,
+				Role:      RoleMember,
 				IsActive:  true,
 			}
 			sub.GenID(ctx)
@@ -164,32 +164,32 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
 func (s *SubscriptionRepositoryTestSuite) TestUpdateRole() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		sub := &models.RoomSubscription{
 			RoomID:    util.IDString(),
 			ProfileID: util.IDString(),
-			Role:      repository.RoleMember,
+			Role:      RoleMember,
 			IsActive:  true,
 		}
 		sub.GenID(ctx)
 		s.NoError(repo.Save(ctx, sub))
 
 		// Update role
-		err := repo.UpdateRole(ctx, sub.GetID(), repository.RoleAdmin)
+		err := repo.UpdateRole(ctx, sub.GetID(), RoleAdmin)
 		s.NoError(err)
 
 		// Verify update
 		retrieved, err := repo.GetByID(ctx, sub.GetID())
 		s.NoError(err)
-		s.Equal(repository.RoleAdmin, retrieved.Role)
+		s.Equal(RoleAdmin, retrieved.Role)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		roomID := util.IDString()
 		adminID := util.IDString()
@@ -199,7 +199,7 @@ func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
 		adminSub := &models.RoomSubscription{
 			RoomID:    roomID,
 			ProfileID: adminID,
-			Role:      repository.RoleAdmin,
+			Role:      RoleAdmin,
 			IsActive:  true,
 		}
 		adminSub.GenID(ctx)
@@ -209,19 +209,19 @@ func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
 		memberSub := &models.RoomSubscription{
 			RoomID:    roomID,
 			ProfileID: memberID,
-			Role:      repository.RoleMember,
+			Role:      RoleMember,
 			IsActive:  true,
 		}
 		memberSub.GenID(ctx)
 		s.NoError(repo.Save(ctx, memberSub))
 
 		// Admin should have member permission
-		hasPermission, err := repo.HasPermission(ctx, roomID, adminID, repository.RoleMember)
+		hasPermission, err := repo.HasPermission(ctx, roomID, adminID, RoleMember)
 		s.NoError(err)
 		s.True(hasPermission)
 
 		// Member should not have admin permission
-		hasPermission, err = repo.HasPermission(ctx, roomID, memberID, repository.RoleAdmin)
+		hasPermission, err = repo.HasPermission(ctx, roomID, memberID, RoleAdmin)
 		s.NoError(err)
 		s.False(hasPermission)
 	})
@@ -230,7 +230,7 @@ func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
 func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		roomID := util.IDString()
 
@@ -239,7 +239,7 @@ func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
 			sub := &models.RoomSubscription{
 				RoomID:    roomID,
 				ProfileID: util.IDString(),
-				Role:      repository.RoleMember,
+				Role:      RoleMember,
 				IsActive:  i < 3,
 			}
 			sub.GenID(ctx)
@@ -255,7 +255,7 @@ func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
 func (s *SubscriptionRepositoryTestSuite) TestBulkCreate() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomSubscriptionRepository(svc)
+		repo := NewRoomSubscriptionRepository(svc)
 
 		roomID := util.IDString()
 		subs := []*models.RoomSubscription{}
@@ -264,7 +264,7 @@ func (s *SubscriptionRepositoryTestSuite) TestBulkCreate() {
 			sub := &models.RoomSubscription{
 				RoomID:    roomID,
 				ProfileID: util.IDString(),
-				Role:      repository.RoleMember,
+				Role:      RoleMember,
 				IsActive:  true,
 			}
 			sub.GenID(ctx)

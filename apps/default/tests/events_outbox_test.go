@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
@@ -8,6 +9,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
@@ -23,12 +25,16 @@ func TestOutboxEventTestSuite(t *testing.T) {
 }
 
 func (s *OutboxEventTestSuite) setupBusinessLayer(
-	svc *frame.Service,
+	ctx context.Context, svc *frame.Service,
 ) (business.RoomBusiness, business.MessageBusiness) {
-	roomRepo := repository.NewRoomRepository(svc)
-	eventRepo := repository.NewRoomEventRepository(svc)
-	subRepo := repository.NewRoomSubscriptionRepository(svc)
-	outboxRepo := repository.NewRoomOutboxRepository(svc)
+
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+
+	roomRepo := repository.NewRoomRepository(dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -93,7 +99,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateInvalidPayload() {
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		outboxRepo := repository.NewRoomOutboxRepository(svc)
 		subRepo := repository.NewRoomSubscriptionRepository(svc)
@@ -165,7 +171,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		subRepo := repository.NewRoomSubscriptionRepository(svc)
 
@@ -229,7 +235,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		outboxRepo := repository.NewRoomOutboxRepository(svc)
 		subRepo := repository.NewRoomSubscriptionRepository(svc)
@@ -294,7 +300,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		subRepo := repository.NewRoomSubscriptionRepository(svc)
 
@@ -353,7 +359,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		subRepo := repository.NewRoomSubscriptionRepository(svc)
 		outboxRepo := repository.NewRoomOutboxRepository(svc)
@@ -453,7 +459,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithNonExistentRoom() {
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		subRepo := repository.NewRoomSubscriptionRepository(svc)
 
@@ -517,7 +523,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		subRepo := repository.NewRoomSubscriptionRepository(svc)
 		outboxRepo := repository.NewRoomOutboxRepository(svc)

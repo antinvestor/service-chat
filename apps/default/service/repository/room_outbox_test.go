@@ -1,17 +1,17 @@
-package tests
+package repository
 
 import (
 	"testing"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 )
 
 type OutboxRepositoryTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestOutboxRepositoryTestSuite(t *testing.T) {
@@ -21,7 +21,7 @@ func TestOutboxRepositoryTestSuite(t *testing.T) {
 func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -48,7 +48,7 @@ func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		subscriptionID := util.IDString()
 		roomID := util.IDString()
@@ -91,7 +91,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 func (s *OutboxRepositoryTestSuite) TestGetByRoomID() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		roomID := util.IDString()
 
@@ -118,7 +118,7 @@ func (s *OutboxRepositoryTestSuite) TestGetByRoomID() {
 func (s *OutboxRepositoryTestSuite) TestUpdateStatus() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -144,7 +144,7 @@ func (s *OutboxRepositoryTestSuite) TestUpdateStatus() {
 func (s *OutboxRepositoryTestSuite) TestIncrementRetryCount() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -176,7 +176,7 @@ func (s *OutboxRepositoryTestSuite) TestIncrementRetryCount() {
 func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -190,7 +190,7 @@ func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
 
 		// Mark as failed
 		errorMsg := "Connection timeout"
-		err := repo.UpdateStatusWithError(ctx, outbox.GetID(), repository.OutboxStatusFailed, errorMsg)
+		err := repo.UpdateStatusWithError(ctx, outbox.GetID(), OutboxStatusFailed, errorMsg)
 		s.NoError(err)
 
 		// Verify update
@@ -204,7 +204,7 @@ func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
 func (s *OutboxRepositoryTestSuite) TestDeleteOldEntries() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		roomID := util.IDString()
 
@@ -231,7 +231,7 @@ func (s *OutboxRepositoryTestSuite) TestDeleteOldEntries() {
 func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomOutboxRepository(svc)
+		repo := NewRoomOutboxRepository(svc)
 
 		roomID := util.IDString()
 
@@ -268,7 +268,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 		// Count pending ones
 		count := 0
 		for _, entry := range pendingEntries {
-			if entry.Status == repository.OutboxStatusPending {
+			if entry.Status == OutboxStatusPending {
 				count++
 			}
 		}
@@ -281,8 +281,8 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 func (s *OutboxRepositoryTestSuite) TestUnreadCountGeneration() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		outboxRepo := repository.NewRoomOutboxRepository(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
+		outboxRepo := NewRoomOutboxRepository(svc)
+		subRepo := NewRoomSubscriptionRepository(svc)
 
 		roomID := util.IDString()
 		subscriptionID := util.IDString()
@@ -291,7 +291,7 @@ func (s *OutboxRepositoryTestSuite) TestUnreadCountGeneration() {
 		sub := &models.RoomSubscription{
 			RoomID:      roomID,
 			ProfileID:   util.IDString(),
-			Role:        repository.RoleMember,
+			Role:        RoleMember,
 			IsActive:    true,
 			UnreadCount: 0,
 		}
@@ -335,9 +335,9 @@ func (s *OutboxRepositoryTestSuite) TestUnreadCountGeneration() {
 
 		// Update status to 'sent' using direct SQL (since UpdateStatus isn't working)
 		outboxID := pending[0].GetID()
-		t.Logf("Updating outbox ID: %s to status: %s", outboxID, repository.OutboxStatusSent)
+		t.Logf("Updating outbox ID: %s to status: %s", outboxID, OutboxStatusSent)
 		err = svc.DB(ctx, false).
-			Exec("UPDATE room_outboxes SET status = ? WHERE id = ?", repository.OutboxStatusSent, outboxID).
+			Exec("UPDATE room_outboxes SET status = ? WHERE id = ?", OutboxStatusSent, outboxID).
 			Error
 		s.NoError(err)
 

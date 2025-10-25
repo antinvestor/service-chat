@@ -10,7 +10,7 @@ require (
 	github.com/antinvestor/apis/go/common v1.46.4
 	github.com/antinvestor/apis/go/notification v1.46.6
 	github.com/antinvestor/apis/go/profile v1.46.6
-	github.com/pitabwire/frame v1.61.1
+	github.com/pitabwire/frame v1.63.3
 	github.com/pitabwire/util v0.3.5
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
@@ -26,7 +26,6 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/XSAM/otelsql v0.40.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/caarlos0/env/v11 v11.3.1 // indirect
@@ -44,6 +43,7 @@ require (
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
+	github.com/exaring/otelpgx v0.9.3 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -81,7 +81,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/panjf2000/ants/v2 v2.11.3 // indirect
-	github.com/pitabwire/natspubsub v0.7.2 // indirect
+	github.com/pitabwire/natspubsub v0.7.3 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
@@ -89,7 +89,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.1 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
-	github.com/prometheus/procfs v0.17.0 // indirect
+	github.com/prometheus/procfs v0.18.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.9 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
@@ -98,6 +98,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.39.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
+	github.com/valkey-io/valkey-go v1.0.67 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.13.0 // indirect
@@ -141,7 +142,7 @@ require (
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.252.0 // indirect
+	google.golang.org/api v0.253.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251014184007-4626949a642f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251014184007-4626949a642f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

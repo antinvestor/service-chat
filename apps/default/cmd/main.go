@@ -10,11 +10,16 @@ import (
 	apis "github.com/antinvestor/apis/go/common"
 	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
 	profilev1 "github.com/antinvestor/apis/go/profile/v1"
-	"github.com/antinvestor/service-chat/apps/default/config"
+	aconfig "github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/config"
+	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/security"
+	security_connect "github.com/pitabwire/frame/security/interceptors/connect"
+	"github.com/pitabwire/frame/security/openid"
 	"github.com/pitabwire/util"
 )
 
@@ -23,14 +28,14 @@ func main() {
 	ctx := context.Background()
 
 	// Initialize configuration
-	cfg, err := frame.ConfigLoadWithOIDC[config.ProfileConfig](ctx)
+	cfg, err := config.LoadWithOIDC[aconfig.ChatConfig](ctx)
 	if err != nil {
 		util.Log(ctx).With("err", err).Error("could not process configs")
 		return
 	}
 
 	// Create service
-	ctx, svc := frame.NewServiceWithContext(ctx, serviceName, frame.WithConfig(&cfg))
+	ctx, svc := frame.NewServiceWithContext(ctx, serviceName, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client())
 	defer svc.Stop(ctx)
 	log := svc.Log(ctx)
 
@@ -39,30 +44,26 @@ func main() {
 		return
 	}
 
-	// Register for JWT
-	err = svc.RegisterForJwt(ctx)
-	if err != nil {
-		log.WithError(err).Fatal("main -- could not register for jwt")
-	}
+	sm := svc.SecurityManager()
 
 	// Setup clients and services
-	notificationCli, pErr := setupNotificationClient(ctx, svc, cfg)
+	notificationCli, err := setupNotificationClient(ctx, sm, cfg)
 	if err != nil {
-		log.WithError(pErr).Fatal("main -- Could not setup notification svc")
+		log.WithError(err).Fatal("main -- Could not setup notification svc")
 	}
 
-	profileCli, pErr := setupProfileClient(ctx, svc, cfg)
-	if pErr != nil {
-		log.WithError(pErr).Fatal("main -- Could not setup profile svc")
+	profileCli, err := setupProfileClient(ctx, sm, cfg)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup profile svc")
 	}
 
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, cfg, serviceName, log)
 
 	// Setup HTTP handlers and proxy
-	serviceOptions, httpErr := setupServiceOptions(ctx, connectHandler)
+	serviceOptions, err := setupServiceOptions(ctx, connectHandler)
 	if err != nil {
-		log.WithError(httpErr).Fatal("could not setup HTTP handlers")
+		log.WithError(err).Fatal("could not setup HTTP handlers")
 	}
 
 	relationshipConnectQueuePublisher := frame.WithRegisterPublisher(
@@ -98,48 +99,51 @@ func main() {
 func handleDatabaseMigration(
 	ctx context.Context,
 	svc *frame.Service,
-	cfg config.ProfileConfig,
+	cfg aconfig.ChatConfig,
 	log *util.LogEntry,
 ) bool {
 	serviceOptions := []frame.Option{frame.WithDatastore()}
 
-	if cfg.DoDatabaseMigrate() {
-		svc.Init(ctx, serviceOptions...)
-
-		err := repository.Migrate(ctx, svc, cfg.GetDatabaseMigrationPath())
-		if err != nil {
-			log.WithError(err).Fatal("main -- Could not migrate successfully")
-		}
-		return true
+	if !cfg.DoDatabaseMigrate() {
+		return false
 	}
-	return false
+	svc.Init(ctx, serviceOptions...)
+
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+
+	err := repository.Migrate(ctx, dbPool, cfg.GetDatabaseMigrationPath())
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not migrate successfully")
+	}
+	return true
+
 }
 
 // setupNotificationClient creates and configures the notification client.
 func setupNotificationClient(
 	ctx context.Context,
-	svc *frame.Service,
-	cfg config.ProfileConfig) (*notificationv1.NotificationClient, error) {
+	clHolder security.InternalOauth2ClientHolder,
+	cfg aconfig.ChatConfig) (*notificationv1.NotificationClient, error) {
 	return notificationv1.NewNotificationClient(ctx,
 		apis.WithEndpoint(cfg.NotificationServiceURI),
 		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
-		apis.WithTokenUsername(svc.JwtClientID()),
-		apis.WithTokenPassword(svc.JwtClientSecret()),
-		apis.WithScopes(frame.ConstSystemScopeInternal),
+		apis.WithTokenUsername(clHolder.JwtClientID()),
+		apis.WithTokenPassword(clHolder.JwtClientSecret()),
+		apis.WithScopes(openid.ConstSystemScopeInternal),
 		apis.WithAudiences("service_notifications"))
 }
 
 // setupProfileClient creates and configures the profile client.
 func setupProfileClient(
 	ctx context.Context,
-	svc *frame.Service,
-	cfg config.ProfileConfig) (*profilev1.ProfileClient, error) {
+	clHolder security.InternalOauth2ClientHolder,
+	cfg aconfig.ChatConfig) (*profilev1.ProfileClient, error) {
 	return profilev1.NewProfileClient(ctx,
 		apis.WithEndpoint(cfg.ProfileServiceURI),
 		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
-		apis.WithTokenUsername(svc.JwtClientID()),
-		apis.WithTokenPassword(svc.JwtClientSecret()),
-		apis.WithScopes(frame.ConstSystemScopeInternal),
+		apis.WithTokenUsername(clHolder.JwtClientID()),
+		apis.WithTokenPassword(clHolder.JwtClientSecret()),
+		apis.WithScopes(openid.ConstSystemScopeInternal),
 		apis.WithAudiences("service_profile"))
 }
 
@@ -147,25 +151,23 @@ func setupProfileClient(
 func setupConnectServer(ctx context.Context, svc *frame.Service,
 	notificationCli *notificationv1.NotificationClient,
 	profileCli *profilev1.ProfileClient,
-	cfg config.ProfileConfig,
+	cfg aconfig.ChatConfig,
 	serviceName string,
 	log *util.LogEntry) http.Handler {
-	jwtAudience := cfg.Oauth2JwtVerifyAudience
-	if jwtAudience == "" {
-		jwtAudience = serviceName
-	}
+
+	securityMan := svc.SecurityManager()
 
 	otelInterceptor, err := otelconnect.NewInterceptor()
 	if err != nil {
 		log.WithError(err).Fatal("could not configure open telemetry")
 	}
 
-	validateInterceptor, err := handlers.NewValidationInterceptor()
+	validateInterceptor, err := security_connect.NewValidationInterceptor()
 	if err != nil {
 		log.WithError(err).Fatal("could not configure validation interceptor")
 	}
 
-	authInterceptor := handlers.NewAuthInterceptor(svc, jwtAudience, cfg.GetOauth2Issuer())
+	authInterceptor := security_connect.NewAuthInterceptor(securityMan.GetAuthenticator(ctx))
 
 	implementation := handlers.NewChatServer(ctx, svc, notificationCli, profileCli)
 

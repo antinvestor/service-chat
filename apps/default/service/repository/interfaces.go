@@ -5,19 +5,19 @@ import (
 	"time"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/pitabwire/frame/framedata"
+	"github.com/pitabwire/frame/datastore"
 )
 
 // RoomRepository defines the interface for room data access operations.
 type RoomRepository interface {
-	framedata.BaseRepository[*models.Room]
+	datastore.BaseRepository[*models.Room]
 	GetByTenantAndType(ctx context.Context, tenantID, roomType string) ([]*models.Room, error)
 	GetRoomsByProfileID(ctx context.Context, profileID string) ([]*models.Room, error)
 }
 
 // RoomEventRepository defines the interface for room event data access operations.
 type RoomEventRepository interface {
-	framedata.BaseRepository[*models.RoomEvent]
+	datastore.BaseRepository[*models.RoomEvent]
 	GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomEvent, error)
 	GetHistory(
 		ctx context.Context,
@@ -31,7 +31,7 @@ type RoomEventRepository interface {
 
 // RoomOutboxRepository defines the interface for room outbox data access operations.
 type RoomOutboxRepository interface {
-	framedata.BaseRepository[*models.RoomOutbox]
+	datastore.BaseRepository[*models.RoomOutbox]
 	GetByEventID(ctx context.Context, eventID string) (*models.RoomOutbox, error)
 	GetPendingEntries(ctx context.Context, limit int) ([]*models.RoomOutbox, error)
 	GetFailedEntries(ctx context.Context, maxRetries, limit int) ([]*models.RoomOutbox, error)
@@ -47,7 +47,7 @@ type RoomOutboxRepository interface {
 
 // RoomSubscriptionRepository defines the interface for room subscription data access operations.
 type RoomSubscriptionRepository interface {
-	framedata.BaseRepository[*models.RoomSubscription]
+	datastore.BaseRepository[*models.RoomSubscription]
 	GetByRoomAndProfile(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
 	GetActiveByRoomAndProfile(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
 	GetByRoomID(ctx context.Context, roomID string, activeOnly bool) ([]*models.RoomSubscription, error)
@@ -66,7 +66,7 @@ type RoomSubscriptionRepository interface {
 
 // RoomCallRepository defines the interface for room call data access operations.
 type RoomCallRepository interface {
-	framedata.BaseRepository[*models.RoomCall]
+	datastore.BaseRepository[*models.RoomCall]
 	GetByCallID(ctx context.Context, callID string) (*models.RoomCall, error)
 	GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomCall, error)
 	GetActiveCallByRoomID(ctx context.Context, roomID string) (*models.RoomCall, error)

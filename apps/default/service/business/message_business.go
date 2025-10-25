@@ -11,6 +11,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/data"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -86,7 +87,7 @@ func (mb *messageBusiness) SendEvents(
 			RoomID:      msg.GetRoomId(),
 			MessageType: msg.GetType().String(),
 			SenderID:    senderID,
-			Content:     frame.JSONMap(msg.GetPayload().AsMap()), // Content is in payload
+			Content:     data.JSONMap(msg.GetPayload().AsMap()), // Content is in payload
 		}
 
 		event.GenID(ctx)
@@ -150,7 +151,7 @@ func (mb *messageBusiness) GetMessage(
 	// Get the message
 	event, err := mb.eventRepo.GetByID(ctx, messageID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return nil, service.ErrMessageNotFound
 		}
 		return nil, fmt.Errorf("failed to get message: %w", err)
@@ -195,20 +196,20 @@ func (mb *messageBusiness) GetHistory(
 	}
 
 	// Get messages
-	events, err := mb.eventRepo.GetHistory(ctx, req.GetRoomId(), "", "", limit)
+	evts, err := mb.eventRepo.GetHistory(ctx, req.GetRoomId(), "", "", limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get message history: %w", err)
 	}
 
 	// Convert to proto
-	protoEvents := make([]*chatv1.RoomEvent, 0, len(events))
-	for _, event := range events {
+	protoEvents := make([]*chatv1.RoomEvent, 0, len(evts))
+	for _, event := range evts {
 		protoEvents = append(protoEvents, event.ToAPI())
 	}
 
-	// Update last read sequence for the user if we have events
-	if len(events) > 0 && req.GetCursor() == "" {
-		_ = mb.MarkMessagesAsRead(ctx, req.GetRoomId(), events[0].GetID(), profileID)
+	// Update last read sequence for the user if we have evts
+	if len(evts) > 0 && req.GetCursor() == "" {
+		_ = mb.MarkMessagesAsRead(ctx, req.GetRoomId(), evts[0].GetID(), profileID)
 	}
 
 	return protoEvents, nil
@@ -222,7 +223,7 @@ func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, 
 	// Get the message
 	event, err := mb.eventRepo.GetByID(ctx, messageID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return service.ErrMessageNotFound
 		}
 		return fmt.Errorf("failed to get message: %w", err)
@@ -264,7 +265,7 @@ func (mb *messageBusiness) MarkMessagesAsRead(
 	// Get the subscription
 	sub, err := mb.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return service.ErrSubscriptionNotFound
 		}
 		return fmt.Errorf("failed to get subscription: %w", err)

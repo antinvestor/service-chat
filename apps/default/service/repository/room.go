@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/framedata"
+	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/workerpool"
 )
 
 type roomRepository struct {
-	framedata.BaseRepository[*models.Room]
+	datastore.BaseRepository[*models.Room]
 }
 
 // GetByTenantAndType retrieves rooms by tenant ID and room type.
@@ -32,11 +33,10 @@ func (rr *roomRepository) GetRoomsByProfileID(ctx context.Context, profileID str
 }
 
 // NewRoomRepository creates a new room repository instance.
-func NewRoomRepository(service *frame.Service) RoomRepository {
+func NewRoomRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomRepository {
 	return &roomRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.Room](
-			service,
-			func() *models.Room { return &models.Room{} },
+		BaseRepository: datastore.NewBaseRepository[*models.Room](
+			dbPool, workMan, func() *models.Room { return &models.Room{} },
 		),
 	}
 }

@@ -11,6 +11,8 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -66,7 +68,7 @@ func (ps *ChatServer) toAPIError(err error) error {
 		return grpcError.Err()
 	}
 
-	if frame.ErrorIsNoRows(err) {
+	if data.ErrorIsNoRows(err) {
 		return status.Error(codes.NotFound, err.Error())
 	}
 
@@ -81,7 +83,7 @@ func (ps *ChatServer) Connect(
 	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent],
 ) error {
 	// Extract profile ID from context metadata
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return connect.NewError(
 			connect.CodeUnauthenticated,
@@ -113,7 +115,7 @@ func (ps *ChatServer) SendEvent(
 	ctx context.Context,
 	req *connect.Request[chatv1.SendEventRequest],
 ) (*connect.Response[chatv1.SendEventResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -138,7 +140,7 @@ func (ps *ChatServer) GetHistory(
 	ctx context.Context,
 	req *connect.Request[chatv1.GetHistoryRequest],
 ) (*connect.Response[chatv1.GetHistoryResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -172,7 +174,7 @@ func (ps *ChatServer) CreateRoom(
 	ctx context.Context,
 	req *connect.Request[chatv1.CreateRoomRequest],
 ) (*connect.Response[chatv1.CreateRoomResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -197,7 +199,7 @@ func (ps *ChatServer) SearchRooms(
 	req *connect.Request[chatv1.SearchRoomsRequest],
 	stream *connect.ServerStream[chatv1.SearchRoomsResponse],
 ) error {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return connect.NewError(
 			connect.CodeUnauthenticated,
@@ -222,7 +224,7 @@ func (ps *ChatServer) UpdateRoom(
 	ctx context.Context,
 	req *connect.Request[chatv1.UpdateRoomRequest],
 ) (*connect.Response[chatv1.UpdateRoomResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -246,7 +248,7 @@ func (ps *ChatServer) DeleteRoom(
 	ctx context.Context,
 	req *connect.Request[chatv1.DeleteRoomRequest],
 ) (*connect.Response[chatv1.DeleteRoomResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -268,7 +270,7 @@ func (ps *ChatServer) AddRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.AddRoomSubscriptionsRequest],
 ) (*connect.Response[chatv1.AddRoomSubscriptionsResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -290,7 +292,7 @@ func (ps *ChatServer) RemoveRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.RemoveRoomSubscriptionsRequest],
 ) (*connect.Response[chatv1.RemoveRoomSubscriptionsResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -312,7 +314,7 @@ func (ps *ChatServer) UpdateSubscriptionRole(
 	ctx context.Context,
 	req *connect.Request[chatv1.UpdateSubscriptionRoleRequest],
 ) (*connect.Response[chatv1.UpdateSubscriptionRoleResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
@@ -334,7 +336,7 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.SearchRoomSubscriptionsRequest],
 ) (*connect.Response[chatv1.SearchRoomSubscriptionsResponse], error) {
-	authClaims := frame.ClaimsFromContext(ctx)
+	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,

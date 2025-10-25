@@ -4,18 +4,18 @@ import (
 	"time"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
-	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/data"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Room represents a chat room entity.
 type Room struct {
-	frame.BaseModel
+	data.BaseModel
 	RoomType    string `json:"room_type"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Properties  frame.JSONMap
+	Properties  data.JSONMap
 	IsPublic    bool
 }
 
@@ -42,25 +42,25 @@ func (r *Room) ToAPI() *chatv1.Room {
 
 // RoomCall represents a call session in a room.
 type RoomCall struct {
-	frame.BaseModel
+	data.BaseModel
 	RoomID    string `gorm:"type:varchar(50)"`
 	CallID    string `gorm:"type:varchar(50)"`
 	SFUNodeID string `gorm:"type:varchar(250)"`
 	Status    string // ringing, active, ended
 	StartedAt time.Time
 	EndedAt   time.Time
-	Metadata  frame.JSONMap
+	Metadata  data.JSONMap
 }
 
 // RoomEvent represents a message or event in a room.
 // The ID field (from BaseModel) is naturally time-sorted and used for ordering.
 type RoomEvent struct {
-	frame.BaseModel
+	data.BaseModel
 	RoomID      string `gorm:"type:varchar(50);index:idx_room_id"`
 	SenderID    string `gorm:"type:varchar(50)"`
 	MessageType string
-	Content     frame.JSONMap
-	Properties  frame.JSONMap
+	Content     data.JSONMap
+	Properties  data.JSONMap
 	DeletedAt   int64 `gorm:"column:deleted_at"`
 }
 
@@ -95,7 +95,7 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 
 // RoomOutbox represents an outbox entry for message delivery tracking.
 type RoomOutbox struct {
-	frame.BaseModel
+	data.BaseModel
 	RoomID         string `gorm:"type:varchar(50)"`
 	SubscriptionID string `gorm:"type:varchar(50);index:idx_subscription_status"`
 	EventID        string `gorm:"type:varchar(50)"`
@@ -106,7 +106,7 @@ type RoomOutbox struct {
 
 // RoomSubscription represents a user's subscription to a room.
 type RoomSubscription struct {
-	frame.BaseModel
+	data.BaseModel
 	RoomID               string `gorm:"type:varchar(50)"`
 	ProfileID            string `gorm:"type:varchar(50)"`
 	Role                 string
@@ -115,7 +115,7 @@ type RoomSubscription struct {
 	LastReadAt           int64
 	UnreadCount          int `gorm:"column:unread_count;default:0"` // Unread message count
 	NotificationsEnabled bool
-	Properties           frame.JSONMap
+	Properties           data.JSONMap
 }
 
 // ToAPI converts RoomSubscription model to API representation.

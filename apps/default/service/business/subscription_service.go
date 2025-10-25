@@ -7,6 +7,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/data"
 )
 
 // SubscriptionService defines the interface for subscription-related operations.
@@ -54,7 +55,7 @@ func (ss *subscriptionService) HasAccess(ctx context.Context, profileID, roomID 
 
 	sub, err := ss.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check subscription: %w", err)
@@ -78,7 +79,7 @@ func (ss *subscriptionService) HasRole(ctx context.Context, profileID, roomID, r
 
 	sub, err := ss.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to check subscription: %w", err)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/data"
 )
 
 // WaitForConditionWithResult polls a condition function until it returns a non-nil result or timeout occurs
@@ -21,7 +21,7 @@ func WaitForConditionWithResult[T any](
 	for time.Now().Before(deadline) {
 		result, err := condition()
 		if err != nil {
-			if !frame.ErrorIsNoRows(err) {
+			if !data.ErrorIsNoRows(err) {
 				return result, err
 			}
 		} else {

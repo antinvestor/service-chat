@@ -10,10 +10,11 @@ import (
 	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
 	notificationv1_mocks "github.com/antinvestor/apis/go/notification/v1_mocks"
 	profilev1 "github.com/antinvestor/apis/go/profile/v1"
-	"github.com/antinvestor/service-chat/apps/default/config"
+	iconfig "github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/frame/frametests/deps/testpostgres"
@@ -51,7 +52,7 @@ func (bs *BaseTestSuite) CreateService(
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 
 	ctx := t.Context()
-	profileConfig, err := frame.ConfigFromEnv[config.ProfileConfig]()
+	profileConfig, err := config.FromEnv[iconfig.ChatConfig]()
 	require.NoError(t, err)
 
 	profileConfig.LogLevel = "debug"

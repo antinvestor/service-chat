@@ -1,19 +1,19 @@
-package tests
+package repository
 
 import (
 	"testing"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/antinvestor/service-chat/apps/default/service/repository"
-	"github.com/pitabwire/frame"
+	"github.com/antinvestor/service-chat/apps/default/tests"
+	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 )
 
 type EventRepositoryTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestEventRepositoryTestSuite(t *testing.T) {
@@ -23,14 +23,14 @@ func TestEventRepositoryTestSuite(t *testing.T) {
 func (s *EventRepositoryTestSuite) TestCreateEvent() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomEventRepository(svc)
+		repo := NewRoomEventRepository(svc)
 
 		event := &models.RoomEvent{
 			RoomID:      util.IDString(),
 			SenderID:    util.IDString(),
 			MessageType: chatv1.RoomEventType_MESSAGE_TYPE_TEXT.String(),
-			Content:     frame.JSONMap{"text": "Hello World"},
-			Properties:  frame.JSONMap{"key": "value"},
+			Content:     data.JSONMap{"text": "Hello World"},
+			Properties:  data.JSONMap{"key": "value"},
 		}
 		event.GenID(ctx)
 
@@ -50,7 +50,7 @@ func (s *EventRepositoryTestSuite) TestCreateEvent() {
 func (s *EventRepositoryTestSuite) TestGetHistory() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomEventRepository(svc)
+		repo := NewRoomEventRepository(svc)
 
 		roomID := util.IDString()
 		senderID := util.IDString()
@@ -61,7 +61,7 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 				RoomID:      roomID,
 				SenderID:    senderID,
 				MessageType: chatv1.RoomEventType_MESSAGE_TYPE_TEXT.String(),
-				Content:     frame.JSONMap{"text": util.RandomString(10)},
+				Content:     data.JSONMap{"text": util.RandomString(10)},
 			}
 			event.GenID(ctx)
 			s.NoError(repo.Save(ctx, event))
@@ -83,7 +83,7 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 func (s *EventRepositoryTestSuite) TestGetByRoomID() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomEventRepository(svc)
+		repo := NewRoomEventRepository(svc)
 
 		roomID := util.IDString()
 
@@ -93,7 +93,7 @@ func (s *EventRepositoryTestSuite) TestGetByRoomID() {
 				RoomID:      roomID,
 				SenderID:    util.IDString(),
 				MessageType: chatv1.RoomEventType_MESSAGE_TYPE_TEXT.String(),
-				Content:     frame.JSONMap{"text": "Message"},
+				Content:     data.JSONMap{"text": "Message"},
 			}
 			event.GenID(ctx)
 			s.NoError(repo.Save(ctx, event))
@@ -109,7 +109,7 @@ func (s *EventRepositoryTestSuite) TestGetByRoomID() {
 func (s *EventRepositoryTestSuite) TestCountByRoomID() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomEventRepository(svc)
+		repo := NewRoomEventRepository(svc)
 
 		roomID := util.IDString()
 
@@ -119,7 +119,7 @@ func (s *EventRepositoryTestSuite) TestCountByRoomID() {
 				RoomID:      roomID,
 				SenderID:    util.IDString(),
 				MessageType: chatv1.RoomEventType_MESSAGE_TYPE_TEXT.String(),
-				Content:     frame.JSONMap{"text": "Message"},
+				Content:     data.JSONMap{"text": "Message"},
 			}
 			event.GenID(ctx)
 			s.NoError(repo.Save(ctx, event))
@@ -135,7 +135,7 @@ func (s *EventRepositoryTestSuite) TestCountByRoomID() {
 func (s *EventRepositoryTestSuite) TestGetBySenderID() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomEventRepository(svc)
+		repo := NewRoomEventRepository(svc)
 
 		roomID := util.IDString()
 		senderID := util.IDString()
@@ -146,7 +146,7 @@ func (s *EventRepositoryTestSuite) TestGetBySenderID() {
 				RoomID:      roomID,
 				SenderID:    senderID,
 				MessageType: chatv1.RoomEventType_MESSAGE_TYPE_TEXT.String(),
-				Content:     frame.JSONMap{"text": "Message"},
+				Content:     data.JSONMap{"text": "Message"},
 			}
 			event.GenID(ctx)
 			s.NoError(repo.Save(ctx, event))
@@ -167,7 +167,7 @@ func (s *EventRepositoryTestSuite) TestGetBySenderID() {
 func (s *EventRepositoryTestSuite) TestEventTypes() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomEventRepository(svc)
+		repo := NewRoomEventRepository(svc)
 
 		roomID := util.IDString()
 		// Test different message types
@@ -182,7 +182,7 @@ func (s *EventRepositoryTestSuite) TestEventTypes() {
 				RoomID:      roomID,
 				SenderID:    util.IDString(),
 				MessageType: msgType.String(),
-				Content:     frame.JSONMap{"data": "test"},
+				Content:     data.JSONMap{"data": "test"},
 			}
 			event.GenID(ctx)
 			s.NoError(repo.Save(ctx, event))
@@ -198,7 +198,7 @@ func (s *EventRepositoryTestSuite) TestEventTypes() {
 func (s *EventRepositoryTestSuite) TestPagination() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		repo := repository.NewRoomEventRepository(svc)
+		repo := NewRoomEventRepository(svc)
 
 		roomID := util.IDString()
 
@@ -208,7 +208,7 @@ func (s *EventRepositoryTestSuite) TestPagination() {
 				RoomID:      roomID,
 				SenderID:    util.IDString(),
 				MessageType: chatv1.RoomEventType_MESSAGE_TYPE_TEXT.String(),
-				Content:     frame.JSONMap{"text": util.RandomString(10)},
+				Content:     data.JSONMap{"text": util.RandomString(10)},
 			}
 			event.GenID(ctx)
 			s.NoError(repo.Save(ctx, event))

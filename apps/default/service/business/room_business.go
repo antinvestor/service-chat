@@ -9,7 +9,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/framedata"
+	"github.com/pitabwire/frame/data"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -106,7 +106,7 @@ func (rb *roomBusiness) GetRoom(ctx context.Context, roomID string, profileID st
 
 	room, err := rb.roomRepo.GetByID(ctx, roomID)
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return nil, service.ErrRoomNotFound
 		}
 		return nil, fmt.Errorf("failed to get room: %w", err)
@@ -208,7 +208,7 @@ func (rb *roomBusiness) SearchRooms(
 	}
 
 	// Build the search query
-	query := &framedata.SearchQuery{
+	query := &data.SearchQuery{
 		Query: req.GetQuery(),
 	}
 
@@ -217,7 +217,7 @@ func (rb *roomBusiness) SearchRooms(
 		if req.GetPage() > 0 {
 			offset = int(req.GetPage()-1) * int(req.GetCount())
 		}
-		query.Pagination = &framedata.Paginator{
+		query.Pagination = &data.Paginator{
 			Limit:  int(req.GetCount()),
 			Offset: offset,
 		}
@@ -343,7 +343,7 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 	// Update the member's role
 	sub, err := rb.subRepo.GetActiveByRoomAndProfile(ctx, req.GetRoomId(), req.GetProfileId())
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			return service.ErrRoomMemberNotFound
 		}
 		return fmt.Errorf("failed to get subscription: %w", err)

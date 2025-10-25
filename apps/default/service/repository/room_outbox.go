@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/framedata"
+	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/workerpool"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +19,7 @@ const (
 )
 
 type roomOutboxRepository struct {
-	framedata.BaseRepository[*models.RoomOutbox]
+	datastore.BaseRepository[*models.RoomOutbox]
 }
 
 // GetByID retrieves an outbox entry by its ID.
@@ -191,11 +192,10 @@ func (ror *roomOutboxRepository) GetPendingBySubscription(
 }
 
 // NewRoomOutboxRepository creates a new room outbox repository instance.
-func NewRoomOutboxRepository(service *frame.Service) RoomOutboxRepository {
+func NewRoomOutboxRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomOutboxRepository {
 	return &roomOutboxRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomOutbox](
-			service,
-			func() *models.RoomOutbox { return &models.RoomOutbox{} },
+		BaseRepository: datastore.NewBaseRepository[*models.RoomOutbox](
+			dbPool, workMan, func() *models.RoomOutbox { return &models.RoomOutbox{} },
 		),
 	}
 }

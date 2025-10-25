@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/framedata"
+	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/workerpool"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 )
 
 type roomCallRepository struct {
-	framedata.BaseRepository[*models.RoomCall]
+	datastore.BaseRepository[*models.RoomCall]
 }
 
 // GetByID retrieves a room call by its ID.
@@ -168,11 +169,10 @@ func (rcr *roomCallRepository) GetCallsBySFUNode(ctx context.Context, sfuNodeID 
 }
 
 // NewRoomCallRepository creates a new room call repository instance.
-func NewRoomCallRepository(service *frame.Service) RoomCallRepository {
+func NewRoomCallRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomCallRepository {
 	return &roomCallRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomCall](
-			service,
-			func() *models.RoomCall { return &models.RoomCall{} },
+		BaseRepository: datastore.NewBaseRepository[*models.RoomCall](
+			dbPool, workMan, func() *models.RoomCall { return &models.RoomCall{} },
 		),
 	}
 }

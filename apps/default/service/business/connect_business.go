@@ -310,7 +310,8 @@ func (cb *connectBusiness) SendReadReceipt(ctx context.Context, profileID string
 	sub.LastReadEventID = eventID
 	sub.LastReadAt = time.Now().Unix()
 
-	if err := cb.subRepo.Save(ctx, sub); err != nil {
+	err = cb.subRepo.Save(ctx, sub)
+	if err != nil {
 		return fmt.Errorf("failed to update subscription: %w", err)
 	}
 

@@ -1,12 +1,14 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
@@ -22,12 +24,16 @@ func TestIntegrationTestSuite(t *testing.T) {
 }
 
 func (s *IntegrationTestSuite) setupBusinessLayer(
-	svc *frame.Service,
+	ctx context.Context, svc *frame.Service,
 ) (business.RoomBusiness, business.MessageBusiness, business.SubscriptionService) {
-	roomRepo := repository.NewRoomRepository(svc)
-	eventRepo := repository.NewRoomEventRepository(svc)
-	subRepo := repository.NewRoomSubscriptionRepository(svc)
-	outboxRepo := repository.NewRoomOutboxRepository(svc)
+
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+
+	roomRepo := repository.NewRoomRepository(dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -39,7 +45,7 @@ func (s *IntegrationTestSuite) setupBusinessLayer(
 func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness, subscriptionSvc := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness, subscriptionSvc := s.setupBusinessLayer(ctx, svc)
 
 		// 1. Create room
 		creatorID := util.IDString()
@@ -160,7 +166,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
 
@@ -222,7 +228,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _, subscriptionSvc := s.setupBusinessLayer(svc)
+		roomBusiness, _, subscriptionSvc := s.setupBusinessLayer(ctx, svc)
 
 		ownerID := util.IDString()
 		adminID := util.IDString()
@@ -291,7 +297,7 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 func (s *IntegrationTestSuite) TestMessageDeletion() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
 
@@ -327,8 +333,9 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 			messageIDs = append(messageIDs, acks[0].GetEventId())
 		}
 
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 		// Delete some messages via repository
-		eventRepo := repository.NewRoomEventRepository(svc)
+		eventRepo := repository.NewRoomEventRepository(dbPool, svc.WorkManager())
 		for i := range 3 {
 			err := eventRepo.Delete(ctx, messageIDs[i])
 			s.NoError(err)
@@ -352,7 +359,7 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 func (s *IntegrationTestSuite) TestSearchFunctionality() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
 

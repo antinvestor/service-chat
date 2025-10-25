@@ -1,19 +1,22 @@
-package tests
+package business_test
 
 import (
+	"context"
 	"testing"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
 )
 
 type RoomBusinessTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestRoomBusinessTestSuite(t *testing.T) {
@@ -21,12 +24,16 @@ func TestRoomBusinessTestSuite(t *testing.T) {
 }
 
 func (s *RoomBusinessTestSuite) setupBusinessLayer(
-	svc *frame.Service,
+	ctx context.Context, svc *frame.Service,
 ) (business.RoomBusiness, business.MessageBusiness) {
-	roomRepo := repository.NewRoomRepository(svc)
-	eventRepo := repository.NewRoomEventRepository(svc)
-	subRepo := repository.NewRoomSubscriptionRepository(svc)
-	outboxRepo := repository.NewRoomOutboxRepository(svc)
+
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+
+	roomRepo := repository.NewRoomRepository(dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -38,7 +45,7 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 func (s *RoomBusinessTestSuite) TestCreateRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -60,7 +67,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		req := &chatv1.CreateRoomRequest{
 			Name: "",
@@ -74,7 +81,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
 func (s *RoomBusinessTestSuite) TestGetRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -96,7 +103,7 @@ func (s *RoomBusinessTestSuite) TestGetRoom() {
 func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		otherUserID := util.IDString()
@@ -118,7 +125,7 @@ func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -146,7 +153,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		memberID := util.IDString()
@@ -174,7 +181,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -202,7 +209,7 @@ func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		newMemberID := util.IDString()
@@ -243,7 +250,7 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		memberID := util.IDString()
@@ -276,7 +283,7 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		memberID := util.IDString()
@@ -315,7 +322,7 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 func (s *RoomBusinessTestSuite) TestSearchRooms() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(svc)
+		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
 

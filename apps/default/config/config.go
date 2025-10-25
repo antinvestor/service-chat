@@ -1,9 +1,9 @@
 package config
 
-import "github.com/pitabwire/frame"
+import "github.com/pitabwire/frame/config"
 
-type ProfileConfig struct {
-	frame.ConfigurationDefault
+type ChatConfig struct {
+	config.ConfigurationDefault
 
 	NotificationServiceURI string `envDefault:"127.0.0.1:7020" env:"NOTIFICATION_SERVICE_URI"`
 	ProfileServiceURI      string `envDefault:"127.0.0.1:7003" env:"PROFILE_SERVICE_URI"`

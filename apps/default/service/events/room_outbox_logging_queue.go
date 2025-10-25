@@ -7,7 +7,8 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
-	"gorm.io/gorm"
+	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/datastore"
 )
 
 const RoomOutboxLoggingQueueName = "room.outbox.logging.queue"
@@ -19,10 +20,14 @@ type RoomOutboxLoggingQueue struct {
 }
 
 func NewRoomOutboxLoggingQueue(service *frame.Service) *RoomOutboxLoggingQueue {
+
+	workMan := service.WorkManager()
+	dbPool := service.DatastoreManager().GetPool(context.Background(), datastore.DefaultPoolName)
+
 	return &RoomOutboxLoggingQueue{
 		Service:          service,
-		subscriptionRepo: repository.NewRoomSubscriptionRepository(service),
-		outboxRepo:       repository.NewRoomOutboxRepository(service),
+		subscriptionRepo: repository.NewRoomSubscriptionRepository(dbPool, workMan),
+		outboxRepo:       repository.NewRoomOutboxRepository(dbPool, workMan),
 	}
 }
 
@@ -61,7 +66,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	// Create outbox entries for each subscriber
 	subscriptions, err := csq.subscriptionRepo.GetByRoomID(ctx, roomID, true) // active only
 	if err != nil {
-		if frame.ErrorIsNoRows(err) {
+		if data.ErrorIsNoRows(err) {
 			logger.WithError(err).Error("no such subscribers exists")
 			return nil
 		}
@@ -86,24 +91,12 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 
 	// Save outbox entries and update unread counts
 	if len(outboxEntries) > 0 {
-		for _, outbox := range outboxEntries {
-			err = csq.outboxRepo.Save(ctx, outbox)
-			if err != nil {
-				logger.WithError(err).Error("failed to create new outbox users")
-				return err
-			}
-
-			// Increment unread count for the subscription
-			err = csq.Service.DB(ctx, false).
-				Model(&models.RoomSubscription{}).
-				Where("id = ?", outbox.SubscriptionID).
-				UpdateColumn("unread_count", gorm.Expr("unread_count + ?", 1)).
-				Error
-			if err != nil {
-				logger.WithError(err).Error("failed to update unread count")
-				return err
-			}
+		err = csq.outboxRepo.BatchInsert(ctx, outboxEntries)
+		if err != nil {
+			logger.WithError(err).Error("failed to create new outbox users")
+			return err
 		}
+
 	}
 
 	logger.Debug("Successfully created outbox entries")

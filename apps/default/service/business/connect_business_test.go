@@ -1,12 +1,15 @@
-package tests
+package business_test
 
 import (
+	"context"
 	"testing"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
@@ -14,7 +17,7 @@ import (
 )
 
 type ConnectBusinessTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestConnectBusinessTestSuite(t *testing.T) {
@@ -22,12 +25,16 @@ func TestConnectBusinessTestSuite(t *testing.T) {
 }
 
 func (s *ConnectBusinessTestSuite) setupBusinessLayer(
-	svc *frame.Service,
+	ctx context.Context, svc *frame.Service,
 ) (business.ConnectBusiness, business.RoomBusiness, business.MessageBusiness) {
-	roomRepo := repository.NewRoomRepository(svc)
-	eventRepo := repository.NewRoomEventRepository(svc)
-	subRepo := repository.NewRoomSubscriptionRepository(svc)
-	outboxRepo := repository.NewRoomOutboxRepository(svc)
+
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+
+	roomRepo := repository.NewRoomRepository(dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -40,7 +47,7 @@ func (s *ConnectBusinessTestSuite) setupBusinessLayer(
 func (s *ConnectBusinessTestSuite) TestBroadcastEvent() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(svc)
+		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		// Create room with members
 		creatorID := util.IDString()
@@ -83,7 +90,7 @@ func (s *ConnectBusinessTestSuite) TestBroadcastEvent() {
 func (s *ConnectBusinessTestSuite) TestSendPresenceUpdate() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(svc)
+		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
 		userID := util.IDString()
@@ -108,7 +115,7 @@ func (s *ConnectBusinessTestSuite) TestSendPresenceUpdate() {
 func (s *ConnectBusinessTestSuite) TestSendTypingIndicator() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(svc)
+		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
 		userID := util.IDString()
@@ -133,7 +140,7 @@ func (s *ConnectBusinessTestSuite) TestSendTypingIndicator() {
 func (s *ConnectBusinessTestSuite) TestSendReadReceipt() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		connectBusiness, roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
 		userID := util.IDString()
@@ -174,7 +181,7 @@ func (s *ConnectBusinessTestSuite) TestSendReadReceipt() {
 func (s *ConnectBusinessTestSuite) TestSendReadReceiptAccessDenied() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, roomBusiness, messageBusiness := s.setupBusinessLayer(svc)
+		connectBusiness, roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
 		creatorID := util.IDString()
@@ -217,7 +224,7 @@ func (s *ConnectBusinessTestSuite) TestSendReadReceiptAccessDenied() {
 func (s *ConnectBusinessTestSuite) TestBroadcastEventValidation() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, _, _ := s.setupBusinessLayer(svc)
+		connectBusiness, _, _ := s.setupBusinessLayer(ctx, svc)
 
 		// Try to broadcast with empty room ID
 		roomEvent := &chatv1.RoomEvent{
@@ -238,7 +245,7 @@ func (s *ConnectBusinessTestSuite) TestBroadcastEventValidation() {
 func (s *ConnectBusinessTestSuite) TestPresenceUpdateValidation() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, _, _ := s.setupBusinessLayer(svc)
+		connectBusiness, _, _ := s.setupBusinessLayer(ctx, svc)
 
 		// Try with empty profile ID
 		err := connectBusiness.SendPresenceUpdate(ctx, "", util.IDString(), chatv1.PresenceStatus_PRESENCE_ONLINE)
@@ -253,7 +260,7 @@ func (s *ConnectBusinessTestSuite) TestPresenceUpdateValidation() {
 func (s *ConnectBusinessTestSuite) TestTypingIndicatorValidation() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, _, _ := s.setupBusinessLayer(svc)
+		connectBusiness, _, _ := s.setupBusinessLayer(ctx, svc)
 
 		// Try with empty profile ID
 		err := connectBusiness.SendTypingIndicator(ctx, "", util.IDString(), true)
@@ -268,7 +275,7 @@ func (s *ConnectBusinessTestSuite) TestTypingIndicatorValidation() {
 func (s *ConnectBusinessTestSuite) TestMultiplePresenceUpdates() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(svc)
+		connectBusiness, roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		// Create room with multiple members
 		creatorID := util.IDString()

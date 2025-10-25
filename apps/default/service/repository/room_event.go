@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
-	"github.com/pitabwire/frame"
-	"github.com/pitabwire/frame/framedata"
+	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/workerpool"
 )
 
 type roomEventRepository struct {
-	framedata.BaseRepository[*models.RoomEvent]
+	datastore.BaseRepository[*models.RoomEvent]
 }
 
 // GetByID retrieves a room event by its ID.
@@ -114,11 +115,10 @@ func (rer *roomEventRepository) CountByRoomID(ctx context.Context, roomID string
 }
 
 // NewRoomEventRepository creates a new room event repository instance.
-func NewRoomEventRepository(service *frame.Service) RoomEventRepository {
+func NewRoomEventRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomEventRepository {
 	return &roomEventRepository{
-		BaseRepository: framedata.NewBaseRepository[*models.RoomEvent](
-			service,
-			func() *models.RoomEvent { return &models.RoomEvent{} },
+		BaseRepository: datastore.NewBaseRepository[*models.RoomEvent](
+			dbPool, workMan, func() *models.RoomEvent { return &models.RoomEvent{} },
 		),
 	}
 }

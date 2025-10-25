@@ -1,12 +1,15 @@
-package tests
+package business_test
 
 import (
+	"context"
 	"testing"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame"
+	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
@@ -14,7 +17,7 @@ import (
 )
 
 type MessageBusinessTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestMessageBusinessTestSuite(t *testing.T) {
@@ -22,12 +25,16 @@ func TestMessageBusinessTestSuite(t *testing.T) {
 }
 
 func (s *MessageBusinessTestSuite) setupBusinessLayer(
-	svc *frame.Service,
+	ctx context.Context, svc *frame.Service,
 ) (business.MessageBusiness, business.RoomBusiness) {
-	roomRepo := repository.NewRoomRepository(svc)
-	eventRepo := repository.NewRoomEventRepository(svc)
-	subRepo := repository.NewRoomSubscriptionRepository(svc)
-	outboxRepo := repository.NewRoomOutboxRepository(svc)
+
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+
+	roomRepo := repository.NewRoomRepository(dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -39,7 +46,7 @@ func (s *MessageBusinessTestSuite) setupBusinessLayer(
 func (s *MessageBusinessTestSuite) TestSendMessage() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, roomBusiness := s.setupBusinessLayer(svc)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room first
 		creatorID := util.IDString()
@@ -77,7 +84,7 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, _ := s.setupBusinessLayer(svc)
+		messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		payload, _ := structpb.NewStruct(map[string]interface{}{
 			"text": "Hello",
@@ -105,7 +112,7 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, roomBusiness := s.setupBusinessLayer(svc)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
 		creatorID := util.IDString()
@@ -118,7 +125,7 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 		s.NoError(err)
 
 		// Send multiple messages
-		messages := []*chatv1.RoomEvent{}
+		var messages []*chatv1.RoomEvent
 		for range 5 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(10),
@@ -149,7 +156,7 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 func (s *MessageBusinessTestSuite) TestGetHistory() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, roomBusiness := s.setupBusinessLayer(svc)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room and send messages
 		creatorID := util.IDString()
@@ -197,7 +204,7 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, roomBusiness := s.setupBusinessLayer(svc)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room and send message
 		creatorID := util.IDString()
@@ -253,8 +260,12 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, roomBusiness := s.setupBusinessLayer(svc)
-		eventRepo := repository.NewRoomEventRepository(svc)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+
+		eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
 
 		// Create room and send message
 		creatorID := util.IDString()
@@ -298,7 +309,7 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, roomBusiness := s.setupBusinessLayer(svc)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -342,7 +353,7 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
 		svc, ctx := s.CreateService(t, dep)
-		messageBusiness, roomBusiness := s.setupBusinessLayer(svc)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
 		creatorID := util.IDString()
