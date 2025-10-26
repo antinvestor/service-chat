@@ -82,11 +82,12 @@ func main() {
 		cfg.QueueUserEventDeliveryURI,
 		queues.NewUserDeliveryQueueHandler(svc, deviceCli),
 	)
-	// Register queue handlers
+	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
 		userDeliveryQueuePublisher, userDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(svc),
+			events.NewOutboxDeliveryEventHandler(svc),
 		))
 
 	// Initialize the service with all options

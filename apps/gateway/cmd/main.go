@@ -49,10 +49,6 @@ func main() {
 		log.WithError(err).Fatal("main -- Could not setup default cache")
 	}
 
-	serviceOptions := []frame.Option{
-		frame.WithCache(cfg.CacheName, defaultCache),
-	}
-
 	// Setup connection manager
 	connectionManager := business.NewConnectionManager(
 		defaultCache,
@@ -60,6 +56,14 @@ func main() {
 		cfg.ConnectionTimeoutSec,
 		cfg.HeartbeatIntervalSec,
 	)
+
+	// Note: No global queue subscriber needed!
+	// Each device connection creates its own filtered queue subscription in the Connect() handler.
+	// This allows horizontal scaling - multiple gateway instances can handle different devices.
+
+	serviceOptions := []frame.Option{
+		frame.WithCache(cfg.CacheName, defaultCache),
+	}
 
 	// Setup gateway server
 	gatewayHandler := setupGatewayServer(ctx, svc, chatServiceClient, connectionManager)
@@ -131,7 +135,8 @@ func setupGatewayServer(
 
 	gatewayServer := handlers.NewGatewayServer(svc, chatServiceClient, connectionManager)
 
-	_, serverHandler := chatv1connect.NewGatewayServiceHandler(
+	// Register as ChatServiceHandler since gateway implements all ChatService methods
+	_, serverHandler := chatv1connect.NewChatServiceHandler(
 		gatewayServer, connect.WithInterceptors(authInterceptor, otelInterceptor, validateInterceptor),
 	)
 

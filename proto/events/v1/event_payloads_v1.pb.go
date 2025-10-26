@@ -371,7 +371,7 @@ type UserDelivery struct {
 	Payload *structpb.Struct `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Indicates if payload data is compressed to save bandwidth for large messages.
 	IsCompressed bool `protobuf:"varint,4,opt,name=is_compressed,json=isCompressed,proto3" json:"is_compressed,omitempty"`
-	// Metadata for retry logic to ensure robust delivery to end-user devices.
+	// metadata for retry logic to ensure robust delivery to end-user devices.
 	RetryCount    int32 `protobuf:"varint,5,opt,name=retry_count,json=retryCount,proto3" json:"retry_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

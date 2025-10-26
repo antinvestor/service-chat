@@ -16,9 +16,9 @@ import (
 // GatewayServer handles the gateway-specific chat service operations.
 // It focuses on the Connect functionality for real-time communication with edge devices.
 type GatewayServer struct {
-	Service           *frame.Service
-	ChatServiceClient chatv1connect.ChatServiceClient
-	ConnectionManager *business.ConnectionManager
+	svc      *frame.Service
+	csClient chatv1connect.ChatServiceClient
+	cm       business.ConnectionManager
 
 	chatv1connect.UnimplementedGatewayServiceHandler
 }
@@ -27,12 +27,12 @@ type GatewayServer struct {
 func NewGatewayServer(
 	service *frame.Service,
 	chatServiceClient chatv1connect.ChatServiceClient,
-	connectionManager *business.ConnectionManager,
+	connectionManager business.ConnectionManager,
 ) *GatewayServer {
 	return &GatewayServer{
-		Service:           service,
-		ChatServiceClient: chatServiceClient,
-		ConnectionManager: connectionManager,
+		svc:      service,
+		csClient: chatServiceClient,
+		cm:       connectionManager,
 	}
 }
 
@@ -57,33 +57,33 @@ func (gs *GatewayServer) Connect(
 		deviceID = "default"
 	}
 
-	gs.Service.Log(ctx).WithFields(map[string]any{
+	gs.svc.Log(ctx).WithFields(map[string]any{
 		"profile_id": profileID,
 		"device_id":  deviceID,
 	}).Info("New device connection request")
 
 	// Create stream wrapper
-	streamWrapper := &deviceStreamWrapper{stream: stream}
+	streamWrapper := &deviceStreamImpl{stream: stream}
 
 	// Handle the connection through the connection manager
-	err := gs.ConnectionManager.HandleConnection(ctx, profileID, deviceID, streamWrapper)
+	err := gs.cm.HandleConnection(ctx, profileID, deviceID, streamWrapper)
 	if err != nil {
-		gs.Service.Log(ctx).WithError(err).Error("Connection ended with error")
+		gs.svc.Log(ctx).WithError(err).Error("Connection ended with error")
 		return err
 	}
 
 	return nil
 }
 
-// deviceStreamWrapper wraps connect.BidiStream to implement business.DeviceStream.
-type deviceStreamWrapper struct {
+// deviceStreamImpl wraps connect.BidiStream to implement business.DeviceStream.
+type deviceStreamImpl struct {
 	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent]
 }
 
-func (w *deviceStreamWrapper) Receive() (*chatv1.ConnectRequest, error) {
+func (w *deviceStreamImpl) Receive() (*chatv1.ConnectRequest, error) {
 	return w.stream.Receive()
 }
 
-func (w *deviceStreamWrapper) Send(event *chatv1.ServerEvent) error {
+func (w *deviceStreamImpl) Send(event *chatv1.ServerEvent) error {
 	return w.stream.Send(event)
 }

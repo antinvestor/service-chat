@@ -53,6 +53,15 @@ func (csq *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload any)
 		return errors.New("invalid payload type, expected eventsv1.EventBroadcast{}")
 	}
 
+	// Lazy init publisher if not set
+	if csq.deliveryTopic == nil {
+		pub, err := csq.service.GetPublisher("user.event.delivery")
+		if err != nil {
+			return errors.New("failed to get delivery publisher: " + err.Error())
+		}
+		csq.deliveryTopic = pub
+	}
+
 	chatEvent := broadcast.Event
 
 	logger := csq.service.Log(ctx).WithFields(map[string]any{

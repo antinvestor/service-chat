@@ -9,52 +9,21 @@ import (
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/pitabwire/frame/cache"
 	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// ConnectionMetadata represents the cached connection metadata.
-type ConnectionMetadata struct {
-	ProfileID     string `json:"profile_id"`
-	DeviceID      string `json:"device_id"`
-	LastActive    int64  `json:"last_active"`    // Unix timestamp
-	LastHeartbeat int64  `json:"last_heartbeat"` // Unix timestamp
-	Connected     int64  `json:"connected"`      // Unix timestamp
-	GatewayID     string `json:"gateway_id"`     // Which gateway instance owns this connection
-}
-
-func (cm *ConnectionMetadata) Key() string {
-	return fmt.Sprintf("%s:%s", cm.ProfileID, cm.DeviceID)
-
-}
-
-// DeviceConnection represents an active edge device connection.
-type DeviceConnection struct {
-	Metadata *ConnectionMetadata
-	Stream   DeviceStream
-	mu       sync.RWMutex
-}
-
-// DeviceStream abstracts the bidirectional stream for edge devices.
-type DeviceStream interface {
-	Receive() (*chatv1.ConnectRequest, error)
-	Send(*chatv1.ServerEvent) error
-}
-
-// ConnectionManager manages all active device connections.
-type ConnectionManager struct {
-	connCache cache.Cache[string, ConnectionMetadata]
+// cm manages all active device connections.
+type connectionManager struct {
+	qManager  queue.Manager
+	connCache cache.Cache[string, Metadata]
 
 	// Local stream tracking (not cacheable)
-	localStreams map[string]*DeviceConnection // key: profileID:deviceID
-	streamMu     sync.RWMutex
+	streamMu sync.RWMutex
 
 	// Gateway instance ID
 	gatewayID string
-
-	// Cache key prefixes
-	connPrefix string // "gateway:conn:"
-	roomPrefix string // "gateway:room:"
 
 	// Configuration
 	maxConnectionsPerDevice int
@@ -64,37 +33,33 @@ type ConnectionManager struct {
 
 // NewConnectionManager creates a new connection manager.
 func NewConnectionManager(
+	qManager queue.Manager,
 	rawCache cache.RawCache,
 	maxConnectionsPerDevice int,
 	connectionTimeoutSec int,
 	heartbeatIntervalSec int,
-) *ConnectionManager {
+) ConnectionManager {
 	// Generate a unique gateway instance ID
 	gatewayID := fmt.Sprintf("gateway-%d", time.Now().UnixNano())
 
-	cm := &ConnectionManager{
-
-		connCache: cache.NewGenericCache[string, ConnectionMetadata](rawCache, func(s string) string {
+	cm := &connectionManager{
+		qManager: qManager,
+		connCache: cache.NewGenericCache[string, Metadata](rawCache, func(s string) string {
 			return s
 		}),
 
-		localStreams:            make(map[string]*DeviceConnection),
-		gatewayID:               gatewayID,
-		connPrefix:              "gateway:conn:",
-		roomPrefix:              "gateway:room:",
+		gatewayID: gatewayID,
+
 		maxConnectionsPerDevice: maxConnectionsPerDevice,
 		connectionTimeoutSec:    connectionTimeoutSec,
 		heartbeatIntervalSec:    heartbeatIntervalSec,
 	}
 
-	// Start background cleanup routine
-	go cm.cleanupStaleConnections()
-
 	return cm
 }
 
 // HandleConnection manages a device connection lifecycle.
-func (cm *ConnectionManager) HandleConnection(
+func (cm *connectionManager) HandleConnection(
 	ctx context.Context,
 	profileID string,
 	deviceID string,
@@ -108,7 +73,7 @@ func (cm *ConnectionManager) HandleConnection(
 	now := time.Now()
 
 	// Store connection metadata in cache
-	metadata := &ConnectionMetadata{
+	metadata := &Metadata{
 		ProfileID:     profileID,
 		DeviceID:      deviceID,
 		LastActive:    now.Unix(),
@@ -128,9 +93,9 @@ func (cm *ConnectionManager) HandleConnection(
 		}).Info("Replacing existing connection")
 	}
 
-	conn := &DeviceConnection{
-		Metadata: metadata,
-		Stream:   stream,
+	conn := &Connection{
+		metadata: metadata,
+		stream:   stream,
 	}
 
 	err = cm.connect(ctx, metadata)
@@ -138,20 +103,11 @@ func (cm *ConnectionManager) HandleConnection(
 		return fmt.Errorf("failed to save connection metadata: %w", err)
 	}
 
-	// Register local stream
-	cm.streamMu.Lock()
-	cm.localStreams[metadata.Key()] = conn
-	cm.streamMu.Unlock()
-
 	util.Log(ctx).WithFields(map[string]any{
 		"profile_id": profileID,
 		"device_id":  deviceID,
 		"gateway_id": cm.gatewayID,
-	}).Info("Device connected to gateway")
-
-	payload := data.JSONMap{
-		"status": "connected",
-	}
+	}).Debug("Device connected to gateway")
 
 	// Cleanup on disconnect
 	defer func() {
@@ -159,104 +115,104 @@ func (cm *ConnectionManager) HandleConnection(
 		util.Log(ctx).WithFields(map[string]any{
 			"profile_id": profileID,
 			"device_id":  deviceID,
-		}).Info("Device disconnected from gateway")
+		}).Debug("Device disconnected from gateway")
 	}()
 
-	// Send connection acknowledgment
-	ack := &chatv1.ServerEvent{
-		Payload: &chatv1.ServerEvent_Message{
-			Message: &chatv1.RoomEvent{
-				Id:       util.IDString(),
-				Type:     chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
-				Payload:  payload.ToProtoStruct(),
-				SentAt:   timestamppb.Now(),
-				Edited:   false,
-				Redacted: false,
-			},
-		},
-	}
-	err = stream.Send(ack)
-	if err != nil {
-		return fmt.Errorf("failed to ack connection: %w", err)
-	}
+	wg := new(sync.WaitGroup)
+	errChan := make(chan error, 2)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	// Launch functions as goroutines
+	wg.Go(func() {
+		for {
+			select {
+			case <-errChan:
+				return
+			case <-ctx.Done():
+				return
 
-			req, err := stream.Receive()
-			if err != nil {
-				return err
+			default:
+
+				req, receiveErr := stream.Receive()
+				if receiveErr != nil {
+					errChan <- receiveErr
+				}
+
+				inboundErr := cm.handleInboundRequests(ctx, conn, req)
+				if inboundErr != nil {
+					util.Log(ctx).WithError(inboundErr).WithField("req", req).Error("failure handling inbound request")
+					errChan <- receiveErr
+				}
 			}
-
-			// Update last active time
-			conn.mu.Lock()
-			conn.Metadata.LastActive = time.Now().Unix()
-			conn.mu.Unlock()
-
-			// Update in cache
-			cm.updateLastActive(ctx, metadata.Key())
-
-			// Handle device commands
-			if err := cm.handleDeviceCommand(ctx, conn, req); err != nil {
-				util.Log(ctx).WithError(err).Error("Error handling device command")
-			}
-
 		}
-	}
-}
+	})
 
-// handleDeviceCommand processes commands from edge devices.
-func (cm *ConnectionManager) handleDeviceCommand(
-	ctx context.Context,
-	conn *DeviceConnection,
-	req *chatv1.ConnectRequest,
-) error {
-	switch cmd := req.GetPayload().(type) {
-	case *chatv1.ConnectRequest_Command:
-		return cm.processCommand(ctx, conn, cmd.Command)
-	case *chatv1.ConnectRequest_Ack:
-		// TODO: Device acknowledged a message
-		// Queue acknowledgement for read status update
-		// cmd.Ack
+	wg.Go(func() {
 
-		cm.updateLastActive(ctx, conn.Metadata.Key())
-		return nil
-	default:
-		return nil
-	}
-}
+		payload := data.JSONMap{
+			"status": "connected",
+		}
 
-// processCommand handles specific device commands.
-func (cm *ConnectionManager) processCommand(
-	ctx context.Context,
-	conn *DeviceConnection,
-	cmd *chatv1.ClientCommand,
-) error {
-	// Log the command
-	util.Log(ctx).WithFields(map[string]any{
-		"metadata": conn.Metadata,
-		"command":  cmd,
-	}).Debug("Received device command")
+		// Send connection acknowledgment
+		ack := &chatv1.ServerEvent{
+			Payload: &chatv1.ServerEvent_Message{
+				Message: &chatv1.RoomEvent{
+					Id:       util.IDString(),
+					Type:     chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+					Payload:  payload.ToProtoStruct(),
+					SentAt:   timestamppb.Now(),
+					Edited:   false,
+					Redacted: false,
+				},
+			},
+		}
+		err = stream.Send(ack)
+		if err != nil {
+			errChan <- fmt.Errorf("connection ack failed: %w", err)
+			return
+		}
 
-	// Commands are typically forwarded to the chat service or handled locally
-	// For now, we just acknowledge them
+		for {
+			select {
+			case <-errChan:
+				return
+			case <-ctx.Done():
+				return
+
+			default:
+
+				req, qErr := conn.subscriber.Receive(ctx)
+				if qErr != nil {
+					errChan <- qErr
+					return
+				}
+
+				finalMsg, qErr := toUserDelivery(req)
+				if qErr != nil {
+					errChan <- qErr
+					return
+				}
+
+				outErr := cm.handleOutboundRequests(ctx, conn, finalMsg)
+				if outErr != nil {
+					util.Log(ctx).WithError(outErr).WithField("req", req).Error("failure handling inbound request")
+					errChan <- qErr
+					return
+				}
+
+				req.Ack()
+			}
+		}
+	})
+
+	wg.Wait()
+
 	return nil
-}
-
-// GetConnectionCount returns the total number of active connections.
-func (cm *ConnectionManager) GetConnectionCount() int {
-	cm.streamMu.RLock()
-	defer cm.streamMu.RUnlock()
-	return len(cm.localStreams)
 }
 
 // Helper methods
 
 // disconnect removes a connection from cache and local storage.
-func (cm *ConnectionManager) disconnect(ctx context.Context, connKey string) {
+func (cm *connectionManager) disconnect(ctx context.Context, connKey string) {
 	// Get connection metadata to find room memberships
 	metadata, err := cm.getMetadata(ctx, connKey)
 	if err != nil {
@@ -264,57 +220,23 @@ func (cm *ConnectionManager) disconnect(ctx context.Context, connKey string) {
 		return
 	}
 
-	// Remove from local streams
-	cm.streamMu.Lock()
-	delete(cm.localStreams, metadata.Key())
-	cm.streamMu.Unlock()
-
 	// Remove connection metadata from cache
 	_ = cm.connCache.Delete(ctx, metadata.Key())
-}
-
-func (cm *ConnectionManager) cleanupStaleConnections() {
-	ticker := time.NewTicker(time.Duration(cm.heartbeatIntervalSec) * time.Second)
-	defer ticker.Stop()
-	ctx := context.Background()
-
-	for range ticker.C {
-		cm.streamMu.RLock()
-		var staleConnections []string
-		timeout := time.Duration(cm.connectionTimeoutSec) * time.Second
-
-		for connKey, conn := range cm.localStreams {
-			conn.mu.RLock()
-			timeSinceActive := time.Since(time.Unix(conn.Metadata.LastActive, 0))
-			conn.mu.RUnlock()
-
-			if timeSinceActive > timeout {
-				staleConnections = append(staleConnections, connKey)
-			}
-		}
-		cm.streamMu.RUnlock()
-
-		// Remove stale connections
-		for _, connKey := range staleConnections {
-			cm.disconnect(ctx, connKey)
-		}
-	}
 }
 
 // Cache helper methods
 
 // connect saves connection metadata to cache.
-func (cm *ConnectionManager) connect(ctx context.Context, metadata *ConnectionMetadata) error {
-	cacheKey := cm.connPrefix + metadata.Key()
+func (cm *connectionManager) connect(ctx context.Context, metadata *Metadata) error {
 
 	ttl := time.Duration(cm.connectionTimeoutSec*2) * time.Second
-	return cm.connCache.Set(ctx, cacheKey, *metadata, ttl)
+	return cm.connCache.Set(ctx, metadata.Key(), *metadata, ttl)
 }
 
 // getMetadata retrieves connection metadata from cache.
-func (cm *ConnectionManager) getMetadata(ctx context.Context, connKey string) (*ConnectionMetadata, error) {
-	cacheKey := cm.connPrefix + connKey
-	metadata, ok, err := cm.connCache.Get(ctx, cacheKey)
+func (cm *connectionManager) getMetadata(ctx context.Context, connKey string) (*Metadata, error) {
+
+	metadata, ok, err := cm.connCache.Get(ctx, connKey)
 	if err != nil {
 		return nil, err
 	}
@@ -324,14 +246,4 @@ func (cm *ConnectionManager) getMetadata(ctx context.Context, connKey string) (*
 	}
 
 	return nil, nil
-}
-
-// updateLastActive updates the last active timestamp in cache.
-func (cm *ConnectionManager) updateLastActive(ctx context.Context, connKey string) {
-	metadata, err := cm.getMetadata(ctx, connKey)
-	if err == nil && metadata != nil {
-		metadata.LastActive = time.Now().Unix()
-		metadata.LastHeartbeat = time.Now().Unix()
-		_ = cm.connect(ctx, metadata)
-	}
 }

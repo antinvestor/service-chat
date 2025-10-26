@@ -13,9 +13,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	HeaderProfileID = "profile_id"
+	HeaderDeviceID  = "device_id"
+)
+
 type UserDeliveryQueueHandler struct {
 	service   *frame.Service
 	deviceCli *devicev1.DeviceClient
+
+	userDeviceTopic queue.Publisher
 }
 
 func NewUserDeliveryQueueHandler(
@@ -63,4 +70,51 @@ func (dq *UserDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]str
 
 func (dq *UserDeliveryQueueHandler) deliverMessageToDevice(ctx context.Context, msg *eventsv1.UserDelivery, devices []*devicev1.DeviceObject) {
 
+	for _, dev := range devices {
+
+		if dq.deviceIsOnline(ctx, dev) {
+
+			err := dq.publishToDevice(ctx, dev, msg)
+			if err == nil {
+				continue
+			}
+			util.Log(ctx).WithError(err).Error("failed to directly deliver message")
+		}
+
+		err := dq.publishToFCM(ctx, dev, msg)
+		if err != nil {
+			util.Log(ctx).WithError(err).Error("failed to deliver message via FCM")
+		}
+	}
+
+}
+
+func (dq *UserDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *devicev1.DeviceObject) bool {
+	// TODO: Implement actual online detection by checking gateway connection cache
+	// For now, assume device is online and let gateway handle offline fallback
+	return true
+}
+
+func (dq *UserDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.UserDelivery) error {
+
+	deviceHeader := map[string]string{
+		HeaderProfileID: msg.Target.GetRecepientId(),
+		HeaderDeviceID:  dev.GetId(),
+	}
+
+	return dq.userDeviceTopic.Publish(ctx, msg, deviceHeader)
+}
+
+func (dq *UserDeliveryQueueHandler) publishToFCM(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.UserDelivery) error {
+	// TODO: Implement push notification delivery for offline devices
+	// This should integrate with a notification service (not FCM directly)
+	// The notification service will handle FCM, APNs, etc.
+
+	util.Log(ctx).WithFields(map[string]any{
+		"device_id":  dev.GetId(),
+		"profile_id": msg.GetTarget().GetRecepientId(),
+		"event_id":   msg.GetEvent().GetEventId(),
+	}).Info("TODO: send push notification for offline device")
+
+	return nil
 }
