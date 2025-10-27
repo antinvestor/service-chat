@@ -11,9 +11,11 @@ import (
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
+	HeaderPriority  = "priority"
 	HeaderProfileID = "profile_id"
 	HeaderDeviceID  = "device_id"
 )
@@ -90,15 +92,17 @@ func (dq *UserDeliveryQueueHandler) deliverMessageToDevice(ctx context.Context, 
 }
 
 func (dq *UserDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *devicev1.DeviceObject) bool {
-	// TODO: Implement actual online detection by checking gateway connection cache
-	// For now, assume device is online and let gateway handle offline fallback
+	status := dev.GetPresence()
+	if devicev1.PresenceStatus_OFFLINE == status {
+		return false
+	}
 	return true
 }
 
 func (dq *UserDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.UserDelivery) error {
 
 	deviceHeader := map[string]string{
-		HeaderProfileID: msg.Target.GetRecepientId(),
+		HeaderProfileID: msg.GetTarget().GetRecepientId(),
 		HeaderDeviceID:  dev.GetId(),
 	}
 
@@ -106,15 +110,44 @@ func (dq *UserDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *de
 }
 
 func (dq *UserDeliveryQueueHandler) publishToFCM(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.UserDelivery) error {
-	// TODO: Implement push notification delivery for offline devices
-	// This should integrate with a notification service (not FCM directly)
-	// The notification service will handle FCM, APNs, etc.
 
-	util.Log(ctx).WithFields(map[string]any{
-		"device_id":  dev.GetId(),
-		"profile_id": msg.GetTarget().GetRecepientId(),
-		"event_id":   msg.GetEvent().GetEventId(),
-	}).Info("TODO: send push notification for offline device")
+	fields := msg.GetPayload().GetFields()
+
+	messageTitle := "Stawi message"
+	title, ok := fields["title"]
+	if ok {
+		messageTitle = title.String()
+	}
+	messageBody := ""
+	body, ok := fields["content"]
+	if ok && msg.GetEvent().GetEventType() == eventsv1.ChatEvent_TEXT {
+		messageBody = body.String()
+	}
+
+	extraData, err := structpb.NewStruct(map[string]any{
+		"event":  msg.GetEvent(),
+		"target": msg.GetTarget(),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	notification := &devicev1.NotifyRequest{
+		DeviceId: dev.GetId(),
+		KeyType:  devicev1.KeyType_FCM_TOKEN,
+		Title:    messageTitle,
+		Body:     messageBody,
+		Data:     msg.GetPayload(),
+		Extras:   extraData,
+	}
+
+	resp, err := dq.deviceCli.Svc().Notify(ctx, notification)
+	if err != nil {
+		return err
+	}
+
+	util.Log(ctx).WithField("resp", resp).Debug("fcm notification response successful")
 
 	return nil
 }

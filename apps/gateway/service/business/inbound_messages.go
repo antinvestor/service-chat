@@ -41,12 +41,13 @@ func (cm *connectionManager) processCommand(
 		"command":  cmd,
 	}).Debug("Received device command")
 
-	switch req := cmd.GetCmd().(type) {
+	switch cmd.GetCmd().(type) {
 	case *chatv1.ClientCommand_Typing:
+		// TODO: Handle typing indicator
 	case *chatv1.ClientCommand_ReadMarker:
-
+		// TODO: Handle read marker
 	case *chatv1.ClientCommand_RoomEvent:
-
+		// TODO: Handle room event
 	}
 
 	// Commands are typically forwarded to the chat service or handled locally
