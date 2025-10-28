@@ -29,46 +29,55 @@ const (
 type ChatEvent_EventType int32
 
 const (
-	ChatEvent_UNSPECIFIED ChatEvent_EventType = 0
-	ChatEvent_EVENT       ChatEvent_EventType = 1
-	ChatEvent_TEXT        ChatEvent_EventType = 2
-	ChatEvent_ATTACHMENT  ChatEvent_EventType = 3
-	ChatEvent_REACTION    ChatEvent_EventType = 7
-	ChatEvent_ENCRYPTED   ChatEvent_EventType = 6 // opaque ciphertext
-	ChatEvent_SYSTEM      ChatEvent_EventType = 10
-	ChatEvent_CALL_OFFER  ChatEvent_EventType = 21
-	ChatEvent_CALL_ANSWER ChatEvent_EventType = 22
-	ChatEvent_CALL_ICE    ChatEvent_EventType = 23
-	ChatEvent_CALL_END    ChatEvent_EventType = 24
+	ChatEvent_SYSTEM          ChatEvent_EventType = 0
+	ChatEvent_EVENT           ChatEvent_EventType = 1
+	ChatEvent_TEXT            ChatEvent_EventType = 2
+	ChatEvent_ATTACHMENT      ChatEvent_EventType = 3
+	ChatEvent_REACTION        ChatEvent_EventType = 7
+	ChatEvent_ENCRYPTED       ChatEvent_EventType = 6 // opaque ciphertext
+	ChatEvent_STATE_DELIVERED ChatEvent_EventType = 10
+	ChatEvent_STATE_READ      ChatEvent_EventType = 11
+	ChatEvent_STATE_TYPING    ChatEvent_EventType = 12
+	ChatEvent_PRESENCE        ChatEvent_EventType = 17
+	ChatEvent_CALL_OFFER      ChatEvent_EventType = 21
+	ChatEvent_CALL_ANSWER     ChatEvent_EventType = 22
+	ChatEvent_CALL_ICE        ChatEvent_EventType = 23
+	ChatEvent_CALL_END        ChatEvent_EventType = 24
 )
 
 // Enum value maps for ChatEvent_EventType.
 var (
 	ChatEvent_EventType_name = map[int32]string{
-		0:  "UNSPECIFIED",
+		0:  "SYSTEM",
 		1:  "EVENT",
 		2:  "TEXT",
 		3:  "ATTACHMENT",
 		7:  "REACTION",
 		6:  "ENCRYPTED",
-		10: "SYSTEM",
+		10: "STATE_DELIVERED",
+		11: "STATE_READ",
+		12: "STATE_TYPING",
+		17: "PRESENCE",
 		21: "CALL_OFFER",
 		22: "CALL_ANSWER",
 		23: "CALL_ICE",
 		24: "CALL_END",
 	}
 	ChatEvent_EventType_value = map[string]int32{
-		"UNSPECIFIED": 0,
-		"EVENT":       1,
-		"TEXT":        2,
-		"ATTACHMENT":  3,
-		"REACTION":    7,
-		"ENCRYPTED":   6,
-		"SYSTEM":      10,
-		"CALL_OFFER":  21,
-		"CALL_ANSWER": 22,
-		"CALL_ICE":    23,
-		"CALL_END":    24,
+		"SYSTEM":          0,
+		"EVENT":           1,
+		"TEXT":            2,
+		"ATTACHMENT":      3,
+		"REACTION":        7,
+		"ENCRYPTED":       6,
+		"STATE_DELIVERED": 10,
+		"STATE_READ":      11,
+		"STATE_TYPING":    12,
+		"PRESENCE":        17,
+		"CALL_OFFER":      21,
+		"CALL_ANSWER":     22,
+		"CALL_ICE":        23,
+		"CALL_END":        24,
 	}
 )
 
@@ -222,7 +231,7 @@ func (x *ChatEvent) GetEventType() ChatEvent_EventType {
 	if x != nil {
 		return x.EventType
 	}
-	return ChatEvent_UNSPECIFIED
+	return ChatEvent_SYSTEM
 }
 
 func (x *ChatEvent) GetCreatedAt() *timestamppb.Timestamp {
@@ -246,7 +255,7 @@ type DeliveryTarget struct {
 	// Identifies the target user or device for precise routing.
 	RecepientId string `protobuf:"bytes,1,opt,name=recepient_id,json=recepientId,proto3" json:"recepient_id,omitempty"`
 	// Unique identifier for tracking delivery status and retries in real-time.
-	OutboxId      string `protobuf:"bytes,2,opt,name=outbox_id,json=outboxId,proto3" json:"outbox_id,omitempty"`
+	TargetId      string `protobuf:"bytes,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -288,9 +297,9 @@ func (x *DeliveryTarget) GetRecepientId() string {
 	return ""
 }
 
-func (x *DeliveryTarget) GetOutboxId() string {
+func (x *DeliveryTarget) GetTargetId() string {
 	if x != nil {
-		return x.OutboxId
+		return x.TargetId
 	}
 	return ""
 }
@@ -371,7 +380,7 @@ type UserDelivery struct {
 	Payload *structpb.Struct `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Indicates if payload data is compressed to save bandwidth for large messages.
 	IsCompressed bool `protobuf:"varint,4,opt,name=is_compressed,json=isCompressed,proto3" json:"is_compressed,omitempty"`
-	// metadata for retry logic to ensure robust delivery to end-user devices.
+	// Metadata for retry logic to ensure robust delivery to end-user devices.
 	RetryCount    int32 `protobuf:"varint,5,opt,name=retry_count,json=retryCount,proto3" json:"retry_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -446,7 +455,7 @@ var File_event_payloads_v1_proto protoreflect.FileDescriptor
 
 const file_event_payloads_v1_proto_rawDesc = "" +
 	"\n" +
-	"\x17event_payloads_v1.proto\x12\tevents.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x84\x04\n" +
+	"\x17event_payloads_v1.proto\x12\tevents.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb8\x04\n" +
 	"\tChatEvent\x126\n" +
 	"\bevent_id\x18\x01 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\aeventId\x124\n" +
 	"\aroom_id\x18\x02 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\x06roomId\x12=\n" +
@@ -455,18 +464,22 @@ const file_event_payloads_v1_proto_rawDesc = "" +
 	"event_type\x18\x04 \x01(\x0e2\x1e.events.v1.ChatEvent.EventTypeR\teventType\x129\n" +
 	"\n" +
 	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x18\n" +
-	"\aversion\x18\x06 \x01(\x05R\aversion\"\xa7\x01\n" +
-	"\tEventType\x12\x0f\n" +
-	"\vUNSPECIFIED\x10\x00\x12\t\n" +
+	"\aversion\x18\x06 \x01(\x05R\aversion\"\xdb\x01\n" +
+	"\tEventType\x12\n" +
+	"\n" +
+	"\x06SYSTEM\x10\x00\x12\t\n" +
 	"\x05EVENT\x10\x01\x12\b\n" +
 	"\x04TEXT\x10\x02\x12\x0e\n" +
 	"\n" +
 	"ATTACHMENT\x10\x03\x12\f\n" +
 	"\bREACTION\x10\a\x12\r\n" +
-	"\tENCRYPTED\x10\x06\x12\n" +
-	"\n" +
-	"\x06SYSTEM\x10\n" +
+	"\tENCRYPTED\x10\x06\x12\x13\n" +
+	"\x0fSTATE_DELIVERED\x10\n" +
 	"\x12\x0e\n" +
+	"\n" +
+	"STATE_READ\x10\v\x12\x10\n" +
+	"\fSTATE_TYPING\x10\f\x12\f\n" +
+	"\bPRESENCE\x10\x11\x12\x0e\n" +
 	"\n" +
 	"CALL_OFFER\x10\x15\x12\x0f\n" +
 	"\vCALL_ANSWER\x10\x16\x12\f\n" +
@@ -476,7 +489,7 @@ const file_event_payloads_v1_proto_rawDesc = "" +
 	"_sender_id\"\x8a\x01\n" +
 	"\x0eDeliveryTarget\x12>\n" +
 	"\frecepient_id\x18\x01 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\vrecepientId\x128\n" +
-	"\toutbox_id\x18\x02 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\boutboxId\"\xd3\x01\n" +
+	"\ttarget_id\x18\x02 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\btargetId\"\xd3\x01\n" +
 	"\x0eEventBroadcast\x12*\n" +
 	"\x05event\x18\x01 \x01(\v2\x14.events.v1.ChatEventR\x05event\x123\n" +
 	"\atargets\x18\x02 \x03(\v2\x19.events.v1.DeliveryTargetR\atargets\x12>\n" +

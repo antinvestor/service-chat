@@ -27,7 +27,7 @@ func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			Status:         "pending",
+			State:          "pending",
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
@@ -41,7 +41,7 @@ func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 		s.NoError(err)
 		s.Equal(outbox.RoomID, retrieved.RoomID)
 		s.Equal(outbox.EventID, retrieved.EventID)
-		s.Equal(outbox.Status, retrieved.Status)
+		s.Equal(outbox.State, retrieved.State)
 	})
 }
 
@@ -59,7 +59,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 				RoomID:         roomID,
 				SubscriptionID: subscriptionID,
 				EventID:        util.IDString(),
-				Status:         "pending",
+				State:          "pending",
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -71,7 +71,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 			RoomID:         roomID,
 			SubscriptionID: subscriptionID,
 			EventID:        util.IDString(),
-			Status:         "sent",
+			State:          "sent",
 			RetryCount:     0,
 		}
 		sentOutbox.GenID(ctx)
@@ -83,7 +83,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 		s.Len(pending, 5)
 
 		for _, entry := range pending {
-			s.Equal("pending", entry.Status)
+			s.Equal("pending", entry.State)
 		}
 	})
 }
@@ -101,7 +101,7 @@ func (s *OutboxRepositoryTestSuite) TestGetByRoomID() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				Status:         "pending",
+				State:          "pending",
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -124,7 +124,7 @@ func (s *OutboxRepositoryTestSuite) TestUpdateStatus() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			Status:         "pending",
+			State:          "pending",
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
@@ -137,7 +137,7 @@ func (s *OutboxRepositoryTestSuite) TestUpdateStatus() {
 		// Verify update
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
 		s.NoError(err)
-		s.Equal("sent", retrieved.Status)
+		s.Equal("sent", retrieved.State)
 	})
 }
 
@@ -150,7 +150,7 @@ func (s *OutboxRepositoryTestSuite) TestIncrementRetryCount() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			Status:         "pending",
+			State:          "pending",
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
@@ -182,7 +182,7 @@ func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			Status:         "pending",
+			State:          "pending",
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
@@ -196,7 +196,7 @@ func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
 		// Verify update
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
 		s.NoError(err)
-		s.Equal("failed", retrieved.Status)
+		s.Equal("failed", retrieved.State)
 		s.Equal(errorMsg, retrieved.ErrorMessage)
 	})
 }
@@ -214,7 +214,7 @@ func (s *OutboxRepositoryTestSuite) TestDeleteOldEntries() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				Status:         "sent",
+				State:          "sent",
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -241,7 +241,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				Status:         "pending",
+				State:          "pending",
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -254,7 +254,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				Status:         "sent",
+				State:          "sent",
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -268,7 +268,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 		// Count pending ones
 		count := 0
 		for _, entry := range pendingEntries {
-			if entry.Status == OutboxStatusPending {
+			if entry.State == OutboxStatusPending {
 				count++
 			}
 		}
@@ -304,7 +304,7 @@ func (s *OutboxRepositoryTestSuite) TestUnreadCountGeneration() {
 				RoomID:         roomID,
 				SubscriptionID: subscriptionID,
 				EventID:        util.IDString(),
-				Status:         "pending",
+				State:          "pending",
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -344,7 +344,7 @@ func (s *OutboxRepositoryTestSuite) TestUnreadCountGeneration() {
 		// Verify the status was actually updated
 		var statusCheck string
 		svc.DB(ctx, true).Raw("SELECT status FROM room_outboxes WHERE id = ?", pending[0].GetID()).Scan(&statusCheck)
-		t.Logf("Status after update: %s", statusCheck)
+		t.Logf("State after update: %s", statusCheck)
 
 		// Check how many are still pending
 		var pendingCount int

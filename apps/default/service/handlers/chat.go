@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"connectrpc.com/connect"
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
@@ -13,8 +15,10 @@ import (
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Constants for pagination and batch sizes.
@@ -27,7 +31,7 @@ type ChatServer struct {
 	Service         *frame.Service
 	NotificationCli *notificationv1.NotificationClient
 	ProfileCli      *profilev1.ProfileClient
-	ConnectBusiness business.ConnectBusiness
+	ConnectBusiness business.ClientStateBusiness
 	RoomBusiness    business.RoomBusiness
 	MessageBusiness business.MessageBusiness
 
@@ -61,18 +65,59 @@ func NewChatServer(
 	}
 }
 
+// toAPIError converts internal errors to appropriate gRPC status codes
 func (ps *ChatServer) toAPIError(err error) error {
-	grpcError, ok := status.FromError(err)
+	if err == nil {
+		return nil
+	}
 
-	if ok {
+	// Check if it's already a gRPC status error
+	if grpcError, ok := status.FromError(err); ok {
 		return grpcError.Err()
 	}
 
-	if data.ErrorIsNoRows(err) {
-		return status.Error(codes.NotFound, err.Error())
+	// Handle specific error types
+	switch {
+	case data.ErrorIsNoRows(err):
+		return connect.NewError(connect.CodeNotFound, err)
+	case data.ErrorIsConstraintViolation(err):
+		return connect.NewError(connect.CodeAlreadyExists, err)
+	case data.ErrorIsInvalidInput(err):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	default:
+		// Log internal errors for debugging
+		util.Log(context.Background()).WithError(err).Error("Internal server error")
+		return connect.NewError(connect.CodeInternal, fmt.Errorf("internal server error"))
+	}
+}
+
+// validateAuthentication extracts and validates authentication claims
+func (ps *ChatServer) validateAuthentication(ctx context.Context) (string, error) {
+	authClaims := security.ClaimsFromContext(ctx)
+	if authClaims == nil {
+		return "", connect.NewError(
+			connect.CodeUnauthenticated,
+			fmt.Errorf("request needs to be authenticated"),
+		)
 	}
 
-	return grpcError.Err()
+	profileID, err := authClaims.GetSubject()
+	if err != nil || profileID == "" {
+		return "", connect.NewError(
+			connect.CodeUnauthenticated,
+			fmt.Errorf("invalid authentication claims"),
+		)
+	}
+
+	return profileID, nil
+}
+
+// withTimeout creates a context with timeout for resource efficiency
+func (ps *ChatServer) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		timeout = 30 * time.Second // Default timeout
+	}
+	return context.WithTimeout(ctx, timeout)
 }
 
 // These methods are for profile service - not needed for chat service
@@ -82,31 +127,42 @@ func (ps *ChatServer) Connect(
 	ctx context.Context,
 	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent],
 ) error {
-	// Extract profile ID from context metadata
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
-		return connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
-		)
+	// Validate authentication
+	profileID, err := ps.validateAuthentication(ctx)
+	if err != nil {
+		return err
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
 	// Extract device ID from context (optional)
+	authClaims := security.ClaimsFromContext(ctx)
 	deviceID := authClaims.GetDeviceID()
 	if deviceID == "" {
 		deviceID = "default"
 	}
 
-	// Create stream wrapper
+	// Log connection attempt
+	util.Log(ctx).WithFields(map[string]any{
+		"profile_id": profileID,
+		"device_id":  deviceID,
+	}).Info("New connection attempt")
+
+	// Create stream wrapper with resource management
 	streamWrapper := &bidiStreamWrapper{stream: stream}
 
-	// Handle the connection
-	err := ps.ConnectBusiness.HandleConnection(ctx, profileID, deviceID, streamWrapper)
+	// Handle the connection with proper error handling
+	err = ps.ConnectBusiness.HandleConnection(ctx, profileID, deviceID, streamWrapper)
 	if err != nil {
-		return err
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"profile_id": profileID,
+			"device_id":  deviceID,
+		}).Error("Connection failed")
+		return ps.toAPIError(err)
 	}
+
+	util.Log(ctx).WithFields(map[string]any{
+		"profile_id": profileID,
+		"device_id":  deviceID,
+	}).Info("Connection closed")
 
 	return nil
 }
@@ -115,21 +171,54 @@ func (ps *ChatServer) SendEvent(
 	ctx context.Context,
 	req *connect.Request[chatv1.SendEventRequest],
 ) (*connect.Response[chatv1.SendEventResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
-		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
-		)
-	}
-
-	profileID, _ := authClaims.GetSubject()
-
-	// Send the message
-	acks, err := ps.MessageBusiness.SendEvents(ctx, req.Msg, profileID)
+	// Validate authentication
+	profileID, err := ps.validateAuthentication(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	// Input validation
+	if req.Msg == nil {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			fmt.Errorf("request cannot be nil"),
+		)
+	}
+
+	if len(req.Msg.GetMessage()) == 0 {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			fmt.Errorf("at least one message must be provided"),
+		)
+	}
+
+	// Limit batch size for resource efficiency
+	if len(req.Msg.GetMessage()) > MaxBatchSize {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			fmt.Errorf("too many messages: max %d allowed", MaxBatchSize),
+		)
+	}
+
+	// Create timeout context for the operation
+	timeoutCtx, cancel := ps.withTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// Send the messages
+	acks, err := ps.MessageBusiness.SendEvents(timeoutCtx, req.Msg, profileID)
+	if err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"profile_id":    profileID,
+			"message_count": len(req.Msg.GetMessage()),
+		}).Error("Failed to send events")
+		return nil, ps.toAPIError(err)
+	}
+
+	util.Log(ctx).WithFields(map[string]any{
+		"profile_id":    profileID,
+		"message_count": len(req.Msg.GetMessage()),
+		"ack_count":     len(acks),
+	}).Debug("Events sent successfully")
 
 	return connect.NewResponse(&chatv1.SendEventResponse{
 		Ack: acks,
@@ -140,30 +229,68 @@ func (ps *ChatServer) GetHistory(
 	ctx context.Context,
 	req *connect.Request[chatv1.GetHistoryRequest],
 ) (*connect.Response[chatv1.GetHistoryResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
-		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
-		)
-	}
-
-	profileID, _ := authClaims.GetSubject()
-
-	events, err := ps.MessageBusiness.GetHistory(ctx, req.Msg, profileID)
+	// Validate authentication
+	profileID, err := ps.validateAuthentication(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to ServerEvent format
+	// Input validation
+	if req.Msg == nil {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			fmt.Errorf("request cannot be nil"),
+		)
+	}
+
+	if req.Msg.GetRoomId() == "" {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			fmt.Errorf("room_id must be specified"),
+		)
+	}
+
+	// Validate pagination parameters
+	limit := req.Msg.GetLimit()
+	if limit <= 0 {
+		limit = 50 // Default limit
+	} else if limit > MaxBatchSize {
+		limit = MaxBatchSize // Cap at max batch size
+	}
+	req.Msg.Limit = limit
+
+	// Create timeout context for the operation
+	timeoutCtx, cancel := ps.withTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	events, err := ps.MessageBusiness.GetHistory(timeoutCtx, req.Msg, profileID)
+	if err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"profile_id": profileID,
+			"room_id":    req.Msg.GetRoomId(),
+			"limit":      limit,
+		}).Error("Failed to get history")
+		return nil, ps.toAPIError(err)
+	}
+
+	// Convert to ServerEvent format with pre-allocated slice for efficiency
 	serverEvents := make([]*chatv1.ServerEvent, 0, len(events))
 	for _, event := range events {
-		serverEvents = append(serverEvents, &chatv1.ServerEvent{
-			Payload: &chatv1.ServerEvent_Message{
-				Message: event,
-			},
-		})
+		if event != nil { // Defensive check
+			serverEvents = append(serverEvents, &chatv1.ServerEvent{
+				Payload: &chatv1.ServerEvent_Message{
+					Message: event,
+				},
+			})
+		}
 	}
+
+	util.Log(ctx).WithFields(map[string]any{
+		"profile_id":  profileID,
+		"room_id":     req.Msg.GetRoomId(),
+		"event_count": len(serverEvents),
+		"limit":       limit,
+	}).Debug("History retrieved successfully")
 
 	return connect.NewResponse(&chatv1.GetHistoryResponse{
 		Events: serverEvents,
@@ -348,12 +475,88 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 
 	subscriptions, err := ps.RoomBusiness.SearchRoomSubscriptions(ctx, req.Msg, profileID)
 	if err != nil {
-		return nil, err
+		return nil, ps.toAPIError(err)
 	}
 
 	return connect.NewResponse(&chatv1.SearchRoomSubscriptionsResponse{
 		Members: subscriptions,
 	}), nil
+}
+
+// UpdateClientState handles client state updates (typing indicators, presence, read receipts)
+func (ps *ChatServer) UpdateClientState(
+	ctx context.Context,
+	req *connect.Request[chatv1.UpdateClientStateRequest],
+) (*connect.Response[chatv1.UpdateClientStateResponse], error) {
+	// Authentication check
+	authClaims := security.ClaimsFromContext(ctx)
+	if authClaims == nil {
+		return nil, connect.NewError(
+			connect.CodeUnauthenticated,
+			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+		)
+	}
+
+	profileID, _ := authClaims.GetSubject()
+
+	// Input validation
+	if req.Msg == nil {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			status.Error(codes.InvalidArgument, "request cannot be nil"),
+		)
+	}
+
+	// Validate client states
+	if len(req.Msg.GetClientStates()) == 0 {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			status.Error(codes.InvalidArgument, "at least one client state must be provided"),
+		)
+	}
+
+	// Limit batch size for resource efficiency
+	if len(req.Msg.GetClientStates()) > MaxBatchSize {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			status.Error(codes.InvalidArgument, fmt.Sprintf("too many client states: max %d allowed", MaxBatchSize)),
+		)
+	}
+
+	// Process each client state
+	var errors []string
+	processedCount := 0
+
+	for i, clientState := range req.Msg.GetClientStates() {
+		if clientState == nil {
+			errors = append(errors, fmt.Sprintf("client state at index %d is nil", i))
+			continue
+		}
+
+		// Validate and process the client state
+		if err := ps.processClientState(ctx, clientState, profileID, req.Msg.GetRoomId()); err != nil {
+			errors = append(errors, fmt.Sprintf("client state at index %d: %v", i, err))
+			continue
+		}
+
+		processedCount++
+	}
+
+	// Prepare response
+	response := &chatv1.UpdateClientStateResponse{
+		ProcessedCount: int32(processedCount),
+	}
+
+	// If there were errors, include them in the response
+	if len(errors) > 0 {
+		response.Error = &chatv1.ErrorResponse{
+			Code:    "PARTIAL_FAILURE",
+			Message: fmt.Sprintf("processed %d/%d client states", processedCount, len(req.Msg.GetClientStates())),
+			Meta:    map[string]string{"errors": fmt.Sprintf("%v", errors)},
+		}
+	}
+
+	return connect.NewResponse(response), nil
 }
 
 // Helper methods
@@ -369,4 +572,252 @@ func (w *bidiStreamWrapper) Receive() (*chatv1.ConnectRequest, error) {
 
 func (w *bidiStreamWrapper) Send(event *chatv1.ServerEvent) error {
 	return w.stream.Send(event)
+}
+
+// processClientState handles individual client state processing with comprehensive validation
+func (ps *ChatServer) processClientState(
+	ctx context.Context,
+	clientState *chatv1.ClientState,
+	profileID string,
+	roomID string,
+) error {
+	// Validate profile_id matches authenticated user (security check)
+	if clientState.GetProfileId() != "" && clientState.GetProfileId() != profileID {
+		util.Log(ctx).WithFields(map[string]any{
+			"claimed_profile": clientState.GetProfileId(),
+			"actual_profile":  profileID,
+		}).Warn("Profile ID mismatch in client state - potential spoofing attempt")
+		return fmt.Errorf("profile_id mismatch: claimed %s, actual %s",
+			clientState.GetProfileId(), profileID)
+	}
+
+	// Always override profile_id with authenticated user for security
+	clientState.ProfileId = profileID
+
+	// Process different state types
+	switch state := clientState.GetState().(type) {
+	case *chatv1.ClientState_Receipt:
+		return ps.processReceiptState(ctx, state.Receipt, profileID, roomID)
+	case *chatv1.ClientState_ReadMarker:
+		return ps.processReadMarkerState(ctx, state.ReadMarker, profileID, roomID)
+	case *chatv1.ClientState_Typing:
+		return ps.processTypingState(ctx, state.Typing, profileID, roomID)
+	case *chatv1.ClientState_Presence:
+		return ps.processPresenceState(ctx, state.Presence, profileID, roomID)
+	case *chatv1.ClientState_RoomEvent:
+		return ps.processRoomEventState(ctx, state.RoomEvent, profileID)
+	default:
+		util.Log(ctx).WithFields(map[string]any{
+			"profile_id": profileID,
+			"state_type": fmt.Sprintf("%T", state),
+		}).Warn("Unknown client state type received")
+		return fmt.Errorf("unsupported client state type: %T", state)
+	}
+}
+
+// processReceiptState handles receipt acknowledgments
+func (ps *ChatServer) processReceiptState(
+	ctx context.Context,
+	receipt *chatv1.ReceiptEvent,
+	profileID string,
+	roomID string,
+) error {
+	if receipt == nil {
+		return fmt.Errorf("receipt event cannot be nil")
+	}
+
+	// Validate and override profile_id
+	receipt.ProfileId = profileID
+
+	// Use room_id from receipt if not provided in request
+	targetRoomID := roomID
+	if targetRoomID == "" {
+		targetRoomID = receipt.GetRoomId()
+	}
+
+	if targetRoomID == "" {
+		return fmt.Errorf("room_id must be specified")
+	}
+
+	// Validate event_ids are provided
+	if len(receipt.GetEventId()) == 0 {
+		return fmt.Errorf("at least one event_id must be provided")
+	}
+
+	// Process read receipts for each event
+	for _, eventID := range receipt.GetEventId() {
+		if eventID == "" {
+			continue
+		}
+
+		if err := ps.ConnectBusiness.UpdateReadReceipt(ctx, profileID, targetRoomID, eventID); err != nil {
+			util.Log(ctx).WithError(err).WithFields(map[string]any{
+				"profile_id": profileID,
+				"room_id":    targetRoomID,
+				"event_id":   eventID,
+			}).Error("Failed to send read receipt")
+			return fmt.Errorf("failed to send read receipt for event %s: %w", eventID, err)
+		}
+	}
+
+	return nil
+}
+
+// processReadMarkerState handles read marker updates
+func (ps *ChatServer) processReadMarkerState(
+	ctx context.Context,
+	readMarker *chatv1.ReadMarker,
+	profileID string,
+	roomID string,
+) error {
+	if readMarker == nil {
+		return fmt.Errorf("read marker event cannot be nil")
+	}
+
+	// Validate and override profile_id
+	readMarker.ProfileId = profileID
+
+	// Use room_id from read marker if not provided in request
+	targetRoomID := roomID
+	if targetRoomID == "" {
+		targetRoomID = readMarker.GetRoomId()
+	}
+
+	if targetRoomID == "" {
+		return fmt.Errorf("room_id must be specified")
+	}
+
+	if readMarker.GetUpToEventId() == "" {
+		return fmt.Errorf("up_to_event_id must be specified")
+	}
+
+	// Mark messages as read up to the specified event
+	if err := ps.ConnectBusiness.UpdateReadMarker(ctx, targetRoomID, readMarker.GetUpToEventId(), profileID); err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"profile_id":     profileID,
+			"room_id":        targetRoomID,
+			"up_to_event_id": readMarker.GetUpToEventId(),
+		}).Error("Failed to mark messages as read")
+		return fmt.Errorf("failed to mark messages as read: %w", err)
+	}
+
+	return nil
+}
+
+// processTypingState handles typing indicators
+func (ps *ChatServer) processTypingState(
+	ctx context.Context,
+	typing *chatv1.TypingEvent,
+	profileID string,
+	roomID string,
+) error {
+	if typing == nil {
+		return fmt.Errorf("typing event cannot be nil")
+	}
+
+	// Validate and override profile_id
+	typing.ProfileId = profileID
+
+	// Use room_id from typing if not provided in request
+	targetRoomID := roomID
+	if targetRoomID == "" {
+		targetRoomID = typing.GetRoomId()
+	}
+
+	if targetRoomID == "" {
+		return fmt.Errorf("room_id must be specified")
+	}
+
+	// Set timestamp if not provided
+	if typing.GetSince() == nil {
+		typing.Since = timestamppb.Now()
+	}
+
+	// Send typing indicator
+	if err := ps.ConnectBusiness.UpdateTypingIndicator(ctx, profileID, targetRoomID, typing.GetTyping()); err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"profile_id": profileID,
+			"room_id":    targetRoomID,
+			"typing":     typing.GetTyping(),
+		}).Error("Failed to send typing indicator")
+		return fmt.Errorf("failed to send typing indicator: %w", err)
+	}
+
+	return nil
+}
+
+// processPresenceState handles presence updates
+func (ps *ChatServer) processPresenceState(
+	ctx context.Context,
+	presence *chatv1.PresenceEvent,
+	profileID string,
+	roomID string,
+) error {
+	if presence == nil {
+		return fmt.Errorf("presence event cannot be nil")
+	}
+
+	// Validate and override profile_id
+	presence.ProfileId = profileID
+
+	// Set timestamp if not provided
+	if presence.GetLastActive() == nil {
+		presence.LastActive = timestamppb.Now()
+	}
+
+	// Use room_id from request if provided, otherwise broadcast to all rooms
+	targetRoomID := roomID
+	if targetRoomID == "" {
+		targetRoomID = "" // Will broadcast to all subscribed rooms
+	}
+
+	// Send presence update
+	if err := ps.ConnectBusiness.UpdatePresence(ctx, profileID, targetRoomID, presence.GetStatus()); err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"profile_id": profileID,
+			"room_id":    targetRoomID,
+			"status":     presence.GetStatus(),
+		}).Error("Failed to send presence update")
+		return fmt.Errorf("failed to send presence update: %w", err)
+	}
+
+	return nil
+}
+
+// processRoomEventState handles room events (messages, etc.)
+func (ps *ChatServer) processRoomEventState(
+	ctx context.Context,
+	roomEvent *chatv1.RoomEvent,
+	senderID string,
+) error {
+	if roomEvent == nil {
+		return fmt.Errorf("room event cannot be nil")
+	}
+
+	// Validate event type
+	if roomEvent.GetType() == chatv1.RoomEventType_UNSPECIFIED {
+		return fmt.Errorf("event type must be specified")
+	}
+
+	// Set timestamp if not provided
+	if roomEvent.GetSentAt() == nil {
+		roomEvent.SentAt = timestamppb.Now()
+	}
+
+	// Send the event using the message business layer
+	sendReq := &chatv1.SendEventRequest{
+		Event: []*chatv1.RoomEvent{roomEvent},
+	}
+
+	_, err := ps.MessageBusiness.SendEvents(ctx, sendReq, senderID)
+	if err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"profile_id": senderID,
+			"room_id":    roomEvent.GetRoomId(),
+			"event_type": roomEvent.GetType(),
+		}).Error("Failed to send room event")
+		return fmt.Errorf("failed to send room event: %w", err)
+	}
+
+	return nil
 }

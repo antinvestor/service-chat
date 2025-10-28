@@ -80,7 +80,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 			RoomID:         chatEvent.GetRoomId(),
 			EventID:        chatEvent.GetEventId(),
 			SubscriptionID: sub.GetID(),
-			Status:         "pending",
+			State:          models.RoomOutboxStateLogged,
 			RetryCount:     0,
 			ErrorMessage:   "",
 		}
@@ -88,7 +88,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		outboxEntries = append(outboxEntries, outbox)
 		deliveryTargets = append(deliveryTargets, &eventsv1.DeliveryTarget{
 			RecepientId: sub.ProfileID,
-			OutboxId:    outbox.GetID(),
+			TargetId:    outbox.GetID(),
 		})
 	}
 

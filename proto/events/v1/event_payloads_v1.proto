@@ -18,6 +18,7 @@ message ChatEvent {
     (buf.validate.field).string.max_len = 40,
     (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
   ];
+
   // Identifies the chat room or context, ensuring data is routed to the correct group.
   string room_id = 2 [
     (buf.validate.field).string.min_len = 3,
@@ -34,13 +35,16 @@ message ChatEvent {
 
   // Allowed message types. Extendable via new enum values.
   enum EventType {
-    UNSPECIFIED = 0;
+    SYSTEM = 0;
     EVENT = 1;
     TEXT = 2;
     ATTACHMENT = 3;
     REACTION = 7;
     ENCRYPTED = 6; // opaque ciphertext
-    SYSTEM = 10;
+    STATE_DELIVERED = 10;
+    STATE_READ = 11;
+    STATE_TYPING = 12;
+    PRESENCE = 17;
     CALL_OFFER = 21;
     CALL_ANSWER = 22;
     CALL_ICE = 23;
@@ -65,7 +69,7 @@ message DeliveryTarget {
     (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
   ];
   // Unique identifier for tracking delivery status and retries in real-time.
-  string outbox_id = 2 [
+  string target_id = 2 [
     (buf.validate.field).string.min_len = 3,
     (buf.validate.field).string.max_len = 40,
     (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"

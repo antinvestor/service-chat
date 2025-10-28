@@ -52,29 +52,18 @@ type MessageBusiness interface {
 	MarkMessagesAsRead(ctx context.Context, roomID string, eventID string, profileID string) error
 }
 
-// ConnectBusiness defines the business logic for real-time connection operations.
-type ConnectBusiness interface {
-	// HandleConnection manages a bidirectional streaming connection for real-time events
-	HandleConnection(ctx context.Context, profileID string, deviceID string, stream ConnectionStream) error
+// ClientStateBusiness defines the business logic for real-time connection operations.
+type ClientStateBusiness interface {
 
-	// ReceiveEvent receives an event from a connected user
-	ReceiveEvent(ctx context.Context, event *chatv1.RoomEvent) (error, *chatv1.StreamAck)
+	// UpdatePresence sends presence updates to room subscribers
+	UpdatePresence(ctx context.Context, status *chatv1.PresenceEvent) error
 
-	// BroadcastEvent sends an event to all subscribers of a room
-	BroadcastEvent(ctx context.Context, roomID string, event *chatv1.ServerEvent) error
+	// UpdateTypingIndicator sends typing indicators to room subscribers
+	UpdateTypingIndicator(ctx context.Context, profileID string, roomID string, isTyping bool) error
 
-	// SendPresenceUpdate sends presence updates to room subscribers
-	SendPresenceUpdate(ctx context.Context, profileID string, roomID string, status chatv1.PresenceStatus) error
+	// UpdateReadReceipt sends read receipts to room subscribers
+	UpdateReadReceipt(ctx context.Context, profileID string, roomID string, eventID string) error
 
-	// SendTypingIndicator sends typing indicators to room subscribers
-	SendTypingIndicator(ctx context.Context, profileID string, roomID string, isTyping bool) error
-
-	// SendReadReceipt sends read receipts to room subscribers
-	SendReadReceipt(ctx context.Context, profileID string, roomID string, eventID string) error
-}
-
-// ConnectionStream abstracts the bidirectional stream for testing.
-type ConnectionStream interface {
-	Receive() (*chatv1.ConnectRequest, error)
-	Send(*chatv1.ServerEvent) error
+	// UpdateReadMarker updates the read marker to room subscribers
+	UpdateReadMarker(ctx context.Context, profileID string, roomID string, eventID string) error
 }

@@ -35,7 +35,8 @@ type RoomOutboxRepository interface {
 	GetByEventID(ctx context.Context, eventID string) (*models.RoomOutbox, error)
 	GetPendingEntries(ctx context.Context, limit int) ([]*models.RoomOutbox, error)
 	GetFailedEntries(ctx context.Context, maxRetries, limit int) ([]*models.RoomOutbox, error)
-	UpdateStatus(ctx context.Context, id, status string) error
+	UpdateState(ctx context.Context, roomID, eventID string, state models.RoomOutboxState) error
+	UpdateUpToState(ctx context.Context, roomID, eventID string, state models.RoomOutboxState) ([]string, error)
 	UpdateStatusWithError(ctx context.Context, id, status, errorMsg string) error
 	IncrementRetryCount(ctx context.Context, id string) error
 	GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomOutbox, error)

@@ -76,7 +76,7 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 	}
 
 	// Map message type to RoomEventType
-	eventType := chatv1.RoomEventType_MESSAGE_TYPE_UNSPECIFIED
+	eventType := chatv1.RoomEventType_UNSPECIFIED
 	if typeVal, ok := chatv1.RoomEventType_value[re.MessageType]; ok {
 		eventType = chatv1.RoomEventType(typeVal)
 	}
@@ -93,15 +93,24 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 	}
 }
 
+type RoomOutboxState int
+
+const (
+	RoomOutboxStateLogged RoomOutboxState = iota
+	RoomOutboxStateSent
+	RoomOutboxStateDelivered
+	RoomOutboxStateRead
+)
+
 // RoomOutbox represents an outbox entry for message delivery tracking.
 type RoomOutbox struct {
 	data.BaseModel
-	RoomID         string `gorm:"type:varchar(50)"`
-	SubscriptionID string `gorm:"type:varchar(50);index:idx_subscription_status"`
-	EventID        string `gorm:"type:varchar(50)"`
-	Status         string `gorm:"index:idx_subscription_status"                  json:"status"` // pending, sent, failed
-	RetryCount     int    `                                                      json:"retry_count"`
-	ErrorMessage   string `                                                      json:"error_message"`
+	RoomID         string          `gorm:"type:varchar(50)"`
+	SubscriptionID string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
+	EventID        string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
+	State          RoomOutboxState `gorm:"index:idx_subscription_event_state"  json:"state"`
+	RetryCount     int             `json:"retry_count"`
+	ErrorMessage   string          `json:"error_message"`
 }
 
 // RoomSubscription represents a user's subscription to a room.
