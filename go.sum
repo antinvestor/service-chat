@@ -31,8 +31,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/antinvestor/apis/go/chat v1.47.3 h1:CVUPp0hv9sygPGa/+m+yiLKLbvKyNQDO3KH/RdJt58A=
 github.com/antinvestor/apis/go/chat v1.47.3/go.mod h1:9HNIJNxbTxU9xUfBErLNNT0E28GQrJF5u3AcM963Qn0=
-github.com/antinvestor/apis/go/common v1.47.0 h1:bgyzshVx/StkbmGQ6LmU4qmdp5OG4I0AjQRBpkAUkwM=
-github.com/antinvestor/apis/go/common v1.47.0/go.mod h1:sMq1Wi4NUYJMdS5iW6vMViHtMMVxZyNeP68uoPWm5ow=
+github.com/antinvestor/apis/go/common v1.47.1 h1:WLhynOPCuEJyZS8MB0iRzLT0hoHT3xP3SOUqd7b3XaI=
+github.com/antinvestor/apis/go/common v1.47.1/go.mod h1:sMq1Wi4NUYJMdS5iW6vMViHtMMVxZyNeP68uoPWm5ow=
 github.com/antinvestor/apis/go/device v1.47.1 h1:DooendTRBOHxXlJ2VXxkepGRH56C/o6g7gk2MAksLJA=
 github.com/antinvestor/apis/go/device v1.47.1/go.mod h1:/R/q6q7i3aC7OjwPsvEgrF93+/j22j2DBG5+fRwAXv0=
 github.com/antinvestor/apis/go/notification v1.47.1 h1:zeGfDuSxTxp+/ifYHAmBcdjUG5qYYYzcfjL6TqXWhTw=
