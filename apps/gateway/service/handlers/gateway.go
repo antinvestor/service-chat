@@ -6,6 +6,7 @@ import (
 	"connectrpc.com/connect"
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
+	devicev1 "github.com/antinvestor/apis/go/device/v1"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/security"
@@ -16,9 +17,10 @@ import (
 // GatewayServer handles the gateway-specific chat service operations.
 // It focuses on the Connect functionality for real-time communication with edge devices.
 type GatewayServer struct {
-	svc      *frame.Service
-	csClient chatv1connect.ChatServiceClient
-	cm       business.ConnectionManager
+	svc        *frame.Service
+	deviceCli  *devicev1.DeviceClient
+	chatClient chatv1connect.ChatServiceClient
+	cm         business.ConnectionManager
 
 	chatv1connect.UnimplementedGatewayServiceHandler
 }
@@ -30,9 +32,9 @@ func NewGatewayServer(
 	connectionManager business.ConnectionManager,
 ) *GatewayServer {
 	return &GatewayServer{
-		svc:      service,
-		csClient: chatServiceClient,
-		cm:       connectionManager,
+		svc:        service,
+		chatClient: chatServiceClient,
+		cm:         connectionManager,
 	}
 }
 

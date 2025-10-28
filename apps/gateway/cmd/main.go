@@ -8,6 +8,7 @@ import (
 	"connectrpc.com/otelconnect"
 	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
 	apis "github.com/antinvestor/apis/go/common"
+	devicev1 "github.com/antinvestor/apis/go/device/v1"
 	gtwconfig "github.com/antinvestor/service-chat/apps/gateway/config"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/antinvestor/service-chat/apps/gateway/service/handlers"
@@ -44,22 +45,29 @@ func main() {
 		log.WithError(err).Fatal("main -- Could not setup chat service client")
 	}
 
+	// Setup device service client for delivery tracking
+	deviceClient, err := setupDeviceClient(ctx, svc.SecurityManager(), cfg)
+	if err != nil {
+		log.WithError(err).Fatal("main -- Could not setup device service client")
+	}
+
+	// Setup cache for connection metadata
 	defaultCache, err := valkey.New(cache.WithDSN(data.DSN(cfg.CacheURI)))
 	if err != nil {
 		log.WithError(err).Fatal("main -- Could not setup default cache")
 	}
 
-	// Setup connection manager
+	// Setup connection manager with clients
+	// Note: Outbound message delivery is handled by the default service via direct publish
+	// The gateway focuses on inbound request processing and real-time features
 	connectionManager := business.NewConnectionManager(
 		defaultCache,
+		chatServiceClient,
+		deviceClient,
 		cfg.MaxConnectionsPerDevice,
 		cfg.ConnectionTimeoutSec,
 		cfg.HeartbeatIntervalSec,
 	)
-
-	// Note: No global queue subscriber needed!
-	// Each device connection creates its own filtered queue subscription in the Connect() handler.
-	// This allows horizontal scaling - multiple gateway instances can handle different devices.
 
 	serviceOptions := []frame.Option{
 		frame.WithCache(cfg.CacheName, defaultCache),
@@ -111,12 +119,27 @@ func setupChatServiceClient(
 	return client, nil
 }
 
+// setupDeviceClient creates and configures the device service client.
+func setupDeviceClient(
+	ctx context.Context,
+	sm security.Manager,
+	cfg gtwconfig.GatewayConfig,
+) (*devicev1.DeviceClient, error) {
+	return devicev1.NewDeviceClient(ctx,
+		apis.WithEndpoint(cfg.DeviceServiceURI),
+		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
+		apis.WithTokenUsername(sm.JwtClientID()),
+		apis.WithTokenPassword(sm.JwtClientSecret()),
+		apis.WithScopes(openid.ConstSystemScopeInternal),
+		apis.WithAudiences("service_device"))
+}
+
 // setupGatewayServer initializes and configures the gateway server.
 func setupGatewayServer(
 	ctx context.Context,
 	svc *frame.Service,
 	chatServiceClient chatv1connect.ChatServiceClient,
-	connectionManager *business.ConnectionManager,
+	connectionManager business.ConnectionManager,
 ) http.Handler {
 
 	securityMan := svc.SecurityManager()
@@ -135,8 +158,8 @@ func setupGatewayServer(
 
 	gatewayServer := handlers.NewGatewayServer(svc, chatServiceClient, connectionManager)
 
-	// Register as ChatServiceHandler since gateway implements all ChatService methods
-	_, serverHandler := chatv1connect.NewChatServiceHandler(
+	// Register as GatewayServiceHandler - handles the Connect stream for real-time communication
+	_, serverHandler := chatv1connect.NewGatewayServiceHandler(
 		gatewayServer, connect.WithInterceptors(authInterceptor, otelInterceptor, validateInterceptor),
 	)
 

@@ -8,6 +8,9 @@ type GatewayConfig struct {
 	// Chat service configuration - the gateway connects to the default chat service
 	ChatServiceURI string `envDefault:"127.0.0.1:7010" env:"CHAT_SERVICE_URI"`
 
+	// Device service configuration - for delivery status tracking
+	DeviceServiceURI string `envDefault:"device.api.antinvestor.com:443" env:"DEVICE_SERVICE_URI"`
+
 	// Connection management
 	MaxConnectionsPerDevice int `envDefault:"1" env:"MAX_CONNECTIONS_PER_DEVICE"`
 	ConnectionTimeoutSec    int `envDefault:"300" env:"CONNECTION_TIMEOUT_SEC"`
