@@ -45,10 +45,13 @@ func NewChatServer(
 	notificationCli *notificationv1.NotificationClient,
 	profileCli *profilev1.ProfileClient,
 ) *ChatServer {
-	roomRepo := repository.NewRoomRepository(service)
-	eventRepo := repository.NewRoomEventRepository(service)
-	subRepo := repository.NewRoomSubscriptionRepository(service)
-	outboxRepo := repository.NewRoomOutboxRepository(service)
+	workMan := service.WorkManager()
+	dbPool := service.DatastoreManager().GetPool(ctx, "default")
+
+	roomRepo := repository.NewRoomRepository(dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 	// Initialize business layers
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
@@ -80,10 +83,6 @@ func (ps *ChatServer) toAPIError(err error) error {
 	switch {
 	case data.ErrorIsNoRows(err):
 		return connect.NewError(connect.CodeNotFound, err)
-	case data.ErrorIsConstraintViolation(err):
-		return connect.NewError(connect.CodeAlreadyExists, err)
-	case data.ErrorIsInvalidInput(err):
-		return connect.NewError(connect.CodeInvalidArgument, err)
 	default:
 		// Log internal errors for debugging
 		util.Log(context.Background()).WithError(err).Error("Internal server error")
@@ -146,25 +145,18 @@ func (ps *ChatServer) Connect(
 		"device_id":  deviceID,
 	}).Info("New connection attempt")
 
-	// Create stream wrapper with resource management
-	streamWrapper := &bidiStreamWrapper{stream: stream}
-
-	// Handle the connection with proper error handling
-	err = ps.ConnectBusiness.HandleConnection(ctx, profileID, deviceID, streamWrapper)
-	if err != nil {
-		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"profile_id": profileID,
-			"device_id":  deviceID,
-		}).Error("Connection failed")
-		return ps.toAPIError(err)
-	}
-
+	// Note: Real-time connections are handled by the gateway service
+	// This method is here for compatibility with the ChatService interface
+	// but should not be called directly
 	util.Log(ctx).WithFields(map[string]any{
 		"profile_id": profileID,
 		"device_id":  deviceID,
-	}).Info("Connection closed")
-
-	return nil
+	}).Warn("Connect method called on default service - should use gateway service instead")
+	
+	return connect.NewError(
+		connect.CodeUnimplemented,
+		fmt.Errorf("real-time connections should be established through the gateway service"),
+	)
 }
 
 func (ps *ChatServer) SendEvent(
@@ -185,18 +177,18 @@ func (ps *ChatServer) SendEvent(
 		)
 	}
 
-	if len(req.Msg.GetMessage()) == 0 {
+	if len(req.Msg.GetEvent()) == 0 {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			fmt.Errorf("at least one message must be provided"),
+			fmt.Errorf("at least one event must be provided"),
 		)
 	}
 
 	// Limit batch size for resource efficiency
-	if len(req.Msg.GetMessage()) > MaxBatchSize {
+	if len(req.Msg.GetEvent()) > MaxBatchSize {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			fmt.Errorf("too many messages: max %d allowed", MaxBatchSize),
+			fmt.Errorf("too many events: max %d allowed", MaxBatchSize),
 		)
 	}
 
@@ -204,20 +196,20 @@ func (ps *ChatServer) SendEvent(
 	timeoutCtx, cancel := ps.withTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	// Send the messages
+	// Send the events
 	acks, err := ps.MessageBusiness.SendEvents(timeoutCtx, req.Msg, profileID)
 	if err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"profile_id":    profileID,
-			"message_count": len(req.Msg.GetMessage()),
+			"profile_id":  profileID,
+			"event_count": len(req.Msg.GetEvent()),
 		}).Error("Failed to send events")
 		return nil, ps.toAPIError(err)
 	}
 
 	util.Log(ctx).WithFields(map[string]any{
-		"profile_id":    profileID,
-		"message_count": len(req.Msg.GetMessage()),
-		"ack_count":     len(acks),
+		"profile_id":  profileID,
+		"event_count": len(req.Msg.GetEvent()),
+		"ack_count":   len(acks),
 	}).Debug("Events sent successfully")
 
 	return connect.NewResponse(&chatv1.SendEventResponse{
@@ -525,7 +517,6 @@ func (ps *ChatServer) UpdateClientState(
 
 	// Process each client state
 	var errors []string
-	processedCount := 0
 
 	for i, clientState := range req.Msg.GetClientStates() {
 		if clientState == nil {
@@ -538,22 +529,17 @@ func (ps *ChatServer) UpdateClientState(
 			errors = append(errors, fmt.Sprintf("client state at index %d: %v", i, err))
 			continue
 		}
-
-		processedCount++
 	}
 
 	// Prepare response
-	response := &chatv1.UpdateClientStateResponse{
-		ProcessedCount: int32(processedCount),
-	}
+	response := &chatv1.UpdateClientStateResponse{}
 
-	// If there were errors, include them in the response
+	// If there were errors, return first error
 	if len(errors) > 0 {
-		response.Error = &chatv1.ErrorResponse{
-			Code:    "PARTIAL_FAILURE",
-			Message: fmt.Sprintf("processed %d/%d client states", processedCount, len(req.Msg.GetClientStates())),
-			Meta:    map[string]string{"errors": fmt.Sprintf("%v", errors)},
-		}
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			fmt.Errorf("failed to process client states: %s", errors[0]),
+		)
 	}
 
 	return connect.NewResponse(response), nil
@@ -581,19 +567,6 @@ func (ps *ChatServer) processClientState(
 	profileID string,
 	roomID string,
 ) error {
-	// Validate profile_id matches authenticated user (security check)
-	if clientState.GetProfileId() != "" && clientState.GetProfileId() != profileID {
-		util.Log(ctx).WithFields(map[string]any{
-			"claimed_profile": clientState.GetProfileId(),
-			"actual_profile":  profileID,
-		}).Warn("Profile ID mismatch in client state - potential spoofing attempt")
-		return fmt.Errorf("profile_id mismatch: claimed %s, actual %s",
-			clientState.GetProfileId(), profileID)
-	}
-
-	// Always override profile_id with authenticated user for security
-	clientState.ProfileId = profileID
-
 	// Process different state types
 	switch state := clientState.GetState().(type) {
 	case *chatv1.ClientState_Receipt:
@@ -765,17 +738,18 @@ func (ps *ChatServer) processPresenceState(
 		presence.LastActive = timestamppb.Now()
 	}
 
-	// Use room_id from request if provided, otherwise broadcast to all rooms
-	targetRoomID := roomID
-	if targetRoomID == "" {
-		targetRoomID = "" // Will broadcast to all subscribed rooms
+	// Create presence event
+	presenceEvent := &chatv1.PresenceEvent{
+		ProfileId:  profileID,
+		Status:     presence.GetStatus(),
+		StatusMsg:  presence.GetStatusMsg(),
+		LastActive: timestamppb.Now(),
 	}
 
 	// Send presence update
-	if err := ps.ConnectBusiness.UpdatePresence(ctx, profileID, targetRoomID, presence.GetStatus()); err != nil {
+	if err := ps.ConnectBusiness.UpdatePresence(ctx, presenceEvent); err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
 			"profile_id": profileID,
-			"room_id":    targetRoomID,
 			"status":     presence.GetStatus(),
 		}).Error("Failed to send presence update")
 		return fmt.Errorf("failed to send presence update: %w", err)

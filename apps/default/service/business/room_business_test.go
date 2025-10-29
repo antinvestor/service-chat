@@ -44,7 +44,7 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 
 func (s *RoomBusinessTestSuite) TestCreateRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -66,7 +66,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 
 func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		req := &chatv1.CreateRoomRequest{
@@ -80,7 +80,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
 
 func (s *RoomBusinessTestSuite) TestGetRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -102,7 +102,7 @@ func (s *RoomBusinessTestSuite) TestGetRoom() {
 
 func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -124,7 +124,7 @@ func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 
 func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -152,7 +152,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 
 func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -180,7 +180,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 
 func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -208,7 +208,7 @@ func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 
 func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -249,7 +249,7 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 
 func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -282,7 +282,7 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 
 func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
@@ -321,7 +321,7 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 
 func (s *RoomBusinessTestSuite) TestSearchRooms() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()

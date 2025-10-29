@@ -85,7 +85,7 @@ func (rb *roomBusiness) CreateRoom(
 	}
 
 	// Send room created event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdBy, chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdBy, chatv1.RoomEventType_EVENT,
 		map[string]interface{}{"content": "Room created"},
 		map[string]interface{}{"created_by": createdBy})
 
@@ -155,7 +155,7 @@ func (rb *roomBusiness) UpdateRoom(
 	}
 
 	// Send room updated event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, room.GetID(), updatedBy, chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+	_ = rb.sendRoomEvent(ctx, room.GetID(), updatedBy, chatv1.RoomEventType_EVENT,
 		map[string]interface{}{"content": "Room details updated"},
 		map[string]interface{}{"updated_by": updatedBy})
 
@@ -185,7 +185,7 @@ func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRe
 	}
 
 	// Send room deleted event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, roomID, profileID, chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+	_ = rb.sendRoomEvent(ctx, roomID, profileID, chatv1.RoomEventType_EVENT,
 		map[string]interface{}{"content": "Room deleted"},
 		map[string]interface{}{"deleted_by": profileID})
 
@@ -359,7 +359,7 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 	}
 
 	// Send member role updated event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, req.GetRoomId(), updaterID, chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+	_ = rb.sendRoomEvent(ctx, req.GetRoomId(), updaterID, chatv1.RoomEventType_EVENT,
 		map[string]interface{}{"content": "Member role updated"},
 		map[string]interface{}{
 			"profile_id": req.GetProfileId(),
@@ -448,7 +448,7 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 
 		// Send member added events using MessageBusiness
 		for _, sub := range newSubs {
-			_ = rb.sendRoomEvent(ctx, roomID, sub.ProfileID, chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+			_ = rb.sendRoomEvent(ctx, roomID, sub.ProfileID, chatv1.RoomEventType_EVENT,
 				map[string]interface{}{"content": "Member added to room"},
 				map[string]interface{}{
 					"profile_id": sub.ProfileID,
@@ -497,7 +497,7 @@ func (rb *roomBusiness) removeRoomMembers(
 			}
 
 			// Send member removed event using MessageBusiness
-			_ = rb.sendRoomEvent(ctx, roomID, removerID, chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+			_ = rb.sendRoomEvent(ctx, roomID, removerID, chatv1.RoomEventType_EVENT,
 				map[string]interface{}{"content": "Member removed from room"},
 				map[string]interface{}{
 					"profile_id": sub.ProfileID,
@@ -533,7 +533,7 @@ func (rb *roomBusiness) sendRoomEvent(
 	}
 
 	req := &chatv1.SendEventRequest{
-		Message: []*chatv1.RoomEvent{
+		Event: []*chatv1.RoomEvent{
 			{
 				RoomId:   roomID,
 				SenderId: senderID,

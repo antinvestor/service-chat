@@ -1,4 +1,4 @@
-package tests
+package events_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
@@ -17,7 +18,7 @@ import (
 )
 
 type OutboxEventTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestOutboxEventTestSuite(t *testing.T) {
@@ -45,17 +46,17 @@ func (s *OutboxEventTestSuite) setupBusinessLayer(
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueName() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, _ := s.CreateService(t, dep)
+		_, svc := s.CreateService(t, dep)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
-		s.Equal(events.RoomOutboxLoggingQueueName, queue.Name())
-		s.Equal("room.outbox.logging.queue", queue.Name())
+		s.Equal(events.RoomOutboxLoggingEventName, queue.Name())
+		s.Equal("room.outbox.logging.event", queue.Name())
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueuePayloadType() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, _ := s.CreateService(t, dep)
+		_, svc := s.CreateService(t, dep)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
 		payloadType := queue.PayloadType()
@@ -69,7 +70,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueuePayloadType() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateValidPayload() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
 		validPayload := map[string]string{
@@ -85,7 +86,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateValidPayload() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateInvalidPayload() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
 		// Invalid payload type
@@ -98,11 +99,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateInvalidPayload() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		outboxRepo := repository.NewRoomOutboxRepository(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
 
 		// Create room with multiple members
 		creatorID := util.IDString()
@@ -124,11 +127,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -170,10 +173,12 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -201,11 +206,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -234,11 +239,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		outboxRepo := repository.NewRoomOutboxRepository(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
 
 		// Create room
 		senderID := util.IDString()
@@ -261,11 +268,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: senderID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -299,10 +306,12 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -324,11 +333,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 			})
 
 			msgReq := &chatv1.SendEventRequest{
-				Message: []*chatv1.RoomEvent{
+				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+						Type:     chatv1.RoomEventType_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -358,11 +367,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
-		outboxRepo := repository.NewRoomOutboxRepository(svc)
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -389,11 +400,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -422,7 +433,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithMissingRoomID() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
 		// Execute with missing room_id
@@ -439,7 +450,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithMissingRoomID() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithNonExistentRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
 		// Execute with non-existent room
@@ -458,10 +469,12 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithNonExistentRoom() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -486,11 +499,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 			})
 
 			msgReq := &chatv1.SendEventRequest{
-				Message: []*chatv1.RoomEvent{
+				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+						Type:     chatv1.RoomEventType_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -522,11 +535,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		subRepo := repository.NewRoomSubscriptionRepository(svc)
-		outboxRepo := repository.NewRoomOutboxRepository(svc)
+		workMan := svc.WorkManager()
+		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -547,11 +562,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},

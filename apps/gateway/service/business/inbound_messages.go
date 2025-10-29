@@ -248,22 +248,16 @@ func (cm *connectionManager) processStateUpdate(
 // updateLastActive updates the last active timestamp in cache.
 // This is called for every inbound request to track device activity.
 func (cm *connectionManager) updateLastActive(ctx context.Context, connKey string) {
-	metadata, err := cm.getMetadata(ctx, connKey)
-	if err == nil && metadata != nil {
+	// Get connection from pool and update its last active time
+	if conn, exists := cm.connPool.get(connKey); exists {
+		conn.mu.Lock()
 		now := time.Now().Unix()
-		metadata.LastActive = now
-		metadata.LastHeartbeat = now
-
-		// Update cache with new timestamps
-		// Use background context to ensure update completes even if request context cancels
-		updateCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-
-		err = cm.connect(updateCtx, metadata)
-		if err != nil {
-			util.Log(ctx).WithError(err).
-				WithField("conn_key", connKey).
-				Debug("Failed to update last active timestamp")
-		}
+		// Update the connection's metadata (thread-safe with mutex)
+		conn.metadata.LastActive = now
+		conn.metadata.LastHeartbeat = now
+		conn.mu.Unlock()
+		
+		util.Log(ctx).WithField("conn_key", connKey).
+			Debug("Updated last active timestamp")
 	}
 }

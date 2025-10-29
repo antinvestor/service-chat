@@ -47,13 +47,13 @@ func (mb *messageBusiness) SendEvents(
 	senderID string,
 ) ([]*chatv1.StreamAck, error) {
 	// Validate request
-	if len(req.GetMessage()) == 0 {
+	if len(req.GetEvent()) == 0 {
 		return nil, service.ErrMessageContentRequired
 	}
 
 	var responses []*chatv1.StreamAck
 
-	for _, msg := range req.GetMessage() {
+	for _, msg := range req.GetEvent() {
 		if msg.GetRoomId() == "" {
 			return nil, service.ErrMessageRoomIDRequired
 		}
@@ -114,7 +114,7 @@ func (mb *messageBusiness) SendEvents(
 			"sender_id":     senderID,
 		}
 
-		err = mb.service.Emit(ctx, events.RoomOutboxLoggingQueueName, outboxIDMap)
+		err = mb.service.Emit(ctx, events.RoomOutboxLoggingEventName, outboxIDMap)
 		if err != nil {
 			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to emit event: %v", err)})
 			responses = append(responses, &chatv1.StreamAck{

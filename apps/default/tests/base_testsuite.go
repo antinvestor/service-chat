@@ -15,9 +15,12 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
+	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/frame/frametests/deps/testpostgres"
+	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -48,7 +51,7 @@ func (bs *BaseTestSuite) SetupSuite() {
 func (bs *BaseTestSuite) CreateService(
 	t *testing.T,
 	depOpts *definition.DependancyOption,
-) (*frame.Service, context.Context) {
+) (context.Context, *frame.Service) {
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 
 	ctx := t.Context()
@@ -72,32 +75,30 @@ func (bs *BaseTestSuite) CreateService(
 
 	ctx, svc := frame.NewServiceWithContext(t.Context(), "profile tests",
 		frame.WithConfig(&profileConfig),
-		frame.WithDatastore(),
 		frametests.WithNoopDriver())
 
-	relationshipConnectQueuePublisher := frame.WithRegisterPublisher(
-		profileConfig.QueueRelationshipConnectName,
-		profileConfig.QueueRelationshipConnectURI,
-	)
-	relationshipDisConnectQueuePublisher := frame.WithRegisterPublisher(
-		profileConfig.QueueRelationshipDisConnectName,
-		profileConfig.QueueRelationshipDisConnectURI,
-	)
-
 	svc.Init(ctx,
-		relationshipConnectQueuePublisher, relationshipDisConnectQueuePublisher,
+		frame.WithDatastore(),
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(svc),
 		),
 	)
 
-	err = repository.Migrate(ctx, svc, "../../migrations/0001")
+	dbPool := svc.DatastoreManager().GetPool(ctx, "default")
+	err = repository.Migrate(ctx, dbPool, "../../migrations/0001")
 	require.NoError(t, err)
 
 	err = svc.Run(ctx, "")
 	require.NoError(t, err)
 
-	return svc, ctx
+	return ctx, svc
+}
+
+// GetRepoDeps is a helper to create repository dependencies
+func (bs *BaseTestSuite) GetRepoDeps(ctx context.Context, svc *frame.Service) (workerpool.Manager, pool.Pool) {
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+	return workMan, dbPool
 }
 
 func (bs *BaseTestSuite) GetNotificationCli(_ context.Context) *notificationv1.NotificationClient {

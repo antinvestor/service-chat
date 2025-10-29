@@ -44,7 +44,7 @@ func (s *IntegrationTestSuite) setupBusinessLayer(
 
 func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness, subscriptionSvc := s.setupBusinessLayer(ctx, svc)
 
 		// 1. Create room
@@ -79,11 +79,11 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			})
 
 			msgReq := &chatv1.SendEventRequest{
-				Message: []*chatv1.RoomEvent{
+				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+						Type:     chatv1.RoomEventType_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -165,7 +165,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 
 func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
@@ -191,11 +191,11 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 				})
 
 				msgReq := &chatv1.SendEventRequest{
-					Message: []*chatv1.RoomEvent{
+					Event: []*chatv1.RoomEvent{
 						{
 							RoomId:   room.GetId(),
 							SenderId: userID,
-							Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+							Type:     chatv1.RoomEventType_TEXT,
 							Payload:  payload,
 						},
 					},
@@ -227,7 +227,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 
 func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _, subscriptionSvc := s.setupBusinessLayer(ctx, svc)
 
 		ownerID := util.IDString()
@@ -296,7 +296,7 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 
 func (s *IntegrationTestSuite) TestMessageDeletion() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
@@ -318,11 +318,11 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 			})
 
 			msgReq := &chatv1.SendEventRequest{
-				Message: []*chatv1.RoomEvent{
+				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: userID,
-						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+						Type:     chatv1.RoomEventType_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -358,7 +358,7 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 
 func (s *IntegrationTestSuite) TestSearchFunctionality() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()

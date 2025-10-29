@@ -82,12 +82,18 @@ func main() {
 		cfg.QueueUserEventDeliveryURI,
 		queues.NewUserDeliveryQueueHandler(svc, deviceCli),
 	)
+	
+	// Get publisher for event handlers
+	deliveryPublisher, _ := svc.QueueManager(ctx).GetPublisher(cfg.QueueUserEventDeliveryName)
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+	
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
 		userDeliveryQueuePublisher, userDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(svc),
-			events.NewOutboxDeliveryEventHandler(svc),
+			events.NewOutboxDeliveryEventHandler(dbPool, workMan, deliveryPublisher),
 		))
 
 	// Initialize the service with all options

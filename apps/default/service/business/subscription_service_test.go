@@ -44,7 +44,7 @@ func (s *SubscriptionServiceTestSuite) setupBusinessLayer(
 
 func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
@@ -80,7 +80,7 @@ func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 
 func (s *SubscriptionServiceTestSuite) TestHasRole() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
@@ -115,7 +115,7 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 
 func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create multiple rooms
@@ -141,7 +141,7 @@ func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 
 func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
@@ -175,7 +175,7 @@ func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 
 func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room with member

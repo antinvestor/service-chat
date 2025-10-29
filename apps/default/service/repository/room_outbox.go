@@ -191,6 +191,65 @@ func (ror *roomOutboxRepository) GetPendingBySubscription(
 	return entries, err
 }
 
+// UpdateState updates the state of a specific outbox entry identified by roomID and eventID.
+func (ror *roomOutboxRepository) UpdateState(
+	ctx context.Context,
+	roomID, eventID string,
+	state models.RoomOutboxState,
+) error {
+	return ror.Svc().DB(ctx, false).
+		Model(&models.RoomOutbox{}).
+		Where("room_id = ? AND event_id = ?", roomID, eventID).
+		Update("state", state).Error
+}
+
+// UpdateUpToState updates the state of all outbox entries up to and including the specified eventID.
+// It returns the list of subscription IDs that were affected by the update.
+func (ror *roomOutboxRepository) UpdateUpToState(
+	ctx context.Context,
+	roomID, eventID string,
+	state models.RoomOutboxState,
+) ([]string, error) {
+	// First, get the target event to find its creation time
+	var targetEntry models.RoomOutbox
+	err := ror.Svc().DB(ctx, true).
+		Where("room_id = ? AND event_id = ?", roomID, eventID).
+		First(&targetEntry).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Find all entries that should be updated
+	var affectedEntries []*models.RoomOutbox
+	err = ror.Svc().DB(ctx, true).
+		Where("room_id = ? AND event_id <= ? AND state < ?", roomID, eventID, state).
+		Find(&affectedEntries).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Update all entries up to the target event
+	err = ror.Svc().DB(ctx, false).
+		Model(&models.RoomOutbox{}).
+		Where("room_id = ? AND event_id <= ? AND state < ?", roomID, eventID, state).
+		Update("state", state).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract unique subscription IDs
+	subscriptionIDs := make([]string, 0, len(affectedEntries))
+	seen := make(map[string]bool)
+	for _, entry := range affectedEntries {
+		if !seen[entry.SubscriptionID] {
+			subscriptionIDs = append(subscriptionIDs, entry.SubscriptionID)
+			seen[entry.SubscriptionID] = true
+		}
+	}
+
+	return subscriptionIDs, nil
+}
+
 // NewRoomOutboxRepository creates a new room outbox repository instance.
 func NewRoomOutboxRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomOutboxRepository {
 	return &roomOutboxRepository{

@@ -22,7 +22,7 @@ func (cm *connectionManager) handleOutboundRequests(
 	target := req.GetTarget()
 
 	payload := &chatv1.ServerEvent{
-		Id:        target.GetOutboxId(),
+		Id:        target.GetTargetId(),
 		Timestamp: timestamppb.Now(),
 		Payload: &chatv1.ServerEvent_Message{
 			Message: &chatv1.RoomEvent{

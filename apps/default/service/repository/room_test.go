@@ -1,11 +1,13 @@
-package repository
+package repository_test
 
 import (
 	"testing"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
+	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/suite"
@@ -20,9 +22,10 @@ func TestRoomRepositoryTestSuite(t *testing.T) {
 }
 
 func (s *RoomRepositoryTestSuite) TestCreateRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
-		repo := NewRoomRepository(svc)
+	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		workMan, dbPool := s.GetRepoDeps(ctx, svc)
+		repo := repository.NewRoomRepository(dbPool, workMan)
 
 		room := &models.Room{
 			RoomType:    "group",
@@ -37,7 +40,6 @@ func (s *RoomRepositoryTestSuite) TestCreateRoom() {
 		s.NoError(err)
 		s.NotEmpty(room.GetID())
 
-		// Verify retrieval
 		retrieved, err := repo.GetByID(ctx, room.GetID())
 		s.NoError(err)
 		s.Equal(room.Name, retrieved.Name)
@@ -47,11 +49,11 @@ func (s *RoomRepositoryTestSuite) TestCreateRoom() {
 }
 
 func (s *RoomRepositoryTestSuite) TestUpdateRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
-		repo := NewRoomRepository(svc)
+	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		workMan, dbPool := s.GetRepoDeps(ctx, svc)
+		repo := repository.NewRoomRepository(dbPool, workMan)
 
-		// Create room
 		room := &models.Room{
 			RoomType:    "group",
 			Name:        "Original Name",
@@ -62,13 +64,11 @@ func (s *RoomRepositoryTestSuite) TestUpdateRoom() {
 		err := repo.Save(ctx, room)
 		s.NoError(err)
 
-		// Update room
 		room.Name = "Updated Name"
 		room.Description = "Updated Description"
 		err = repo.Save(ctx, room)
 		s.NoError(err)
 
-		// Verify update
 		retrieved, err := repo.GetByID(ctx, room.GetID())
 		s.NoError(err)
 		s.Equal("Updated Name", retrieved.Name)
@@ -77,11 +77,11 @@ func (s *RoomRepositoryTestSuite) TestUpdateRoom() {
 }
 
 func (s *RoomRepositoryTestSuite) TestDeleteRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
-		repo := NewRoomRepository(svc)
+	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		workMan, dbPool := s.GetRepoDeps(ctx, svc)
+		repo := repository.NewRoomRepository(dbPool, workMan)
 
-		// Create room
 		room := &models.Room{
 			RoomType: "group",
 			Name:     "Room to Delete",
@@ -91,23 +91,21 @@ func (s *RoomRepositoryTestSuite) TestDeleteRoom() {
 		err := repo.Save(ctx, room)
 		s.NoError(err)
 
-		// Delete room
 		err = repo.Delete(ctx, room.GetID())
 		s.NoError(err)
 
-		// Verify deletion (soft delete)
 		retrieved, err := repo.GetByID(ctx, room.GetID())
-		s.Error(err) // Should not find deleted room
+		s.Error(err)
 		s.Nil(retrieved)
 	})
 }
 
 func (s *RoomRepositoryTestSuite) TestSearchRooms() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
-		repo := NewRoomRepository(svc)
+	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		workMan, dbPool := s.GetRepoDeps(ctx, svc)
+		repo := repository.NewRoomRepository(dbPool, workMan)
 
-		// Create multiple rooms
 		for range 3 {
 			room := &models.Room{
 				RoomType: "group",
@@ -118,18 +116,15 @@ func (s *RoomRepositoryTestSuite) TestSearchRooms() {
 			err := repo.Save(ctx, room)
 			s.NoError(err)
 		}
-
-		// Note: Search functionality requires custom implementation
-		// This test validates basic room creation
 	})
 }
 
 func (s *RoomRepositoryTestSuite) TestGetRoomsByIDs() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
-		repo := NewRoomRepository(svc)
+	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		workMan, dbPool := s.GetRepoDeps(ctx, svc)
+		repo := repository.NewRoomRepository(dbPool, workMan)
 
-		// Create rooms
 		room1 := &models.Room{RoomType: "group", Name: "Room 1", IsPublic: true}
 		room1.GenID(ctx)
 		room2 := &models.Room{RoomType: "group", Name: "Room 2", IsPublic: true}
@@ -138,7 +133,6 @@ func (s *RoomRepositoryTestSuite) TestGetRoomsByIDs() {
 		s.NoError(repo.Save(ctx, room1))
 		s.NoError(repo.Save(ctx, room2))
 
-		// Get by ID individually (GetByIDs doesn't exist)
 		retrieved1, err := repo.GetByID(ctx, room1.GetID())
 		s.NoError(err)
 		s.Equal(room1.Name, retrieved1.Name)

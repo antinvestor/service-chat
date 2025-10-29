@@ -23,10 +23,10 @@ func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_Name() {
 	t := csqts.T()
 
 	csqts.WithTestDependancies(t, func(t *testing.T, dep *definition.DependancyOption) {
-		svc, _ := csqts.CreateService(t, dep)
+		_, svc := csqts.CreateService(t, dep)
 
 		queue := events.NewRoomOutboxLoggingQueue(svc)
-		require.Equal(t, events.RoomOutboxLoggingQueueName, queue.Name())
+		require.Equal(t, events.RoomOutboxLoggingEventName, queue.Name())
 	})
 }
 
@@ -34,7 +34,7 @@ func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_PayloadTyp
 	t := csqts.T()
 
 	csqts.WithTestDependancies(t, func(t *testing.T, dep *definition.DependancyOption) {
-		svc, _ := csqts.CreateService(t, dep)
+		_, svc := csqts.CreateService(t, dep)
 
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		payloadType := queue.PayloadType()
@@ -49,7 +49,7 @@ func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_Validate()
 	t := csqts.T()
 
 	csqts.WithTestDependancies(t, func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := csqts.CreateService(t, dep)
+		ctx, svc := csqts.CreateService(t, dep)
 
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
@@ -70,7 +70,7 @@ func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_Execute_In
 	t := csqts.T()
 
 	csqts.WithTestDependancies(t, func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := csqts.CreateService(t, dep)
+		ctx, svc := csqts.CreateService(t, dep)
 
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 
@@ -86,7 +86,7 @@ func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_Execute_No
 	t := csqts.T()
 
 	csqts.WithTestDependancies(t, func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := csqts.CreateService(t, dep)
+		ctx, svc := csqts.CreateService(t, dep)
 
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		nonExistentID := map[string]string{
@@ -104,7 +104,7 @@ func (csqts *ClientSetupQueueTestSuite) TestNewClientConnectedSetupQueue() {
 	t := csqts.T()
 
 	csqts.WithTestDependancies(t, func(t *testing.T, dep *definition.DependancyOption) {
-		svc, _ := csqts.CreateService(t, dep)
+		_, svc := csqts.CreateService(t, dep)
 
 		queue := events.NewRoomOutboxLoggingQueue(svc)
 		require.NotNil(t, queue)

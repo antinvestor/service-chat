@@ -45,7 +45,7 @@ func (s *MessageBusinessTestSuite) setupBusinessLayer(
 
 func (s *MessageBusinessTestSuite) TestSendMessage() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room first
@@ -64,11 +64,11 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -83,7 +83,7 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 
 func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		payload, _ := structpb.NewStruct(map[string]interface{}{
@@ -91,11 +91,11 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   util.IDString(), // Non-existent room
 					SenderId: util.IDString(),
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -111,7 +111,7 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 
 func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
@@ -134,13 +134,13 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 			messages = append(messages, &chatv1.RoomEvent{
 				RoomId:   room.GetId(),
 				SenderId: creatorID,
-				Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+				Type:     chatv1.RoomEventType_TEXT,
 				Payload:  payload,
 			})
 		}
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: messages,
+			Event: messages,
 		}
 
 		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
@@ -155,7 +155,7 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 
 func (s *MessageBusinessTestSuite) TestGetHistory() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room and send messages
@@ -175,11 +175,11 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 			})
 
 			msgReq := &chatv1.SendEventRequest{
-				Message: []*chatv1.RoomEvent{
+				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+						Type:     chatv1.RoomEventType_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -203,7 +203,7 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 
 func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room and send message
@@ -221,11 +221,11 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -259,7 +259,7 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 
 func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		workMan := svc.WorkManager()
@@ -282,11 +282,11 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -308,7 +308,7 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 
 func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room with member
@@ -330,11 +330,11 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 		})
 
 		msgReq := &chatv1.SendEventRequest{
-			Message: []*chatv1.RoomEvent{
+			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
+					Type:     chatv1.RoomEventType_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -352,7 +352,7 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 
 func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		svc, ctx := s.CreateService(t, dep)
+		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		// Create room
@@ -367,8 +367,8 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 
 		// Test different message types
 		messageTypes := []chatv1.RoomEventType{
-			chatv1.RoomEventType_MESSAGE_TYPE_TEXT,
-			chatv1.RoomEventType_MESSAGE_TYPE_EVENT,
+			chatv1.RoomEventType_TEXT,
+			chatv1.RoomEventType_EVENT,
 		}
 
 		for _, msgType := range messageTypes {
@@ -377,7 +377,7 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 			})
 
 			msgReq := &chatv1.SendEventRequest{
-				Message: []*chatv1.RoomEvent{
+				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
