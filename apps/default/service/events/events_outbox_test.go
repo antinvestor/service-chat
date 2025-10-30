@@ -13,6 +13,7 @@ import (
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -32,10 +33,10 @@ func (s *OutboxEventTestSuite) setupBusinessLayer(
 	workMan := svc.WorkManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
-	roomRepo := repository.NewRoomRepository(dbPool, workMan)
-	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
-	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
-	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -44,10 +45,16 @@ func (s *OutboxEventTestSuite) setupBusinessLayer(
 	return roomBusiness, messageBusiness
 }
 
+func (s *OutboxEventTestSuite) createQueue(ctx context.Context, svc *frame.Service) *events.RoomOutboxLoggingQueue {
+	workMan := svc.WorkManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+	return events.NewRoomOutboxLoggingQueue(ctx, svc, dbPool, workMan)
+}
+
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueName() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		_, svc := s.CreateService(t, dep)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		queue := s.createQueue(ctx, svc)
 
 		s.Equal(events.RoomOutboxLoggingEventName, queue.Name())
 		s.Equal("room.outbox.logging.event", queue.Name())
@@ -55,9 +62,9 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueName() {
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueuePayloadType() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
-		_, svc := s.CreateService(t, dep)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		queue := s.createQueue(ctx, svc)
 
 		payloadType := queue.PayloadType()
 		s.NotNil(payloadType)
@@ -69,9 +76,9 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueuePayloadType() {
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateValidPayload() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 
 		validPayload := map[string]string{
 			"room_id":       util.IDString(),
@@ -80,32 +87,32 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateValidPayload() {
 		}
 
 		err := queue.Validate(ctx, validPayload)
-		s.NoError(err)
+		require.NoError(t, err)
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateInvalidPayload() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 
 		// Invalid payload type
 		invalidPayload := "not a map"
 
 		err := queue.Validate(ctx, invalidPayload)
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 		workMan := svc.WorkManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
-		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
-		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+		outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
+		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		// Create room with multiple members
 		creatorID := util.IDString()
@@ -119,7 +126,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Send a message to create an event
 		payload, _ := structpb.NewStruct(map[string]interface{}{
@@ -138,7 +145,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 		}
 
 		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
@@ -149,19 +156,19 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 		}
 
 		err = queue.Execute(ctx, queuePayload)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify outbox entries were created for all subscribers
 		// Should have entries for all members (creator is skipped in outbox)
 		subs, err := subRepo.GetByRoomID(ctx, room.GetId(), true)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Count outbox entries
 		outboxCount := 0
 		for _, sub := range subs {
 			if sub.ProfileID != creatorID {
 				pending, err := outboxRepo.GetPendingBySubscription(ctx, sub.GetID(), 10)
-				s.NoError(err)
+				require.NoError(t, err)
 				outboxCount += len(pending)
 			}
 		}
@@ -172,13 +179,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 		workMan := svc.WorkManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
-		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -191,11 +198,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Get member's subscription
 		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Initial unread count should be 0
 		s.Equal(0, memberSub.UnreadCount)
@@ -217,7 +224,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		}
 
 		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
@@ -228,24 +235,24 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		}
 
 		err = queue.Execute(ctx, queuePayload)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify unread count increased (generated column)
 		memberSub, err = subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(1, memberSub.UnreadCount)
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 		workMan := svc.WorkManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
-		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
-		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+		outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
+		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		// Create room
 		senderID := util.IDString()
@@ -256,11 +263,11 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, senderID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Get sender's subscription
 		senderSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), senderID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Send a message
 		payload, _ := structpb.NewStruct(map[string]interface{}{
@@ -279,7 +286,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		}
 
 		acks, err := messageBusiness.SendEvents(ctx, msgReq, senderID)
-		s.NoError(err)
+		require.NoError(t, err)
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
@@ -290,28 +297,28 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		}
 
 		err = queue.Execute(ctx, queuePayload)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify sender has no outbox entries (they sent the message)
 		pending, err := outboxRepo.GetPendingBySubscription(ctx, senderSub.GetID(), 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Empty(pending, "Sender should not have outbox entries for their own messages")
 
 		// Verify sender's unread count is 0
 		senderSub, err = subRepo.GetByRoomAndProfile(ctx, room.GetId(), senderID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(0, senderSub.UnreadCount)
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 		workMan := svc.WorkManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
-		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -324,7 +331,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Send multiple messages
 		for range 5 {
@@ -344,7 +351,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 			}
 
 			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			s.NoError(err)
+			require.NoError(t, err)
 			eventID := acks[0].GetEventId()
 
 			// Execute the outbox logging queue for each message
@@ -355,25 +362,25 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 			}
 
 			err = queue.Execute(ctx, queuePayload)
-			s.NoError(err)
+			require.NoError(t, err)
 		}
 
 		// Verify member's unread count is 5
 		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(5, memberSub.UnreadCount)
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 		workMan := svc.WorkManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
-		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
-		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+		outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -386,13 +393,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Deactivate member's subscription
 		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
-		s.NoError(err)
+		require.NoError(t, err)
 		err = subRepo.Deactivate(ctx, memberSub.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Send a message
 		payload, _ := structpb.NewStruct(map[string]interface{}{
@@ -411,7 +418,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		}
 
 		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
@@ -422,19 +429,19 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		}
 
 		err = queue.Execute(ctx, queuePayload)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify inactive member has no outbox entries
 		pending, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Empty(pending, "Inactive subscription should not receive outbox entries")
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithMissingRoomID() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 
 		// Execute with missing room_id
 		queuePayload := map[string]string{
@@ -449,9 +456,9 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithMissingRoomID() {
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithNonExistentRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 
 		// Execute with non-existent room
 		queuePayload := map[string]string{
@@ -463,18 +470,18 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithNonExistentRoom() {
 		// Should handle gracefully (no subscribers)
 		err := queue.Execute(ctx, queuePayload)
 		// Should not error or should handle no subscribers gracefully
-		s.NoError(err)
+		require.NoError(t, err)
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 		workMan := svc.WorkManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
-		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -487,7 +494,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Send multiple messages concurrently
 		messageCount := 10
@@ -510,7 +517,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 			}
 
 			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			s.NoError(err)
+			require.NoError(t, err)
 			eventIDs[i] = acks[0].GetEventId()
 		}
 
@@ -523,25 +530,25 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 			}
 
 			err = queue.Execute(ctx, queuePayload)
-			s.NoError(err)
+			require.NoError(t, err)
 		}
 
 		// Verify member's unread count matches message count
 		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(messageCount, memberSub.UnreadCount)
 	})
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness := s.setupBusinessLayer(ctx, svc)
-		queue := events.NewRoomOutboxLoggingQueue(svc)
+		queue := s.createQueue(ctx, svc)
 		workMan := svc.WorkManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, "default")
-		subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
-		outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+		outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -554,7 +561,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Send a message
 		payload, _ := structpb.NewStruct(map[string]interface{}{
@@ -573,7 +580,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 		}
 
 		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		eventID := acks[0].GetEventId()
 
 		queuePayload := map[string]string{
@@ -584,24 +591,24 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 
 		// Execute once
 		err = queue.Execute(ctx, queuePayload)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Get member subscription
 		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Count outbox entries
 		pending1, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		count1 := len(pending1)
 
 		// Execute again (simulating duplicate event)
 		err = queue.Execute(ctx, queuePayload)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Count outbox entries again
 		pending2, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		count2 := len(pending2)
 
 		// Note: Without proper idempotency checks, this will create duplicates

@@ -13,25 +13,13 @@ type roomEventRepository struct {
 	datastore.BaseRepository[*models.RoomEvent]
 }
 
-// GetByID retrieves a room event by its ID.
-func (rer *roomEventRepository) GetByID(ctx context.Context, id string) (*models.RoomEvent, error) {
-	event := &models.RoomEvent{}
-	err := rer.Svc().DB(ctx, true).First(event, "id = ?", id).Error
-	return event, err
-}
-
-// Save creates or updates a room event.
-func (rer *roomEventRepository) Save(ctx context.Context, event *models.RoomEvent) error {
-	return rer.Svc().DB(ctx, false).Save(event).Error
-}
-
-// Delete soft deletes a room event by its ID.
-func (rer *roomEventRepository) Delete(ctx context.Context, id string) error {
-	event, err := rer.GetByID(ctx, id)
-	if err != nil {
-		return err
+// NewRoomEventRepository creates a new room event repository instance.
+func NewRoomEventRepository(ctx context.Context, dbPool pool.Pool, workMan workerpool.Manager) RoomEventRepository {
+	return &roomEventRepository{
+		BaseRepository: datastore.NewBaseRepository[*models.RoomEvent](
+			ctx, dbPool, workMan, func() *models.RoomEvent { return &models.RoomEvent{} },
+		),
 	}
-	return rer.Svc().DB(ctx, false).Delete(event).Error
 }
 
 // GetByRoomID retrieves all events for a specific room, ordered by ID (naturally time-sorted).
@@ -41,9 +29,9 @@ func (rer *roomEventRepository) GetByRoomID(
 	limit int,
 ) ([]*models.RoomEvent, error) {
 	var events []*models.RoomEvent
-	query := rer.Svc().DB(ctx, true).
+	query := rer.Pool().DB(ctx, true).
 		Unscoped(). // Disable GORM's automatic soft delete filtering
-		Where("room_id = ? AND deleted_at = 0", roomID).
+		Where("room_id = ? AND deleted_at IS NULL", roomID).
 		Order("id ASC")
 
 	if limit > 0 {
@@ -66,9 +54,9 @@ func (rer *roomEventRepository) GetHistory(
 	limit int,
 ) ([]*models.RoomEvent, error) {
 	var events []*models.RoomEvent
-	query := rer.Svc().DB(ctx, true).
+	query := rer.Pool().DB(ctx, true).
 		Unscoped(). // Disable GORM's automatic soft delete filtering
-		Where("room_id = ? AND deleted_at = 0", roomID)
+		Where("room_id = ? AND deleted_at IS NULL", roomID)
 
 	if beforeEventID != "" {
 		query = query.Where("id < ?", beforeEventID)
@@ -96,9 +84,9 @@ func (rer *roomEventRepository) GetHistory(
 // GetByEventID retrieves a room event by its event ID (xid).
 func (rer *roomEventRepository) GetByEventID(ctx context.Context, roomID, eventID string) (*models.RoomEvent, error) {
 	event := &models.RoomEvent{}
-	err := rer.Svc().DB(ctx, true).
+	err := rer.Pool().DB(ctx, true).
 		Unscoped().
-		Where("room_id = ? AND id = ? AND deleted_at = 0", roomID, eventID).
+		Where("room_id = ? AND id = ? AND deleted_at IS NULL", roomID, eventID).
 		First(event).Error
 	return event, err
 }
@@ -106,19 +94,10 @@ func (rer *roomEventRepository) GetByEventID(ctx context.Context, roomID, eventI
 // CountByRoomID counts the total number of events in a room.
 func (rer *roomEventRepository) CountByRoomID(ctx context.Context, roomID string) (int64, error) {
 	var count int64
-	err := rer.Svc().DB(ctx, true).
+	err := rer.Pool().DB(ctx, true).
 		Model(&models.RoomEvent{}).
 		Unscoped().
-		Where("room_id = ? AND deleted_at = 0", roomID).
+		Where("room_id = ? AND deleted_at IS NULL", roomID).
 		Count(&count).Error
 	return count, err
-}
-
-// NewRoomEventRepository creates a new room event repository instance.
-func NewRoomEventRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomEventRepository {
-	return &roomEventRepository{
-		BaseRepository: datastore.NewBaseRepository[*models.RoomEvent](
-			dbPool, workMan, func() *models.RoomEvent { return &models.RoomEvent{} },
-		),
-	}
 }

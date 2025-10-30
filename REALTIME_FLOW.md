@@ -35,7 +35,7 @@ The chat service implements a scalable, queue-based architecture for real-time m
 │  │ OutboxDeliveryEventHandler (Event Handler)      │    │
 │  │  - Gets full event data from database           │    │
 │  │  - For each target (recipient):                 │    │
-│  │    - Creates UserDelivery proto                 │    │
+│  │    - Creates EventDelivery proto                 │    │
 │  │    - Publishes to "user.event.delivery" queue   │    │
 │  └──────────────────┬──────────────────────────────┘    │
 └────────────────────┼──────────────────────────────────┘
@@ -48,7 +48,7 @@ The chat service implements a scalable, queue-based architecture for real-time m
                     │
                     ▼
 ┌───────────────────────────────────────────────────────────┐
-│  UserDeliveryQueueHandler (Queue Subscriber)              │
+│  EventDeliveryQueueHandler (Queue Subscriber)              │
 │   - Queries device service for user's devices             │
 │   - For each device:                                      │
 │     - Checks if online (TODO: query gateway cache)        │
@@ -101,11 +101,11 @@ The chat service implements a scalable, queue-based architecture for real-time m
 #### 3. OutboxDeliveryEventHandler (`apps/default/service/events/outbox_delivery.go`)
 - Event handler for "outbox.delivery.event"
 - Retrieves full event data with content
-- Creates UserDelivery proto for each recipient
+- Creates EventDelivery proto for each recipient
 - Publishes to queue for gateway consumption
 - **Lazy initializes publisher** on first use via `service.GetPublisher()`
 
-#### 4. UserDeliveryQueueHandler (`apps/default/service/queues/last_mile_delivery.go`)
+#### 4. EventDeliveryQueueHandler (`apps/default/service/queues/last_mile_delivery.go`)
 - Queue subscriber for "user.event.delivery"
 - Queries device service for recipient's devices
 - For each device:
@@ -179,11 +179,11 @@ The chat service implements a scalable, queue-based architecture for real-time m
 
 ## Message Proto Definitions
 
-### UserDelivery (`proto/events/v1/payloads.proto`)
+### EventDelivery (`proto/events/v1/payloads.proto`)
 ```protobuf
-message UserDelivery {
-  ChatEvent event = 1;           // The chat event
-  DeliveryTarget target = 2;     // Recipient info
+message EventDelivery {
+  EventLink event = 1;           // The chat event
+  EventReceipt target = 2;     // Recipient info
   google.protobuf.Struct payload = 3;  // Message content
   bool is_compressed = 4;
   int32 retry_count = 5;
@@ -193,8 +193,8 @@ message UserDelivery {
 ### EventBroadcast
 ```protobuf
 message EventBroadcast {
-  ChatEvent event = 1;              // The chat event
-  repeated DeliveryTarget targets = 2;  // All recipients
+  EventLink event = 1;              // The chat event
+  repeated EventReceipt targets = 2;  // All recipients
   int32 priority = 3;
 }
 ```

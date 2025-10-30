@@ -11,6 +11,7 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -23,54 +24,54 @@ func TestEventRepositoryTestSuite(t *testing.T) {
 }
 
 func (s *EventRepositoryTestSuite) TestCreateEvent() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomEventRepository(dbPool, workMan)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 
 		event := &models.RoomEvent{
-			RoomID:      util.IDString(),
-			SenderID:    util.IDString(),
-			MessageType: chatv1.RoomEventType_TEXT.String(),
-			Content:     data.JSONMap{"text": "Hello World"},
-			Properties:  data.JSONMap{"key": "value"},
+			RoomID:     util.IDString(),
+			SenderID:   util.IDString(),
+			EventType:  int32(chatv1.RoomEventType_TEXT.Number()),
+			Content:    data.JSONMap{"text": "Hello World"},
+			Properties: data.JSONMap{"key": "value"},
 		}
 		event.GenID(ctx)
 
-		err := repo.Save(ctx, event)
-		s.NoError(err)
+		err := repo.Create(ctx, event)
+		require.NoError(t, err)
 		s.NotEmpty(event.GetID())
 
 		retrieved, err := repo.GetByID(ctx, event.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(event.RoomID, retrieved.RoomID)
 		s.Equal(event.SenderID, retrieved.SenderID)
-		s.Equal(event.MessageType, retrieved.MessageType)
+		s.Equal(event.EventType, retrieved.EventType)
 	})
 }
 
 func (s *EventRepositoryTestSuite) TestGetHistory() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomEventRepository(dbPool, workMan)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 		senderID := util.IDString()
 
 		for range 10 {
 			event := &models.RoomEvent{
-				RoomID:      roomID,
-				SenderID:    senderID,
-				MessageType: chatv1.RoomEventType_TEXT.String(),
-				Content:     data.JSONMap{"text": util.RandomString(10)},
+				RoomID:    roomID,
+				SenderID:  senderID,
+				EventType: int32(chatv1.RoomEventType_TEXT.Number()),
+				Content:   data.JSONMap{"text": util.RandomString(10)},
 			}
 			event.GenID(ctx)
-			s.NoError(repo.Save(ctx, event))
+			require.NoError(t, repo.Create(ctx, event))
 		}
 
 		events, err := repo.GetHistory(ctx, roomID, "", "", 5)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Len(events, 5)
 
 		for i := range len(events) - 1 {
@@ -81,85 +82,85 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 }
 
 func (s *EventRepositoryTestSuite) TestGetByRoomID() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomEventRepository(dbPool, workMan)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
 		for range 5 {
 			event := &models.RoomEvent{
-				RoomID:      roomID,
-				SenderID:    util.IDString(),
-				MessageType: chatv1.RoomEventType_TEXT.String(),
-				Content:     data.JSONMap{"text": "Message"},
+				RoomID:    roomID,
+				SenderID:  util.IDString(),
+				EventType: int32(chatv1.RoomEventType_TEXT.Number()),
+				Content:   data.JSONMap{"text": "Message"},
 			}
 			event.GenID(ctx)
-			s.NoError(repo.Save(ctx, event))
+			require.NoError(t, repo.Create(ctx, event))
 		}
 
 		events, err := repo.GetByRoomID(ctx, roomID, 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(events), 5)
 	})
 }
 
 func (s *EventRepositoryTestSuite) TestCountByRoomID() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomEventRepository(dbPool, workMan)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
 		for range 7 {
 			event := &models.RoomEvent{
-				RoomID:      roomID,
-				SenderID:    util.IDString(),
-				MessageType: chatv1.RoomEventType_TEXT.String(),
-				Content:     data.JSONMap{"text": "Message"},
+				RoomID:    roomID,
+				SenderID:  util.IDString(),
+				EventType: int32(chatv1.RoomEventType_TEXT.Number()),
+				Content:   data.JSONMap{"text": "Message"},
 			}
 			event.GenID(ctx)
-			s.NoError(repo.Save(ctx, event))
+			require.NoError(t, repo.Create(ctx, event))
 		}
 
 		count, err := repo.CountByRoomID(ctx, roomID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(count, int64(7))
 	})
 }
 
 func (s *EventRepositoryTestSuite) TestGetByEventID() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomEventRepository(dbPool, workMan)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 		senderID := util.IDString()
 
 		event := &models.RoomEvent{
-			RoomID:      roomID,
-			SenderID:    senderID,
-			MessageType: chatv1.RoomEventType_TEXT.String(),
-			Content:     data.JSONMap{"text": "Message"},
+			RoomID:    roomID,
+			SenderID:  senderID,
+			EventType: int32(chatv1.RoomEventType_TEXT.Number()),
+			Content:   data.JSONMap{"text": "Message"},
 		}
 		event.GenID(ctx)
-		s.NoError(repo.Save(ctx, event))
+		require.NoError(t, repo.Create(ctx, event))
 
 		retrieved, err := repo.GetByEventID(ctx, roomID, event.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.NotNil(retrieved)
 		s.Equal(senderID, retrieved.SenderID)
 	})
 }
 
 func (s *EventRepositoryTestSuite) TestEventTypes() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomEventRepository(dbPool, workMan)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 		messageTypes := []chatv1.RoomEventType{
@@ -169,46 +170,46 @@ func (s *EventRepositoryTestSuite) TestEventTypes() {
 
 		for _, msgType := range messageTypes {
 			event := &models.RoomEvent{
-				RoomID:      roomID,
-				SenderID:    util.IDString(),
-				MessageType: msgType.String(),
-				Content:     data.JSONMap{"data": "test"},
+				RoomID:    roomID,
+				SenderID:  util.IDString(),
+				EventType: int32(msgType.Number()),
+				Content:   data.JSONMap{"data": "test"},
 			}
 			event.GenID(ctx)
-			s.NoError(repo.Save(ctx, event))
+			require.NoError(t, repo.Create(ctx, event))
 		}
 
 		events, err := repo.GetByRoomID(ctx, roomID, 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(events), 2)
 	})
 }
 
 func (s *EventRepositoryTestSuite) TestPagination() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomEventRepository(dbPool, workMan)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
 		for range 20 {
 			event := &models.RoomEvent{
-				RoomID:      roomID,
-				SenderID:    util.IDString(),
-				MessageType: chatv1.RoomEventType_TEXT.String(),
-				Content:     data.JSONMap{"text": util.RandomString(10)},
+				RoomID:    roomID,
+				SenderID:  util.IDString(),
+				EventType: int32(chatv1.RoomEventType_TEXT.Number()),
+				Content:   data.JSONMap{"text": util.RandomString(10)},
 			}
 			event.GenID(ctx)
-			s.NoError(repo.Save(ctx, event))
+			require.NoError(t, repo.Create(ctx, event))
 		}
 
 		page1, err := repo.GetByRoomID(ctx, roomID, 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Len(page1, 10)
 
 		page2, err := repo.GetHistory(ctx, roomID, page1[len(page1)-1].GetID(), "", 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(page2), 1)
 	})
 }

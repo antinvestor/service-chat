@@ -61,7 +61,7 @@ func main() {
 	// Note: Outbound message delivery is handled by the default service via direct publish
 	// The gateway focuses on inbound request processing and real-time features
 	connectionManager := business.NewConnectionManager(
-		defaultCache,
+		ctx,
 		chatServiceClient,
 		deviceClient,
 		cfg.MaxConnectionsPerDevice,

@@ -20,31 +20,10 @@ type roomCallRepository struct {
 	datastore.BaseRepository[*models.RoomCall]
 }
 
-// GetByID retrieves a room call by its ID.
-func (rcr *roomCallRepository) GetByID(ctx context.Context, id string) (*models.RoomCall, error) {
-	call := &models.RoomCall{}
-	err := rcr.Svc().DB(ctx, true).First(call, "id = ?", id).Error
-	return call, err
-}
-
-// Save creates or updates a room call.
-func (rcr *roomCallRepository) Save(ctx context.Context, call *models.RoomCall) error {
-	return rcr.Svc().DB(ctx, false).Save(call).Error
-}
-
-// Delete soft deletes a room call by its ID.
-func (rcr *roomCallRepository) Delete(ctx context.Context, id string) error {
-	call, err := rcr.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	return rcr.Svc().DB(ctx, false).Delete(call).Error
-}
-
 // GetByCallID retrieves a room call by its call ID.
 func (rcr *roomCallRepository) GetByCallID(ctx context.Context, callID string) (*models.RoomCall, error) {
 	call := &models.RoomCall{}
-	err := rcr.Svc().DB(ctx, true).
+	err := rcr.Pool().DB(ctx, true).
 		Where("call_id = ?", callID).
 		First(call).Error
 	return call, err
@@ -53,7 +32,7 @@ func (rcr *roomCallRepository) GetByCallID(ctx context.Context, callID string) (
 // GetByRoomID retrieves all calls for a specific room.
 func (rcr *roomCallRepository) GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomCall, error) {
 	var calls []*models.RoomCall
-	query := rcr.Svc().DB(ctx, true).
+	query := rcr.Pool().DB(ctx, true).
 		Where("room_id = ?", roomID).
 		Order("started_at DESC")
 
@@ -68,7 +47,7 @@ func (rcr *roomCallRepository) GetByRoomID(ctx context.Context, roomID string, l
 // GetActiveCallByRoomID retrieves the active call for a room, if any.
 func (rcr *roomCallRepository) GetActiveCallByRoomID(ctx context.Context, roomID string) (*models.RoomCall, error) {
 	call := &models.RoomCall{}
-	err := rcr.Svc().DB(ctx, true).
+	err := rcr.Pool().DB(ctx, true).
 		Where("room_id = ? AND status IN ?", roomID, []string{CallStatusRinging, CallStatusActive}).
 		Order("started_at DESC").
 		First(call).Error
@@ -78,7 +57,7 @@ func (rcr *roomCallRepository) GetActiveCallByRoomID(ctx context.Context, roomID
 // GetByStatus retrieves calls by status.
 func (rcr *roomCallRepository) GetByStatus(ctx context.Context, status string, limit int) ([]*models.RoomCall, error) {
 	var calls []*models.RoomCall
-	query := rcr.Svc().DB(ctx, true).
+	query := rcr.Pool().DB(ctx, true).
 		Where("status = ?", status).
 		Order("started_at DESC")
 
@@ -101,7 +80,7 @@ func (rcr *roomCallRepository) UpdateStatus(ctx context.Context, id, status stri
 		updates["ended_at"] = time.Now()
 	}
 
-	return rcr.Svc().DB(ctx, false).
+	return rcr.Pool().DB(ctx, false).
 		Model(&models.RoomCall{}).
 		Where("id = ?", id).
 		Updates(updates).Error
@@ -109,7 +88,7 @@ func (rcr *roomCallRepository) UpdateStatus(ctx context.Context, id, status stri
 
 // UpdateSFUNode updates the SFU node ID for a call.
 func (rcr *roomCallRepository) UpdateSFUNode(ctx context.Context, id, sfuNodeID string) error {
-	return rcr.Svc().DB(ctx, false).
+	return rcr.Pool().DB(ctx, false).
 		Model(&models.RoomCall{}).
 		Where("id = ?", id).
 		Update("sfu_node_id", sfuNodeID).Error
@@ -127,7 +106,7 @@ func (rcr *roomCallRepository) GetTimedOutCalls(
 ) ([]*models.RoomCall, error) {
 	cutoffTime := time.Now().Add(-timeout)
 	var calls []*models.RoomCall
-	err := rcr.Svc().DB(ctx, true).
+	err := rcr.Pool().DB(ctx, true).
 		Where("status = ? AND started_at < ?", CallStatusRinging, cutoffTime).
 		Find(&calls).Error
 	return calls, err
@@ -152,7 +131,7 @@ func (rcr *roomCallRepository) GetCallDuration(ctx context.Context, id string) (
 // CountActiveCallsByRoomID counts the number of active calls in a room.
 func (rcr *roomCallRepository) CountActiveCallsByRoomID(ctx context.Context, roomID string) (int64, error) {
 	var count int64
-	err := rcr.Svc().DB(ctx, true).
+	err := rcr.Pool().DB(ctx, true).
 		Model(&models.RoomCall{}).
 		Where("room_id = ? AND status IN ?", roomID, []string{CallStatusRinging, CallStatusActive}).
 		Count(&count).Error
@@ -162,17 +141,17 @@ func (rcr *roomCallRepository) CountActiveCallsByRoomID(ctx context.Context, roo
 // GetCallsBySFUNode retrieves all calls assigned to a specific SFU node.
 func (rcr *roomCallRepository) GetCallsBySFUNode(ctx context.Context, sfuNodeID string) ([]*models.RoomCall, error) {
 	var calls []*models.RoomCall
-	err := rcr.Svc().DB(ctx, true).
+	err := rcr.Pool().DB(ctx, true).
 		Where("sfu_node_id = ? AND status IN ?", sfuNodeID, []string{CallStatusRinging, CallStatusActive}).
 		Find(&calls).Error
 	return calls, err
 }
 
 // NewRoomCallRepository creates a new room call repository instance.
-func NewRoomCallRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomCallRepository {
+func NewRoomCallRepository(ctx context.Context, dbPool pool.Pool, workMan workerpool.Manager) RoomCallRepository {
 	return &roomCallRepository{
 		BaseRepository: datastore.NewBaseRepository[*models.RoomCall](
-			dbPool, workMan, func() *models.RoomCall { return &models.RoomCall{} },
+			ctx, dbPool, workMan, func() *models.RoomCall { return &models.RoomCall{} },
 		),
 	}
 }

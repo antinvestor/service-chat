@@ -12,6 +12,7 @@ import (
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -30,10 +31,10 @@ func (s *SubscriptionServiceTestSuite) setupBusinessLayer(
 	workMan := svc.WorkManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
-	roomRepo := repository.NewRoomRepository(dbPool, workMan)
-	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
-	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
-	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -43,7 +44,7 @@ func (s *SubscriptionServiceTestSuite) setupBusinessLayer(
 }
 
 func (s *SubscriptionServiceTestSuite) TestHasAccess() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
@@ -59,27 +60,27 @@ func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Creator should have access
 		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		// Member should have access
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		// Non-member should not have access
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.False(hasAccess)
 	})
 }
 
 func (s *SubscriptionServiceTestSuite) TestHasRole() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
@@ -94,27 +95,27 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Creator should have owner role
 		hasRole, err := subscriptionSvc.HasRole(ctx, creatorID, room.GetId(), repository.RoleOwner)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasRole)
 
 		// Member should not have owner role
 		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleOwner)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.False(hasRole)
 
 		// Member should have member role
 		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleMember)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasRole)
 	})
 }
 
 func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
@@ -129,18 +130,18 @@ func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 			}
 
 			_, err := roomBusiness.CreateRoom(ctx, roomReq, userID)
-			s.NoError(err)
+			require.NoError(t, err)
 		}
 
 		// Get subscribed room IDs
 		roomIDs, err := subscriptionSvc.GetSubscribedRoomIDs(ctx, userID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(roomIDs), roomCount)
 	})
 }
 
 func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
@@ -156,25 +157,25 @@ func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Check membership via HasAccess
 		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.False(hasAccess)
 	})
 }
 
 func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		subscriptionSvc, roomBusiness := s.setupBusinessLayer(ctx, svc)
 
@@ -189,11 +190,11 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify member has access
 		hasAccess, err := subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		// Remove member
@@ -203,11 +204,11 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 		}
 
 		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify member no longer has access
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.False(hasAccess)
 	})
 }

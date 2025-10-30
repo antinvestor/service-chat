@@ -64,7 +64,7 @@ func (rb *roomBusiness) CreateRoom(
 	}
 
 	// Save the room
-	err := rb.roomRepo.Save(ctx, createdRoom)
+	err := rb.roomRepo.Create(ctx, createdRoom)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save room: %w", err)
 	}
@@ -149,7 +149,7 @@ func (rb *roomBusiness) UpdateRoom(
 	}
 
 	// Save the updated room
-	err = rb.roomRepo.Save(ctx, room)
+	_, err = rb.roomRepo.Update(ctx, room)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update room: %w", err)
 	}
@@ -354,7 +354,7 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 		sub.Role = req.GetRoles()[0]
 	}
 
-	if err := rb.subRepo.Save(ctx, sub); err != nil {
+	if _, err := rb.subRepo.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to update member role: %w", err)
 	}
 
@@ -441,7 +441,7 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 	// Save new subscriptions individually
 	if len(newSubs) > 0 {
 		for _, sub := range newSubs {
-			if err := rb.subRepo.Save(ctx, sub); err != nil {
+			if err := rb.subRepo.Create(ctx, sub); err != nil {
 				return fmt.Errorf("failed to create subscription: %w", err)
 			}
 		}
@@ -491,8 +491,7 @@ func (rb *roomBusiness) removeRoomMembers(
 	// Deactivate subscriptions
 	for _, sub := range allSubs {
 		if removeMap[sub.ProfileID] {
-			sub.IsActive = false
-			if err := rb.subRepo.Save(ctx, sub); err != nil {
+			if err := rb.subRepo.Deactivate(ctx, sub.GetID()); err != nil {
 				return fmt.Errorf("failed to deactivate subscription: %w", err)
 			}
 

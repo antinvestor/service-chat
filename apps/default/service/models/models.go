@@ -56,12 +56,12 @@ type RoomCall struct {
 // The ID field (from BaseModel) is naturally time-sorted and used for ordering.
 type RoomEvent struct {
 	data.BaseModel
-	RoomID      string `gorm:"type:varchar(50);index:idx_room_id"`
-	SenderID    string `gorm:"type:varchar(50)"`
-	MessageType string
-	Content     data.JSONMap
-	Properties  data.JSONMap
-	DeletedAt   int64 `gorm:"column:deleted_at"`
+	RoomID     string `gorm:"type:varchar(50);index:idx_room_id"`
+	SenderID   string `gorm:"type:varchar(50)"`
+	ParentID   string `gorm:"type:varchar(50)"`
+	EventType  int32
+	Content    data.JSONMap
+	Properties data.JSONMap
 }
 
 // ToAPI converts RoomEvent model to API RoomEvent representation.
@@ -76,10 +76,7 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 	}
 
 	// Map message type to RoomEventType
-	eventType := chatv1.RoomEventType_UNSPECIFIED
-	if typeVal, ok := chatv1.RoomEventType_value[re.MessageType]; ok {
-		eventType = chatv1.RoomEventType(typeVal)
-	}
+	eventType := chatv1.RoomEventType(re.EventType)
 
 	return &chatv1.RoomEvent{
 		Id:       re.GetID(),
@@ -89,7 +86,7 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 		Payload:  payload,
 		SentAt:   timestamppb.New(re.CreatedAt),
 		Edited:   false,
-		Redacted: re.DeletedAt > 0,
+		Redacted: false,
 	}
 }
 

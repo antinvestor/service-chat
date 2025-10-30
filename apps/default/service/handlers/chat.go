@@ -14,6 +14,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/security"
 	"github.com/pitabwire/util"
 	"google.golang.org/grpc/codes"
@@ -46,12 +47,12 @@ func NewChatServer(
 	profileCli *profilev1.ProfileClient,
 ) *ChatServer {
 	workMan := service.WorkManager()
-	dbPool := service.DatastoreManager().GetPool(ctx, "default")
+	dbPool := service.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
-	roomRepo := repository.NewRoomRepository(dbPool, workMan)
-	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
-	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
-	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	// Initialize business layers
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
@@ -69,7 +70,7 @@ func NewChatServer(
 }
 
 // toAPIError converts internal errors to appropriate gRPC status codes
-func (ps *ChatServer) toAPIError(err error) error {
+func (ps *ChatServer) toAPIError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -85,7 +86,7 @@ func (ps *ChatServer) toAPIError(err error) error {
 		return connect.NewError(connect.CodeNotFound, err)
 	default:
 		// Log internal errors for debugging
-		util.Log(context.Background()).WithError(err).Error("Internal server error")
+		util.Log(ctx).WithError(err).Error("Internal server error")
 		return connect.NewError(connect.CodeInternal, fmt.Errorf("internal server error"))
 	}
 }
@@ -152,7 +153,7 @@ func (ps *ChatServer) Connect(
 		"profile_id": profileID,
 		"device_id":  deviceID,
 	}).Warn("Connect method called on default service - should use gateway service instead")
-	
+
 	return connect.NewError(
 		connect.CodeUnimplemented,
 		fmt.Errorf("real-time connections should be established through the gateway service"),
@@ -203,7 +204,7 @@ func (ps *ChatServer) SendEvent(
 			"profile_id":  profileID,
 			"event_count": len(req.Msg.GetEvent()),
 		}).Error("Failed to send events")
-		return nil, ps.toAPIError(err)
+		return nil, ps.toAPIError(ctx, err)
 	}
 
 	util.Log(ctx).WithFields(map[string]any{
@@ -262,7 +263,7 @@ func (ps *ChatServer) GetHistory(
 			"room_id":    req.Msg.GetRoomId(),
 			"limit":      limit,
 		}).Error("Failed to get history")
-		return nil, ps.toAPIError(err)
+		return nil, ps.toAPIError(ctx, err)
 	}
 
 	// Convert to ServerEvent format with pre-allocated slice for efficiency
@@ -467,7 +468,7 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 
 	subscriptions, err := ps.RoomBusiness.SearchRoomSubscriptions(ctx, req.Msg, profileID)
 	if err != nil {
-		return nil, ps.toAPIError(err)
+		return nil, ps.toAPIError(ctx, err)
 	}
 
 	return connect.NewResponse(&chatv1.SearchRoomSubscriptionsResponse{
@@ -766,11 +767,6 @@ func (ps *ChatServer) processRoomEventState(
 ) error {
 	if roomEvent == nil {
 		return fmt.Errorf("room event cannot be nil")
-	}
-
-	// Validate event type
-	if roomEvent.GetType() == chatv1.RoomEventType_UNSPECIFIED {
-		return fmt.Errorf("event type must be specified")
 	}
 
 	// Set timestamp if not provided

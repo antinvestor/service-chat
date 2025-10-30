@@ -12,6 +12,7 @@ import (
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -30,10 +31,10 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 	workMan := svc.WorkManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
-	roomRepo := repository.NewRoomRepository(dbPool, workMan)
-	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
-	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
-	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -43,7 +44,7 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 }
 
 func (s *RoomBusinessTestSuite) TestCreateRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -56,7 +57,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.NotNil(room)
 		s.Equal("Test Room", room.GetName())
 		s.Equal("Test Description", room.GetDescription())
@@ -65,7 +66,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 }
 
 func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -74,12 +75,12 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
 		}
 
 		_, err := roomBusiness.CreateRoom(ctx, req, util.IDString())
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestGetRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -90,18 +91,18 @@ func (s *RoomBusinessTestSuite) TestGetRoom() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Get the room
 		retrieved, err := roomBusiness.GetRoom(ctx, created.GetId(), creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(created.GetId(), retrieved.GetId())
 		s.Equal(created.GetName(), retrieved.GetName())
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -114,16 +115,16 @@ func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Try to get room as non-member
 		_, err = roomBusiness.GetRoom(ctx, created.GetId(), otherUserID)
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestUpdateRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -134,7 +135,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Update room
 		updateReq := &chatv1.UpdateRoomRequest{
@@ -144,14 +145,14 @@ func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 		}
 
 		updated, err := roomBusiness.UpdateRoom(ctx, updateReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal("Updated Name", updated.GetName())
 		s.Equal("Updated Description", updated.GetDescription())
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -165,7 +166,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Try to update as non-admin member
 		updateReq := &chatv1.UpdateRoomRequest{
@@ -174,12 +175,12 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 		}
 
 		_, err = roomBusiness.UpdateRoom(ctx, updateReq, memberID)
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestDeleteRoom() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -190,7 +191,7 @@ func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Delete room
 		deleteReq := &chatv1.DeleteRoomRequest{
@@ -198,16 +199,16 @@ func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 		}
 
 		err = roomBusiness.DeleteRoom(ctx, deleteReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify deletion
 		_, err = roomBusiness.GetRoom(ctx, created.GetId(), creatorID)
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -221,7 +222,7 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Add new member
 		addReq := &chatv1.AddRoomSubscriptionsRequest{
@@ -235,20 +236,20 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 		}
 
 		err = roomBusiness.AddRoomSubscriptions(ctx, addReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify member added
 		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
 			RoomId: created.GetId(),
 		}
 		subs, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(subs), 2) // Creator + new member
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -263,7 +264,7 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Remove member
 		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
@@ -272,16 +273,16 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 		}
 
 		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify member removed (should not have access)
 		_, err = roomBusiness.GetRoom(ctx, created.GetId(), memberID)
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -296,7 +297,7 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 		}
 
 		created, err := roomBusiness.CreateRoom(ctx, req, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Promote member to admin
 		updateReq := &chatv1.UpdateSubscriptionRoleRequest{
@@ -306,7 +307,7 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 		}
 
 		err = roomBusiness.UpdateSubscriptionRole(ctx, updateReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify role updated - member should now be able to update room
 		roomUpdateReq := &chatv1.UpdateRoomRequest{
@@ -315,12 +316,12 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 		}
 
 		_, err = roomBusiness.UpdateRoom(ctx, roomUpdateReq, memberID)
-		s.NoError(err)
+		require.NoError(t, err)
 	})
 }
 
 func (s *RoomBusinessTestSuite) TestSearchRooms() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -334,7 +335,7 @@ func (s *RoomBusinessTestSuite) TestSearchRooms() {
 				IsPrivate: false,
 			}
 			_, err := roomBusiness.CreateRoom(ctx, req, userID)
-			s.NoError(err)
+			require.NoError(t, err)
 		}
 
 		// Search for rooms
@@ -343,7 +344,7 @@ func (s *RoomBusinessTestSuite) TestSearchRooms() {
 		}
 
 		results, err := roomBusiness.SearchRooms(ctx, searchReq, userID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(results), 1)
 
 		found := false

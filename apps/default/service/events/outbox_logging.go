@@ -9,26 +9,30 @@ import (
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
-	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
+	"github.com/pitabwire/frame/workerpool"
+	"github.com/pitabwire/util"
 )
 
 const RoomOutboxLoggingEventName = "room.outbox.logging.event"
 
 type RoomOutboxLoggingQueue struct {
-	Service          *frame.Service
+	svc              *frame.Service
 	subscriptionRepo repository.RoomSubscriptionRepository
 	outboxRepo       repository.RoomOutboxRepository
 }
 
-func NewRoomOutboxLoggingQueue(service *frame.Service) *RoomOutboxLoggingQueue {
-
-	workMan := service.WorkManager()
-	dbPool := service.DatastoreManager().GetPool(context.Background(), datastore.DefaultPoolName)
+func NewRoomOutboxLoggingQueue(
+	ctx context.Context,
+	svc *frame.Service,
+	dbPool pool.Pool,
+	workMan workerpool.Manager,
+) *RoomOutboxLoggingQueue {
 
 	return &RoomOutboxLoggingQueue{
-		Service:          service,
-		subscriptionRepo: repository.NewRoomSubscriptionRepository(dbPool, workMan),
-		outboxRepo:       repository.NewRoomOutboxRepository(dbPool, workMan),
+		svc:              svc,
+		subscriptionRepo: repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan),
+		outboxRepo:       repository.NewRoomOutboxRepository(ctx, dbPool, workMan),
 	}
 }
 
@@ -37,11 +41,11 @@ func (csq *RoomOutboxLoggingQueue) Name() string {
 }
 
 func (csq *RoomOutboxLoggingQueue) PayloadType() any {
-	return &eventsv1.ChatEvent{}
+	return &eventsv1.EventLink{}
 }
 
 func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) error {
-	_, ok := payload.(*eventsv1.ChatEvent)
+	_, ok := payload.(*eventsv1.EventLink)
 	if !ok {
 		return errors.New("invalid payload type, expected *string")
 	}
@@ -50,19 +54,19 @@ func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) erro
 }
 
 func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) error {
-	chatEvent, ok := payload.(*eventsv1.ChatEvent)
+	EventLink, ok := payload.(*eventsv1.EventLink)
 	if !ok {
 		return errors.New("invalid payload type, expected map[string]string{}")
 	}
 
-	logger := csq.Service.Log(ctx).WithFields(map[string]any{
-		"room_id": chatEvent.GetRoomId(),
+	logger := util.Log(ctx).WithFields(map[string]any{
+		"room_id": EventLink.GetRoomId(),
 		"type":    csq.Name(),
 	})
 	logger.Debug("handling outbox logging")
 
 	// Create outbox entries for each subscriber
-	subscriptions, err := csq.subscriptionRepo.GetByRoomID(ctx, chatEvent.GetRoomId(), true) // active only
+	subscriptions, err := csq.subscriptionRepo.GetByRoomID(ctx, EventLink.GetRoomId(), true) // active only
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			logger.WithError(err).Error("no such subscribers exists")
@@ -73,12 +77,12 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	}
 
 	outboxEntries := make([]*models.RoomOutbox, 0, len(subscriptions))
-	var deliveryTargets []*eventsv1.DeliveryTarget
+	var EventReceipts []*eventsv1.EventReceipt
 
 	for _, sub := range subscriptions {
 		outbox := &models.RoomOutbox{
-			RoomID:         chatEvent.GetRoomId(),
-			EventID:        chatEvent.GetEventId(),
+			RoomID:         EventLink.GetRoomId(),
+			EventID:        EventLink.GetEventId(),
 			SubscriptionID: sub.GetID(),
 			State:          models.RoomOutboxStateLogged,
 			RetryCount:     0,
@@ -86,7 +90,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		}
 		outbox.GenID(ctx)
 		outboxEntries = append(outboxEntries, outbox)
-		deliveryTargets = append(deliveryTargets, &eventsv1.DeliveryTarget{
+		EventReceipts = append(EventReceipts, &eventsv1.EventReceipt{
 			RecepientId: sub.ProfileID,
 			TargetId:    outbox.GetID(),
 		})
@@ -94,19 +98,19 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 
 	// Save outbox entries and update unread counts
 	if len(outboxEntries) > 0 {
-		err = csq.outboxRepo.BatchInsert(ctx, outboxEntries)
+		err = csq.outboxRepo.BulkCreate(ctx, outboxEntries)
 		if err != nil {
 			logger.WithError(err).Error("failed to create new outbox users")
 			return err
 		}
 
 		eventBroadcast := eventsv1.EventBroadcast{
-			Event:    chatEvent,
-			Targets:  deliveryTargets,
+			Event:    EventLink,
+			Targets:  EventReceipts,
 			Priority: 0,
 		}
 
-		err = csq.Service.Emit(ctx, RoomOutboxDeliveryEventName, &eventBroadcast)
+		err = csq.svc.Emit(ctx, RoomOutboxDeliveryEventName, &eventBroadcast)
 		if err != nil {
 			logger.WithError(err).Error(" failed to publish event broadcast")
 			return nil

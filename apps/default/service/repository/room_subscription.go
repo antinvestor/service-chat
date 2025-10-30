@@ -22,34 +22,13 @@ type roomSubscriptionRepository struct {
 	datastore.BaseRepository[*models.RoomSubscription]
 }
 
-// GetByID retrieves a room subscription by its ID.
-func (rsr *roomSubscriptionRepository) GetByID(ctx context.Context, id string) (*models.RoomSubscription, error) {
-	subscription := &models.RoomSubscription{}
-	err := rsr.Svc().DB(ctx, true).First(subscription, "id = ?", id).Error
-	return subscription, err
-}
-
-// Save creates or updates a room subscription.
-func (rsr *roomSubscriptionRepository) Save(ctx context.Context, subscription *models.RoomSubscription) error {
-	return rsr.Svc().DB(ctx, false).Save(subscription).Error
-}
-
-// Delete soft deletes a room subscription by its ID.
-func (rsr *roomSubscriptionRepository) Delete(ctx context.Context, id string) error {
-	subscription, err := rsr.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	return rsr.Svc().DB(ctx, false).Delete(subscription).Error
-}
-
 // GetByRoomAndProfile retrieves a subscription by room ID and profile ID.
 func (rsr *roomSubscriptionRepository) GetByRoomAndProfile(
 	ctx context.Context,
 	roomID, profileID string,
 ) (*models.RoomSubscription, error) {
 	subscription := &models.RoomSubscription{}
-	err := rsr.Svc().DB(ctx, true).
+	err := rsr.Pool().DB(ctx, true).
 		Select("*"). // Explicitly select all columns including read-only unread_count
 		Where("room_id = ? AND profile_id = ?", roomID, profileID).
 		First(subscription).Error
@@ -62,7 +41,7 @@ func (rsr *roomSubscriptionRepository) GetActiveByRoomAndProfile(
 	roomID, profileID string,
 ) (*models.RoomSubscription, error) {
 	subscription := &models.RoomSubscription{}
-	err := rsr.Svc().DB(ctx, true).
+	err := rsr.Pool().DB(ctx, true).
 		Where("room_id = ? AND profile_id = ? AND is_active = ?", roomID, profileID, true).
 		First(subscription).Error
 	return subscription, err
@@ -75,7 +54,7 @@ func (rsr *roomSubscriptionRepository) GetByRoomID(
 	activeOnly bool,
 ) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
-	query := rsr.Svc().DB(ctx, true).Where("room_id = ?", roomID)
+	query := rsr.Pool().DB(ctx, true).Where("room_id = ?", roomID)
 
 	if activeOnly {
 		query = query.Where("is_active = ?", true)
@@ -92,7 +71,7 @@ func (rsr *roomSubscriptionRepository) GetByProfileID(
 	activeOnly bool,
 ) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
-	query := rsr.Svc().DB(ctx, true).
+	query := rsr.Pool().DB(ctx, true).
 		Preload(clause.Associations).
 		Where("profile_id = ?", profileID)
 
@@ -107,7 +86,7 @@ func (rsr *roomSubscriptionRepository) GetByProfileID(
 // GetMembersByRoomID retrieves all active member profile IDs for a room.
 func (rsr *roomSubscriptionRepository) GetMembersByRoomID(ctx context.Context, roomID string) ([]string, error) {
 	var profileIDs []string
-	err := rsr.Svc().DB(ctx, true).
+	err := rsr.Pool().DB(ctx, true).
 		Model(&models.RoomSubscription{}).
 		Where("room_id = ? AND is_active = ?", roomID, true).
 		Pluck("profile_id", &profileIDs).Error
@@ -120,7 +99,7 @@ func (rsr *roomSubscriptionRepository) GetByRole(
 	roomID, role string,
 ) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
-	err := rsr.Svc().DB(ctx, true).
+	err := rsr.Pool().DB(ctx, true).
 		Where("room_id = ? AND role = ? AND is_active = ?", roomID, role, true).
 		Find(&subscriptions).Error
 	return subscriptions, err
@@ -128,7 +107,7 @@ func (rsr *roomSubscriptionRepository) GetByRole(
 
 // UpdateRole updates the role of a subscription.
 func (rsr *roomSubscriptionRepository) UpdateRole(ctx context.Context, id, role string) error {
-	return rsr.Svc().DB(ctx, false).
+	return rsr.Pool().DB(ctx, false).
 		Model(&models.RoomSubscription{}).
 		Where("id = ?", id).
 		Update("role", role).Error
@@ -136,7 +115,7 @@ func (rsr *roomSubscriptionRepository) UpdateRole(ctx context.Context, id, role 
 
 // UpdateLastReadEventID updates the last read event ID for a subscription.
 func (rsr *roomSubscriptionRepository) UpdateLastReadEventID(ctx context.Context, id string, eventID string) error {
-	return rsr.Svc().DB(ctx, false).
+	return rsr.Pool().DB(ctx, false).
 		Model(&models.RoomSubscription{}).
 		Where("id = ?", id).
 		Update("last_read_event_id", eventID).Error
@@ -144,15 +123,15 @@ func (rsr *roomSubscriptionRepository) UpdateLastReadEventID(ctx context.Context
 
 // Deactivate marks a subscription as inactive.
 func (rsr *roomSubscriptionRepository) Deactivate(ctx context.Context, id string) error {
-	return rsr.Svc().DB(ctx, false).
+	return rsr.Pool().DB(ctx, false).
 		Model(&models.RoomSubscription{}).
 		Where("id = ?", id).
-		Update("is_active", false).Error
+		Updates(map[string]interface{}{"is_active": false}).Error
 }
 
 // Activate marks a subscription as active.
 func (rsr *roomSubscriptionRepository) Activate(ctx context.Context, id string) error {
-	return rsr.Svc().DB(ctx, false).
+	return rsr.Pool().DB(ctx, false).
 		Model(&models.RoomSubscription{}).
 		Where("id = ?", id).
 		Update("is_active", true).Error
@@ -161,7 +140,7 @@ func (rsr *roomSubscriptionRepository) Activate(ctx context.Context, id string) 
 // CountActiveMembers counts the number of active members in a room.
 func (rsr *roomSubscriptionRepository) CountActiveMembers(ctx context.Context, roomID string) (int64, error) {
 	var count int64
-	err := rsr.Svc().DB(ctx, true).
+	err := rsr.Pool().DB(ctx, true).
 		Model(&models.RoomSubscription{}).
 		Where("room_id = ? AND is_active = ?", roomID, true).
 		Count(&count).Error
@@ -209,14 +188,14 @@ func (rsr *roomSubscriptionRepository) IsActiveMember(ctx context.Context, roomI
 
 // BulkCreate creates multiple subscriptions in a single transaction.
 func (rsr *roomSubscriptionRepository) BulkCreate(ctx context.Context, subscriptions []*models.RoomSubscription) error {
-	return rsr.Svc().DB(ctx, false).Create(&subscriptions).Error
+	return rsr.Pool().DB(ctx, false).Create(&subscriptions).Error
 }
 
 // NewRoomSubscriptionRepository creates a new room subscription repository instance.
-func NewRoomSubscriptionRepository(dbPool pool.Pool, workMan workerpool.Manager) RoomSubscriptionRepository {
+func NewRoomSubscriptionRepository(ctx context.Context, dbPool pool.Pool, workMan workerpool.Manager) RoomSubscriptionRepository {
 	return &roomSubscriptionRepository{
 		BaseRepository: datastore.NewBaseRepository[*models.RoomSubscription](
-			dbPool, workMan, func() *models.RoomSubscription { return &models.RoomSubscription{} },
+			ctx, dbPool, workMan, func() *models.RoomSubscription { return &models.RoomSubscription{} },
 		),
 	}
 }

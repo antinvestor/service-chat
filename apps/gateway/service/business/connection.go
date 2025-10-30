@@ -104,7 +104,6 @@ import (
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
 	devicev1 "github.com/antinvestor/apis/go/device/v1"
-	"github.com/pitabwire/frame/cache"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/frame/telemetry"
@@ -122,7 +121,7 @@ var (
 		},
 	}
 
-	// Pre-allocated error types for fast equality checks and reduced allocations.
+	// ErrConnectionPoolFull Pre-allocated error types for fast equality checks and reduced allocations.
 	// These are sentinel errors that can be checked with errors.Is().
 	ErrConnectionPoolFull    = errors.New("connection pool full")
 	ErrShuttingDown          = errors.New("connection manager is shutting down")
@@ -349,7 +348,7 @@ type connectionManager struct {
 //	)
 //	defer cm.Shutdown(ctx)
 func NewConnectionManager(
-	rawCache cache.RawCache,
+	ctx context.Context,
 	chatClient chatv1connect.ChatServiceClient,
 	deviceClient *devicev1.DeviceClient,
 	maxConnectionsPerDevice int,
@@ -383,7 +382,7 @@ func NewConnectionManager(
 	}
 
 	// Start background maintenance tasks
-	cm.startBackgroundTasks()
+	cm.startBackgroundTasks(ctx)
 
 	return cm
 }
@@ -395,18 +394,18 @@ func NewConnectionManager(
 //   - cleanupStaleConnections: Every 30s, removes connections with no heartbeat
 //   - reportMetrics: Every 10s, logs all connection statistics
 //   - monitorHealth: Every 60s, checks pool utilization and logs warnings
-func (cm *connectionManager) startBackgroundTasks() {
+func (cm *connectionManager) startBackgroundTasks(ctx context.Context) {
 	// Stale connection cleanup (30s interval)
 	cm.wg.Add(1)
-	go cm.cleanupStaleConnections()
+	go cm.cleanupStaleConnections(ctx)
 
 	// Metrics reporting (10s interval) - only if telemetry enabled
 	cm.wg.Add(1)
-	go cm.reportMetrics()
+	go cm.reportMetrics(ctx)
 
 	// Health monitoring (60s interval)
 	cm.wg.Add(1)
-	go cm.monitorHealth()
+	go cm.monitorHealth(ctx)
 }
 
 // HandleConnection manages a device connection lifecycle with optimal resource usage.
@@ -660,7 +659,7 @@ func (cm *connectionManager) handleInboundStream(
 // 1. Send initial connection acknowledgment to device
 // 2. Subscribe to queue for messages destined to this device
 // 3. Receive message from queue (blocks until available)
-// 4. Parse message (unmarshal UserDelivery protobuf)
+// 4. Parse message (unmarshal EventDelivery protobuf)
 // 5. Send to device via stream
 // 6. Acknowledge message in queue (remove from queue)
 //
@@ -724,7 +723,7 @@ func (cm *connectionManager) handleOutboundStream(
 		}
 
 		// Parse message
-		finalMsg, err := toUserDelivery(req)
+		finalMsg, err := toEventDelivery(req)
 		if err != nil {
 			util.Log(ctx).WithError(err).Error("Failed to parse user delivery message")
 			req.Ack() // Ack to remove from queue
@@ -804,7 +803,7 @@ func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream Devic
 // Performance:
 // forEach() creates a snapshot before iterating, so the cleanup doesn't
 // block new connection additions. Typical cleanup takes <100ms for 10k connections.
-func (cm *connectionManager) cleanupStaleConnections() {
+func (cm *connectionManager) cleanupStaleConnections(ctx context.Context) {
 	defer cm.wg.Done()
 
 	ticker := time.NewTicker(30 * time.Second)
@@ -815,15 +814,14 @@ func (cm *connectionManager) cleanupStaleConnections() {
 		case <-cm.shutdownCh:
 			return
 		case <-ticker.C:
-			cm.performCleanup()
+			cm.performCleanup(ctx)
 		}
 	}
 }
 
 // performCleanup checks and removes stale connections.
 // Called by cleanupStaleConnections background task.
-func (cm *connectionManager) performCleanup() {
-	ctx := context.Background()
+func (cm *connectionManager) performCleanup(ctx context.Context) {
 	now := time.Now().Unix()
 	staleThreshold := int64(cm.heartbeatIntervalSec * 3) // 3x heartbeat interval
 
@@ -873,7 +871,7 @@ func (cm *connectionManager) performCleanup() {
 //
 // Performance:
 // Uses atomic loads which are lock-free and very fast (<10ns).
-func (cm *connectionManager) reportMetrics() {
+func (cm *connectionManager) reportMetrics(ctx context.Context) {
 	defer cm.wg.Done()
 
 	ticker := time.NewTicker(10 * time.Second)
@@ -884,7 +882,7 @@ func (cm *connectionManager) reportMetrics() {
 		case <-cm.shutdownCh:
 			return
 		case <-ticker.C:
-			cm.publishMetrics()
+			cm.publishMetrics(ctx)
 		}
 	}
 }
@@ -893,8 +891,7 @@ func (cm *connectionManager) reportMetrics() {
 // Called by reportMetrics background task.
 // Note: Gauges in OpenTelemetry are typically set to absolute values, but since
 // we're using counters (DimensionlessMeasure), we just track the current state.
-func (cm *connectionManager) publishMetrics() {
-	ctx := context.Background()
+func (cm *connectionManager) publishMetrics(ctx context.Context) {
 
 	// Get current values
 	activeConns := atomic.LoadInt32(&cm.activeConns)
@@ -933,7 +930,7 @@ func (cm *connectionManager) publishMetrics() {
 //
 // Performance:
 // Very lightweight - just reads atomic counters and performs calculation.
-func (cm *connectionManager) monitorHealth() {
+func (cm *connectionManager) monitorHealth(ctx context.Context) {
 	defer cm.wg.Done()
 
 	ticker := time.NewTicker(60 * time.Second)
@@ -944,15 +941,14 @@ func (cm *connectionManager) monitorHealth() {
 		case <-cm.shutdownCh:
 			return
 		case <-ticker.C:
-			cm.performHealthCheck()
+			cm.performHealthCheck(ctx)
 		}
 	}
 }
 
 // performHealthCheck checks the health of the connection manager.
 // Called by monitorHealth background task.
-func (cm *connectionManager) performHealthCheck() {
-	ctx := context.Background()
+func (cm *connectionManager) performHealthCheck(ctx context.Context) {
 
 	poolSize := cm.connPool.size()
 	activeConns := atomic.LoadInt32(&cm.activeConns)
@@ -1048,7 +1044,7 @@ func (cm *connectionManager) updatePresence(
 	}
 
 	// Use a background context with timeout to avoid blocking
-	presenceCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	presenceCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	presenceReq := &devicev1.UpdatePresenceRequest{

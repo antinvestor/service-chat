@@ -9,9 +9,9 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/antinvestor/service-chat/proto/events/v1;eventsv1";
 
-// ChatEvent represents an event in the chat system, the core unit of data flowing
+// EventLink represents an event in the chat system, the core unit of data flowing
 // through the system in real-time to end-user devices.
-message ChatEvent {
+message EventLink {
   // Unique identifier for the event, constrained for quick parsing and validation.
   string event_id = 1 [
     (buf.validate.field).string.min_len = 3,
@@ -33,6 +33,14 @@ message ChatEvent {
     (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
   ];
 
+
+  // Unique identifier for a parent event related to this event, constrained for quick parsing and validation.
+  string parent_id = 5 [
+    (buf.validate.field).string.min_len = 3,
+    (buf.validate.field).string.max_len = 40,
+    (buf.validate.field).string.pattern = "[0-9a-z_-]{3,20}"
+  ];
+
   // Allowed message types. Extendable via new enum values.
   enum EventType {
     SYSTEM = 0;
@@ -41,6 +49,8 @@ message ChatEvent {
     ATTACHMENT = 3;
     REACTION = 7;
     ENCRYPTED = 6; // opaque ciphertext
+    EDIT = 8; // represents event overriding another
+    REDACTION = 9; // represents event deleting another
     STATE_DELIVERED = 10;
     STATE_READ = 11;
     STATE_TYPING = 12;
@@ -52,16 +62,14 @@ message ChatEvent {
   }
 
   // Categorizes the event (e.g., TEXT, ATTACHMENT) for efficient handling.
-  EventType event_type = 4;
+  EventType event_type = 7;
   // Timestamp for event creation, aiding in ordering and latency debugging.
-  google.protobuf.Timestamp created_at = 5;
-  // Version field to handle future changes without breaking existing clients.
-  int32 version = 6;
+  google.protobuf.Timestamp created_at = 10;
 }
 
-// DeliveryTarget represents an entry for delivery to a specific recipient,
+// EventReceipt represents an entry for delivery to a specific recipient,
 // facilitating the distribution phase of data flow.
-message DeliveryTarget {
+message EventReceipt {
   // Identifies the target user or device for precise routing.
   string recepient_id = 1 [
     (buf.validate.field).string.min_len = 3,
@@ -80,9 +88,9 @@ message DeliveryTarget {
 // to multiple recipients, optimizing the initial broadcast phase.
 message EventBroadcast {
   // The event to be distributed.
-  ChatEvent event = 1;
+  EventLink event = 1;
   // List of delivery targets specifying recipients for batch processing efficiency.
-  repeated DeliveryTarget targets = 2;
+  repeated EventReceipt targets = 2;
   // Indicates priority of delivery to prioritize critical events (e.g., CALL_OFFER).
   enum Priority {
     NORMAL = 0;
@@ -91,13 +99,13 @@ message EventBroadcast {
   Priority priority = 3;
 }
 
-// UserDelivery represents the final payload delivered to an end-user device,
+// EventDelivery represents the final payload delivered to an end-user device,
 // containing the event, specific delivery target, and detailed data.
-message UserDelivery {
+message EventDelivery {
   // The event data being delivered.
-  ChatEvent event = 1;
+  EventLink event = 1;
   // Specific delivery target for this delivery, aiding in tracking.
-  DeliveryTarget target = 2;
+  EventReceipt target = 2;
   // Flexible struct for detailed event data (e.g., message text, media metadata).
   google.protobuf.Struct payload = 3;
   // Indicates if payload data is compressed to save bandwidth for large messages.

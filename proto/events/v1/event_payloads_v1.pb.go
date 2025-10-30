@@ -26,34 +26,38 @@ const (
 )
 
 // Allowed message types. Extendable via new enum values.
-type ChatEvent_EventType int32
+type EventLink_EventType int32
 
 const (
-	ChatEvent_SYSTEM          ChatEvent_EventType = 0
-	ChatEvent_EVENT           ChatEvent_EventType = 1
-	ChatEvent_TEXT            ChatEvent_EventType = 2
-	ChatEvent_ATTACHMENT      ChatEvent_EventType = 3
-	ChatEvent_REACTION        ChatEvent_EventType = 7
-	ChatEvent_ENCRYPTED       ChatEvent_EventType = 6 // opaque ciphertext
-	ChatEvent_STATE_DELIVERED ChatEvent_EventType = 10
-	ChatEvent_STATE_READ      ChatEvent_EventType = 11
-	ChatEvent_STATE_TYPING    ChatEvent_EventType = 12
-	ChatEvent_PRESENCE        ChatEvent_EventType = 17
-	ChatEvent_CALL_OFFER      ChatEvent_EventType = 21
-	ChatEvent_CALL_ANSWER     ChatEvent_EventType = 22
-	ChatEvent_CALL_ICE        ChatEvent_EventType = 23
-	ChatEvent_CALL_END        ChatEvent_EventType = 24
+	EventLink_SYSTEM          EventLink_EventType = 0
+	EventLink_EVENT           EventLink_EventType = 1
+	EventLink_TEXT            EventLink_EventType = 2
+	EventLink_ATTACHMENT      EventLink_EventType = 3
+	EventLink_REACTION        EventLink_EventType = 7
+	EventLink_ENCRYPTED       EventLink_EventType = 6 // opaque ciphertext
+	EventLink_EDIT            EventLink_EventType = 8 // represents event overriding another
+	EventLink_REDACTION       EventLink_EventType = 9 // represents event deleting another
+	EventLink_STATE_DELIVERED EventLink_EventType = 10
+	EventLink_STATE_READ      EventLink_EventType = 11
+	EventLink_STATE_TYPING    EventLink_EventType = 12
+	EventLink_PRESENCE        EventLink_EventType = 17
+	EventLink_CALL_OFFER      EventLink_EventType = 21
+	EventLink_CALL_ANSWER     EventLink_EventType = 22
+	EventLink_CALL_ICE        EventLink_EventType = 23
+	EventLink_CALL_END        EventLink_EventType = 24
 )
 
-// Enum value maps for ChatEvent_EventType.
+// Enum value maps for EventLink_EventType.
 var (
-	ChatEvent_EventType_name = map[int32]string{
+	EventLink_EventType_name = map[int32]string{
 		0:  "SYSTEM",
 		1:  "EVENT",
 		2:  "TEXT",
 		3:  "ATTACHMENT",
 		7:  "REACTION",
 		6:  "ENCRYPTED",
+		8:  "EDIT",
+		9:  "REDACTION",
 		10: "STATE_DELIVERED",
 		11: "STATE_READ",
 		12: "STATE_TYPING",
@@ -63,13 +67,15 @@ var (
 		23: "CALL_ICE",
 		24: "CALL_END",
 	}
-	ChatEvent_EventType_value = map[string]int32{
+	EventLink_EventType_value = map[string]int32{
 		"SYSTEM":          0,
 		"EVENT":           1,
 		"TEXT":            2,
 		"ATTACHMENT":      3,
 		"REACTION":        7,
 		"ENCRYPTED":       6,
+		"EDIT":            8,
+		"REDACTION":       9,
 		"STATE_DELIVERED": 10,
 		"STATE_READ":      11,
 		"STATE_TYPING":    12,
@@ -81,30 +87,30 @@ var (
 	}
 )
 
-func (x ChatEvent_EventType) Enum() *ChatEvent_EventType {
-	p := new(ChatEvent_EventType)
+func (x EventLink_EventType) Enum() *EventLink_EventType {
+	p := new(EventLink_EventType)
 	*p = x
 	return p
 }
 
-func (x ChatEvent_EventType) String() string {
+func (x EventLink_EventType) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (ChatEvent_EventType) Descriptor() protoreflect.EnumDescriptor {
+func (EventLink_EventType) Descriptor() protoreflect.EnumDescriptor {
 	return file_event_payloads_v1_proto_enumTypes[0].Descriptor()
 }
 
-func (ChatEvent_EventType) Type() protoreflect.EnumType {
+func (EventLink_EventType) Type() protoreflect.EnumType {
 	return &file_event_payloads_v1_proto_enumTypes[0]
 }
 
-func (x ChatEvent_EventType) Number() protoreflect.EnumNumber {
+func (x EventLink_EventType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ChatEvent_EventType.Descriptor instead.
-func (ChatEvent_EventType) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use EventLink_EventType.Descriptor instead.
+func (EventLink_EventType) EnumDescriptor() ([]byte, []int) {
 	return file_event_payloads_v1_proto_rawDescGZIP(), []int{0, 0}
 }
 
@@ -155,9 +161,9 @@ func (EventBroadcast_Priority) EnumDescriptor() ([]byte, []int) {
 	return file_event_payloads_v1_proto_rawDescGZIP(), []int{2, 0}
 }
 
-// ChatEvent represents an event in the chat system, the core unit of data flowing
+// EventLink represents an event in the chat system, the core unit of data flowing
 // through the system in real-time to end-user devices.
-type ChatEvent struct {
+type EventLink struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique identifier for the event, constrained for quick parsing and validation.
 	EventId string `protobuf:"bytes,1,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
@@ -166,30 +172,30 @@ type ChatEvent struct {
 	// Identifies the originator of the event, crucial for attribution and security.
 	// Marked optional as it may not be required for system messages.
 	SenderId *string `protobuf:"bytes,3,opt,name=sender_id,json=senderId,proto3,oneof" json:"sender_id,omitempty"`
+	// Unique identifier for a parent event related to this event, constrained for quick parsing and validation.
+	ParentId string `protobuf:"bytes,5,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	// Categorizes the event (e.g., TEXT, ATTACHMENT) for efficient handling.
-	EventType ChatEvent_EventType `protobuf:"varint,4,opt,name=event_type,json=eventType,proto3,enum=events.v1.ChatEvent_EventType" json:"event_type,omitempty"`
+	EventType EventLink_EventType `protobuf:"varint,7,opt,name=event_type,json=eventType,proto3,enum=events.v1.EventLink_EventType" json:"event_type,omitempty"`
 	// Timestamp for event creation, aiding in ordering and latency debugging.
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// Version field to handle future changes without breaking existing clients.
-	Version       int32 `protobuf:"varint,6,opt,name=version,proto3" json:"version,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ChatEvent) Reset() {
-	*x = ChatEvent{}
+func (x *EventLink) Reset() {
+	*x = EventLink{}
 	mi := &file_event_payloads_v1_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ChatEvent) String() string {
+func (x *EventLink) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ChatEvent) ProtoMessage() {}
+func (*EventLink) ProtoMessage() {}
 
-func (x *ChatEvent) ProtoReflect() protoreflect.Message {
+func (x *EventLink) ProtoReflect() protoreflect.Message {
 	mi := &file_event_payloads_v1_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -201,56 +207,56 @@ func (x *ChatEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ChatEvent.ProtoReflect.Descriptor instead.
-func (*ChatEvent) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventLink.ProtoReflect.Descriptor instead.
+func (*EventLink) Descriptor() ([]byte, []int) {
 	return file_event_payloads_v1_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ChatEvent) GetEventId() string {
+func (x *EventLink) GetEventId() string {
 	if x != nil {
 		return x.EventId
 	}
 	return ""
 }
 
-func (x *ChatEvent) GetRoomId() string {
+func (x *EventLink) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
 	}
 	return ""
 }
 
-func (x *ChatEvent) GetSenderId() string {
+func (x *EventLink) GetSenderId() string {
 	if x != nil && x.SenderId != nil {
 		return *x.SenderId
 	}
 	return ""
 }
 
-func (x *ChatEvent) GetEventType() ChatEvent_EventType {
+func (x *EventLink) GetParentId() string {
+	if x != nil {
+		return x.ParentId
+	}
+	return ""
+}
+
+func (x *EventLink) GetEventType() EventLink_EventType {
 	if x != nil {
 		return x.EventType
 	}
-	return ChatEvent_SYSTEM
+	return EventLink_SYSTEM
 }
 
-func (x *ChatEvent) GetCreatedAt() *timestamppb.Timestamp {
+func (x *EventLink) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
 	}
 	return nil
 }
 
-func (x *ChatEvent) GetVersion() int32 {
-	if x != nil {
-		return x.Version
-	}
-	return 0
-}
-
-// DeliveryTarget represents an entry for delivery to a specific recipient,
+// EventReceipt represents an entry for delivery to a specific recipient,
 // facilitating the distribution phase of data flow.
-type DeliveryTarget struct {
+type EventReceipt struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Identifies the target user or device for precise routing.
 	RecepientId string `protobuf:"bytes,1,opt,name=recepient_id,json=recepientId,proto3" json:"recepient_id,omitempty"`
@@ -260,20 +266,20 @@ type DeliveryTarget struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeliveryTarget) Reset() {
-	*x = DeliveryTarget{}
+func (x *EventReceipt) Reset() {
+	*x = EventReceipt{}
 	mi := &file_event_payloads_v1_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeliveryTarget) String() string {
+func (x *EventReceipt) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeliveryTarget) ProtoMessage() {}
+func (*EventReceipt) ProtoMessage() {}
 
-func (x *DeliveryTarget) ProtoReflect() protoreflect.Message {
+func (x *EventReceipt) ProtoReflect() protoreflect.Message {
 	mi := &file_event_payloads_v1_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -285,19 +291,19 @@ func (x *DeliveryTarget) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeliveryTarget.ProtoReflect.Descriptor instead.
-func (*DeliveryTarget) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventReceipt.ProtoReflect.Descriptor instead.
+func (*EventReceipt) Descriptor() ([]byte, []int) {
 	return file_event_payloads_v1_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *DeliveryTarget) GetRecepientId() string {
+func (x *EventReceipt) GetRecepientId() string {
 	if x != nil {
 		return x.RecepientId
 	}
 	return ""
 }
 
-func (x *DeliveryTarget) GetTargetId() string {
+func (x *EventReceipt) GetTargetId() string {
 	if x != nil {
 		return x.TargetId
 	}
@@ -309,9 +315,9 @@ func (x *DeliveryTarget) GetTargetId() string {
 type EventBroadcast struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The event to be distributed.
-	Event *ChatEvent `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
+	Event *EventLink `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
 	// List of delivery targets specifying recipients for batch processing efficiency.
-	Targets       []*DeliveryTarget       `protobuf:"bytes,2,rep,name=targets,proto3" json:"targets,omitempty"`
+	Targets       []*EventReceipt         `protobuf:"bytes,2,rep,name=targets,proto3" json:"targets,omitempty"`
 	Priority      EventBroadcast_Priority `protobuf:"varint,3,opt,name=priority,proto3,enum=events.v1.EventBroadcast_Priority" json:"priority,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -347,14 +353,14 @@ func (*EventBroadcast) Descriptor() ([]byte, []int) {
 	return file_event_payloads_v1_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *EventBroadcast) GetEvent() *ChatEvent {
+func (x *EventBroadcast) GetEvent() *EventLink {
 	if x != nil {
 		return x.Event
 	}
 	return nil
 }
 
-func (x *EventBroadcast) GetTargets() []*DeliveryTarget {
+func (x *EventBroadcast) GetTargets() []*EventReceipt {
 	if x != nil {
 		return x.Targets
 	}
@@ -368,14 +374,14 @@ func (x *EventBroadcast) GetPriority() EventBroadcast_Priority {
 	return EventBroadcast_NORMAL
 }
 
-// UserDelivery represents the final payload delivered to an end-user device,
+// EventDelivery represents the final payload delivered to an end-user device,
 // containing the event, specific delivery target, and detailed data.
-type UserDelivery struct {
+type EventDelivery struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The event data being delivered.
-	Event *ChatEvent `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
+	Event *EventLink `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
 	// Specific delivery target for this delivery, aiding in tracking.
-	Target *DeliveryTarget `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
+	Target *EventReceipt `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
 	// Flexible struct for detailed event data (e.g., message text, media metadata).
 	Payload *structpb.Struct `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Indicates if payload data is compressed to save bandwidth for large messages.
@@ -386,20 +392,20 @@ type UserDelivery struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UserDelivery) Reset() {
-	*x = UserDelivery{}
+func (x *EventDelivery) Reset() {
+	*x = EventDelivery{}
 	mi := &file_event_payloads_v1_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UserDelivery) String() string {
+func (x *EventDelivery) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UserDelivery) ProtoMessage() {}
+func (*EventDelivery) ProtoMessage() {}
 
-func (x *UserDelivery) ProtoReflect() protoreflect.Message {
+func (x *EventDelivery) ProtoReflect() protoreflect.Message {
 	mi := &file_event_payloads_v1_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -411,40 +417,40 @@ func (x *UserDelivery) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserDelivery.ProtoReflect.Descriptor instead.
-func (*UserDelivery) Descriptor() ([]byte, []int) {
+// Deprecated: Use EventDelivery.ProtoReflect.Descriptor instead.
+func (*EventDelivery) Descriptor() ([]byte, []int) {
 	return file_event_payloads_v1_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *UserDelivery) GetEvent() *ChatEvent {
+func (x *EventDelivery) GetEvent() *EventLink {
 	if x != nil {
 		return x.Event
 	}
 	return nil
 }
 
-func (x *UserDelivery) GetTarget() *DeliveryTarget {
+func (x *EventDelivery) GetTarget() *EventReceipt {
 	if x != nil {
 		return x.Target
 	}
 	return nil
 }
 
-func (x *UserDelivery) GetPayload() *structpb.Struct {
+func (x *EventDelivery) GetPayload() *structpb.Struct {
 	if x != nil {
 		return x.Payload
 	}
 	return nil
 }
 
-func (x *UserDelivery) GetIsCompressed() bool {
+func (x *EventDelivery) GetIsCompressed() bool {
 	if x != nil {
 		return x.IsCompressed
 	}
 	return false
 }
 
-func (x *UserDelivery) GetRetryCount() int32 {
+func (x *EventDelivery) GetRetryCount() int32 {
 	if x != nil {
 		return x.RetryCount
 	}
@@ -455,16 +461,17 @@ var File_event_payloads_v1_proto protoreflect.FileDescriptor
 
 const file_event_payloads_v1_proto_rawDesc = "" +
 	"\n" +
-	"\x17event_payloads_v1.proto\x12\tevents.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb8\x04\n" +
-	"\tChatEvent\x126\n" +
+	"\x17event_payloads_v1.proto\x12\tevents.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf1\x04\n" +
+	"\tEventLink\x126\n" +
 	"\bevent_id\x18\x01 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\aeventId\x124\n" +
 	"\aroom_id\x18\x02 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\x06roomId\x12=\n" +
-	"\tsender_id\x18\x03 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}H\x00R\bsenderId\x88\x01\x01\x12=\n" +
+	"\tsender_id\x18\x03 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}H\x00R\bsenderId\x88\x01\x01\x128\n" +
+	"\tparent_id\x18\x05 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\bparentId\x12=\n" +
 	"\n" +
-	"event_type\x18\x04 \x01(\x0e2\x1e.events.v1.ChatEvent.EventTypeR\teventType\x129\n" +
+	"event_type\x18\a \x01(\x0e2\x1e.events.v1.EventLink.EventTypeR\teventType\x129\n" +
 	"\n" +
-	"created_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x18\n" +
-	"\aversion\x18\x06 \x01(\x05R\aversion\"\xdb\x01\n" +
+	"created_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xf4\x01\n" +
 	"\tEventType\x12\n" +
 	"\n" +
 	"\x06SYSTEM\x10\x00\x12\t\n" +
@@ -473,7 +480,9 @@ const file_event_payloads_v1_proto_rawDesc = "" +
 	"\n" +
 	"ATTACHMENT\x10\x03\x12\f\n" +
 	"\bREACTION\x10\a\x12\r\n" +
-	"\tENCRYPTED\x10\x06\x12\x13\n" +
+	"\tENCRYPTED\x10\x06\x12\b\n" +
+	"\x04EDIT\x10\b\x12\r\n" +
+	"\tREDACTION\x10\t\x12\x13\n" +
 	"\x0fSTATE_DELIVERED\x10\n" +
 	"\x12\x0e\n" +
 	"\n" +
@@ -486,21 +495,21 @@ const file_event_payloads_v1_proto_rawDesc = "" +
 	"\bCALL_ICE\x10\x17\x12\f\n" +
 	"\bCALL_END\x10\x18B\f\n" +
 	"\n" +
-	"_sender_id\"\x8a\x01\n" +
-	"\x0eDeliveryTarget\x12>\n" +
+	"_sender_id\"\x88\x01\n" +
+	"\fEventReceipt\x12>\n" +
 	"\frecepient_id\x18\x01 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\vrecepientId\x128\n" +
-	"\ttarget_id\x18\x02 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\btargetId\"\xd3\x01\n" +
+	"\ttarget_id\x18\x02 \x01(\tB\x1b\xbaH\x18r\x16\x10\x03\x18(2\x10[0-9a-z_-]{3,20}R\btargetId\"\xd1\x01\n" +
 	"\x0eEventBroadcast\x12*\n" +
-	"\x05event\x18\x01 \x01(\v2\x14.events.v1.ChatEventR\x05event\x123\n" +
-	"\atargets\x18\x02 \x03(\v2\x19.events.v1.DeliveryTargetR\atargets\x12>\n" +
+	"\x05event\x18\x01 \x01(\v2\x14.events.v1.EventLinkR\x05event\x121\n" +
+	"\atargets\x18\x02 \x03(\v2\x17.events.v1.EventReceiptR\atargets\x12>\n" +
 	"\bpriority\x18\x03 \x01(\x0e2\".events.v1.EventBroadcast.PriorityR\bpriority\" \n" +
 	"\bPriority\x12\n" +
 	"\n" +
 	"\x06NORMAL\x10\x00\x12\b\n" +
-	"\x04HIGH\x10\x01\"\xe6\x01\n" +
-	"\fUserDelivery\x12*\n" +
-	"\x05event\x18\x01 \x01(\v2\x14.events.v1.ChatEventR\x05event\x121\n" +
-	"\x06target\x18\x02 \x01(\v2\x19.events.v1.DeliveryTargetR\x06target\x121\n" +
+	"\x04HIGH\x10\x01\"\xe5\x01\n" +
+	"\rEventDelivery\x12*\n" +
+	"\x05event\x18\x01 \x01(\v2\x14.events.v1.EventLinkR\x05event\x12/\n" +
+	"\x06target\x18\x02 \x01(\v2\x17.events.v1.EventReceiptR\x06target\x121\n" +
 	"\apayload\x18\x03 \x01(\v2\x17.google.protobuf.StructR\apayload\x12#\n" +
 	"\ris_compressed\x18\x04 \x01(\bR\fisCompressed\x12\x1f\n" +
 	"\vretry_count\x18\x05 \x01(\x05R\n" +
@@ -523,24 +532,24 @@ func file_event_payloads_v1_proto_rawDescGZIP() []byte {
 var file_event_payloads_v1_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_event_payloads_v1_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_event_payloads_v1_proto_goTypes = []any{
-	(ChatEvent_EventType)(0),      // 0: events.v1.ChatEvent.EventType
+	(EventLink_EventType)(0),      // 0: events.v1.EventLink.EventType
 	(EventBroadcast_Priority)(0),  // 1: events.v1.EventBroadcast.Priority
-	(*ChatEvent)(nil),             // 2: events.v1.ChatEvent
-	(*DeliveryTarget)(nil),        // 3: events.v1.DeliveryTarget
+	(*EventLink)(nil),             // 2: events.v1.EventLink
+	(*EventReceipt)(nil),          // 3: events.v1.EventReceipt
 	(*EventBroadcast)(nil),        // 4: events.v1.EventBroadcast
-	(*UserDelivery)(nil),          // 5: events.v1.UserDelivery
+	(*EventDelivery)(nil),         // 5: events.v1.EventDelivery
 	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
 	(*structpb.Struct)(nil),       // 7: google.protobuf.Struct
 }
 var file_event_payloads_v1_proto_depIdxs = []int32{
-	0, // 0: events.v1.ChatEvent.event_type:type_name -> events.v1.ChatEvent.EventType
-	6, // 1: events.v1.ChatEvent.created_at:type_name -> google.protobuf.Timestamp
-	2, // 2: events.v1.EventBroadcast.event:type_name -> events.v1.ChatEvent
-	3, // 3: events.v1.EventBroadcast.targets:type_name -> events.v1.DeliveryTarget
+	0, // 0: events.v1.EventLink.event_type:type_name -> events.v1.EventLink.EventType
+	6, // 1: events.v1.EventLink.created_at:type_name -> google.protobuf.Timestamp
+	2, // 2: events.v1.EventBroadcast.event:type_name -> events.v1.EventLink
+	3, // 3: events.v1.EventBroadcast.targets:type_name -> events.v1.EventReceipt
 	1, // 4: events.v1.EventBroadcast.priority:type_name -> events.v1.EventBroadcast.Priority
-	2, // 5: events.v1.UserDelivery.event:type_name -> events.v1.ChatEvent
-	3, // 6: events.v1.UserDelivery.target:type_name -> events.v1.DeliveryTarget
-	7, // 7: events.v1.UserDelivery.payload:type_name -> google.protobuf.Struct
+	2, // 5: events.v1.EventDelivery.event:type_name -> events.v1.EventLink
+	3, // 6: events.v1.EventDelivery.target:type_name -> events.v1.EventReceipt
+	7, // 7: events.v1.EventDelivery.payload:type_name -> google.protobuf.Struct
 	8, // [8:8] is the sub-list for method output_type
 	8, // [8:8] is the sub-list for method input_type
 	8, // [8:8] is the sub-list for extension type_name

@@ -15,7 +15,7 @@ import (
 func (cm *connectionManager) handleOutboundRequests(
 	ctx context.Context,
 	conn *Connection,
-	req *eventsv1.UserDelivery,
+	req *eventsv1.EventDelivery,
 ) error {
 
 	evt := req.GetEvent()
@@ -44,13 +44,13 @@ func (cm *connectionManager) handleOutboundRequests(
 	return nil
 }
 
-func toUserDelivery(req *pubsub.Message) (*eventsv1.UserDelivery, error) {
+func toEventDelivery(req *pubsub.Message) (*eventsv1.EventDelivery, error) {
 
-	userDelivery := &eventsv1.UserDelivery{}
-	err := proto.Unmarshal(req.Body, userDelivery)
+	EventDelivery := &eventsv1.EventDelivery{}
+	err := proto.Unmarshal(req.Body, EventDelivery)
 	if err != nil {
 		return nil, err
 	}
 
-	return userDelivery, nil
+	return EventDelivery, nil
 }

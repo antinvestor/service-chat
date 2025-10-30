@@ -10,8 +10,10 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -51,89 +53,139 @@ func (mb *messageBusiness) SendEvents(
 		return nil, service.ErrMessageContentRequired
 	}
 
-	var responses []*chatv1.StreamAck
+	requestEvents := req.GetEvent()
 
-	for _, msg := range req.GetEvent() {
-		if msg.GetRoomId() == "" {
+	// Pre-allocate response slice to maintain request order
+	responses := make([]*chatv1.StreamAck, len(requestEvents))
+	validEvents := make([]*models.RoomEvent, 0, len(requestEvents))
+	eventToIndex := make(map[string]int, len(requestEvents))
+
+	// Extract unique room IDs for batch access checking
+	uniqueRoomIDs := make(map[string]bool)
+	for _, reqEvt := range requestEvents {
+		if reqEvt.GetRoomId() == "" {
 			return nil, service.ErrMessageRoomIDRequired
 		}
-		// Check if the sender has access to the room
-		hasAccess, err := mb.subscriptionSvc.HasAccess(ctx, senderID, msg.GetRoomId())
-		if err != nil {
+		uniqueRoomIDs[reqEvt.GetRoomId()] = true
+	}
+
+	// Batch check access for all unique rooms
+	roomAccessMap := make(map[string]bool, len(uniqueRoomIDs))
+	roomAccessErrors := make(map[string]error, len(uniqueRoomIDs))
+
+	for roomID := range uniqueRoomIDs {
+		hasAccess, accessErr := mb.subscriptionSvc.HasAccess(ctx, senderID, roomID)
+		if accessErr != nil {
+			roomAccessErrors[roomID] = accessErr
+		} else {
+			roomAccessMap[roomID] = hasAccess
+		}
+	}
+
+	// Phase 1: Validate all events and prepare valid ones for bulk save
+	for i, reqEvt := range requestEvents {
+		// Assign ID if not provided
+		if reqEvt.GetId() == "" {
+			reqEvt.Id = util.IDString()
+		}
+
+		// Map event ID to its position in the request for ordered responses
+		eventToIndex[reqEvt.GetId()] = i
+
+		roomID := reqEvt.GetRoomId()
+
+		// Check if there was an error checking access for this room
+		if accessErr, hasError := roomAccessErrors[roomID]; hasError {
 			errorD, _ := structpb.NewStruct(
-				map[string]any{"error": fmt.Sprintf("failed to check room access: %v", err)},
+				map[string]any{"error": fmt.Sprintf("failed to check room access: %v", accessErr)},
 			)
-			responses = append(responses, &chatv1.StreamAck{
-				EventId:  msg.GetId(),
+			responses[i] = &chatv1.StreamAck{
+				EventId:  reqEvt.GetId(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
-			})
-
+			}
 			continue
 		}
 
+		// Check if user has access to this room
+		hasAccess := roomAccessMap[roomID]
 		if !hasAccess {
 			errorD, _ := structpb.NewStruct(map[string]any{"error": service.ErrMessageSendDenied.Error()})
-			responses = append(responses, &chatv1.StreamAck{
-				EventId:  msg.GetId(),
+			responses[i] = &chatv1.StreamAck{
+				EventId:  reqEvt.GetId(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
-			})
+			}
 			continue
 		}
 
 		// Create the message event
 		event := &models.RoomEvent{
-			RoomID:      msg.GetRoomId(),
-			MessageType: msg.GetType().String(),
-			SenderID:    senderID,
-			Content:     data.JSONMap(msg.GetPayload().AsMap()), // Content is in payload
+			RoomID:    reqEvt.GetRoomId(),
+			SenderID:  senderID,
+			ParentID:  reqEvt.GetParentId(),
+			EventType: int32(reqEvt.GetType().Number()),
+			Content:   data.JSONMap(reqEvt.GetPayload().AsMap()),
 		}
 
 		event.GenID(ctx)
-		if msg.GetId() != "" {
-			event.ID = msg.GetId()
+		if reqEvt.GetId() != "" {
+			event.ID = reqEvt.GetId()
 		}
 
-		// Start a transaction to ensure atomicity
-		// Save the event
-		if err = mb.eventRepo.Save(ctx, event); err != nil {
-			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to save event: %v", err)})
-			responses = append(responses, &chatv1.StreamAck{
-				EventId:  msg.GetId(),
+		validEvents = append(validEvents, event)
+	}
+
+	// Phase 2: Bulk save all valid events
+	if len(validEvents) == 0 {
+		return responses, nil
+	}
+
+	bulkCreateErr := mb.eventRepo.BulkCreate(ctx, validEvents)
+
+	// Phase 3: Process each valid event - emit to outbox or report errors
+	for _, event := range validEvents {
+		responseIdx := eventToIndex[event.GetID()]
+
+		// Check if bulk save failed
+		if bulkCreateErr != nil {
+			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to save event: %v", bulkCreateErr)})
+			responses[responseIdx] = &chatv1.StreamAck{
+				EventId:  event.GetID(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
-			})
-
+			}
 			continue
 		}
 
-		outboxIDMap := map[string]string{
-			"room_id":       msg.GetRoomId(),
-			"room_event_id": event.GetID(),
-			"sender_id":     senderID,
+		// Emit event to outbox for delivery
+		outboxEventLink := eventsv1.EventLink{
+			EventId:   event.GetID(),
+			RoomId:    event.RoomID,
+			SenderId:  &event.SenderID,
+			ParentId:  event.ParentID,
+			EventType: eventsv1.EventLink_EventType(event.EventType),
+			CreatedAt: timestamppb.New(event.CreatedAt),
 		}
 
-		err = mb.service.Emit(ctx, events.RoomOutboxLoggingEventName, outboxIDMap)
-		if err != nil {
-			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to emit event: %v", err)})
-			responses = append(responses, &chatv1.StreamAck{
-				EventId:  msg.GetId(),
+		emitErr := mb.service.Emit(ctx, events.RoomOutboxLoggingEventName, &outboxEventLink)
+		if emitErr != nil {
+			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to emit event: %v", emitErr)})
+			responses[responseIdx] = &chatv1.StreamAck{
+				EventId:  event.GetID(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
-			})
-
+			}
 			continue
 		}
 
-		// Unread counts are now automatically calculated as a generated column
-		// based on pending outbox entries
-		success, _ := structpb.NewStruct(map[string]any{"success": "ok"})
-		responses = append(responses, &chatv1.StreamAck{
+		// Success - event saved and emitted to outbox
+		success, _ := structpb.NewStruct(map[string]any{"status": "ok"})
+		responses[responseIdx] = &chatv1.StreamAck{
 			EventId:  event.GetID(),
 			AckAt:    timestamppb.Now(),
 			Metadata: success,
-		})
+		}
 	}
 
 	return responses, nil
@@ -240,9 +292,8 @@ func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, 
 		return service.ErrMessageDeleteDenied
 	}
 
-	// Soft delete the message
-	event.DeletedAt = time.Now().Unix()
-	if err := mb.eventRepo.Save(ctx, event); err != nil {
+	err = mb.eventRepo.Delete(ctx, event.GetID())
+	if err != nil {
 		return fmt.Errorf("failed to delete message: %w", err)
 	}
 
@@ -276,7 +327,7 @@ func (mb *messageBusiness) MarkMessagesAsRead(
 	sub.LastReadEventID = eventID
 	sub.LastReadAt = time.Now().Unix()
 
-	if err := mb.subRepo.Save(ctx, sub); err != nil {
+	if _, err := mb.subRepo.Update(ctx, sub); err != nil {
 		return fmt.Errorf("failed to update subscription: %w", err)
 	}
 

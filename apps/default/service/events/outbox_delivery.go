@@ -20,11 +20,11 @@ type OutboxDeliveryEventHandler struct {
 	deliveryTopic queue.Publisher
 }
 
-func NewOutboxDeliveryEventHandler(dbPool pool.Pool, workMan workerpool.Manager, deliveryTopic queue.Publisher) *OutboxDeliveryEventHandler {
+func NewOutboxDeliveryEventHandler(ctx context.Context, dbPool pool.Pool, workMan workerpool.Manager, deliveryTopic queue.Publisher) *OutboxDeliveryEventHandler {
 
 	return &OutboxDeliveryEventHandler{
 		deliveryTopic: deliveryTopic,
-		eventRepo:     repository.NewRoomEventRepository(dbPool, workMan),
+		eventRepo:     repository.NewRoomEventRepository(ctx, dbPool, workMan),
 	}
 }
 
@@ -50,16 +50,16 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 		return errors.New("invalid payload type, expected eventsv1.EventBroadcast{}")
 	}
 
-	chatEvent := broadcast.Event
+	EventLink := broadcast.Event
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"room_id": chatEvent.GetRoomId(),
+		"room_id": EventLink.GetRoomId(),
 		"type":    dlrEH.Name(),
 	})
 	logger.Debug("handling outbox delivery map")
 
 	// Create outbox entries for each subscriber
-	chatEventData, err := dlrEH.eventRepo.GetByID(ctx, chatEvent.GetEventId())
+	EventLinkData, err := dlrEH.eventRepo.GetByID(ctx, EventLink.GetEventId())
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			logger.WithError(err).Error("no such chat event exists")
@@ -70,15 +70,15 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 	}
 
 	for _, target := range broadcast.Targets {
-		userDelivery := &eventsv1.UserDelivery{
-			Event:        chatEvent,
+		EventDelivery := &eventsv1.EventDelivery{
+			Event:        EventLink,
 			Target:       target,
-			Payload:      chatEventData.Content.ToProtoStruct(),
+			Payload:      EventLinkData.Content.ToProtoStruct(),
 			IsCompressed: false,
 			RetryCount:   0,
 		}
 
-		err = dlrEH.deliveryTopic.Publish(ctx, userDelivery)
+		err = dlrEH.deliveryTopic.Publish(ctx, EventDelivery)
 		if err != nil {
 			logger.WithError(err).Error("failed to deliver event to user")
 			return err

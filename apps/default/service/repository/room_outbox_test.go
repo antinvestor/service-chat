@@ -9,6 +9,7 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -21,10 +22,10 @@ func TestOutboxRepositoryTestSuite(t *testing.T) {
 }
 
 func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -35,12 +36,12 @@ func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 		}
 		outbox.GenID(ctx)
 
-		err := repo.Save(ctx, outbox)
-		s.NoError(err)
+		err := repo.Create(ctx, outbox)
+		require.NoError(t, err)
 		s.NotEmpty(outbox.GetID())
 
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(outbox.RoomID, retrieved.RoomID)
 		s.Equal(outbox.EventID, retrieved.EventID)
 		s.Equal(outbox.State, retrieved.State)
@@ -48,10 +49,10 @@ func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 }
 
 func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		subscriptionID := util.IDString()
 		roomID := util.IDString()
@@ -65,7 +66,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
-			s.NoError(repo.Save(ctx, outbox))
+			require.NoError(t, repo.Create(ctx, outbox))
 		}
 
 		sentOutbox := &models.RoomOutbox{
@@ -76,10 +77,10 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 			RetryCount:     0,
 		}
 		sentOutbox.GenID(ctx)
-		s.NoError(repo.Save(ctx, sentOutbox))
+		require.NoError(t, repo.Create(ctx, sentOutbox))
 
 		pending, err := repo.GetPendingBySubscription(ctx, subscriptionID, 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Len(pending, 5)
 
 		for _, entry := range pending {
@@ -89,10 +90,10 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 }
 
 func (s *OutboxRepositoryTestSuite) TestGetByRoomID() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
@@ -105,20 +106,20 @@ func (s *OutboxRepositoryTestSuite) TestGetByRoomID() {
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
-			s.NoError(repo.Save(ctx, outbox))
+			require.NoError(t, repo.Create(ctx, outbox))
 		}
 
 		entries, err := repo.GetByRoomID(ctx, roomID, 10)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(entries), 3)
 	})
 }
 
 func (s *OutboxRepositoryTestSuite) TestUpdateStatus() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -128,24 +129,24 @@ func (s *OutboxRepositoryTestSuite) TestUpdateStatus() {
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
-		s.NoError(repo.Save(ctx, outbox))
+		require.NoError(t, repo.Create(ctx, outbox))
 
 		// Update via direct DB call since UpdateStatus exists but has type mismatch
 		outbox.State = models.RoomOutboxStateSent
-		err := repo.Save(ctx, outbox)
-		s.NoError(err)
+		_, err := repo.Update(ctx, outbox)
+		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(models.RoomOutboxStateSent, retrieved.State)
 	})
 }
 
 func (s *OutboxRepositoryTestSuite) TestIncrementRetryCount() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -155,27 +156,27 @@ func (s *OutboxRepositoryTestSuite) TestIncrementRetryCount() {
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
-		s.NoError(repo.Save(ctx, outbox))
+		require.NoError(t, repo.Create(ctx, outbox))
 
 		err := repo.IncrementRetryCount(ctx, outbox.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(1, retrieved.RetryCount)
 
-		s.NoError(repo.IncrementRetryCount(ctx, outbox.GetID()))
+		require.NoError(t, repo.IncrementRetryCount(ctx, outbox.GetID()))
 		retrieved, err = repo.GetByID(ctx, outbox.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(2, retrieved.RetryCount)
 	})
 }
 
 func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		outbox := &models.RoomOutbox{
 			RoomID:         util.IDString(),
@@ -185,23 +186,23 @@ func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
-		s.NoError(repo.Save(ctx, outbox))
+		require.NoError(t, repo.Create(ctx, outbox))
 
 		errorMsg := "Connection timeout"
 		err := repo.UpdateStatusWithError(ctx, outbox.GetID(), repository.OutboxStatusFailed, errorMsg)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(errorMsg, retrieved.ErrorMessage)
 	})
 }
 
 func (s *OutboxRepositoryTestSuite) TestDeleteOldEntries() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
@@ -214,20 +215,20 @@ func (s *OutboxRepositoryTestSuite) TestDeleteOldEntries() {
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
-			s.NoError(repo.Save(ctx, outbox))
+			require.NoError(t, repo.Create(ctx, outbox))
 		}
 
 		deleted, err := repo.CleanupOldEntries(ctx, 24*60*60*1000000000)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(deleted, int64(5))
 	})
 }
 
 func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomOutboxRepository(dbPool, workMan)
+		repo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
@@ -240,7 +241,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
-			s.NoError(repo.Save(ctx, outbox))
+			require.NoError(t, repo.Create(ctx, outbox))
 		}
 
 		for range 3 {
@@ -252,11 +253,11 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
-			s.NoError(repo.Save(ctx, outbox))
+			require.NoError(t, repo.Create(ctx, outbox))
 		}
 
 		pendingEntries, err := repo.GetByRoomID(ctx, roomID, 100)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		count := 0
 		for _, entry := range pendingEntries {

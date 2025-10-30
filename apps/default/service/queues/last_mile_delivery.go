@@ -20,33 +20,33 @@ const (
 	HeaderDeviceID  = "device_id"
 )
 
-type UserDeliveryQueueHandler struct {
+type EventDeliveryQueueHandler struct {
 	service   *frame.Service
 	deviceCli *devicev1.DeviceClient
 
 	userDeviceTopic queue.Publisher
 }
 
-func NewUserDeliveryQueueHandler(
+func NewEventDeliveryQueueHandler(
 	svc *frame.Service, deviceCli *devicev1.DeviceClient,
 ) queue.SubscribeWorker {
-	return &UserDeliveryQueueHandler{
+	return &EventDeliveryQueueHandler{
 		service:   svc,
 		deviceCli: deviceCli,
 	}
 }
 
-func (dq *UserDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
+func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
 
-	userDelivery := &eventsv1.UserDelivery{}
-	err := proto.Unmarshal(payload, userDelivery)
+	EventDelivery := &eventsv1.EventDelivery{}
+	err := proto.Unmarshal(payload, EventDelivery)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
 		return err
 	}
 
 	response, err := dq.deviceCli.Svc().Search(ctx, &devicev1.SearchRequest{
-		Query: userDelivery.Target.RecepientId,
+		Query: EventDelivery.Target.RecepientId,
 		Page:  0,
 		Count: 100,
 	})
@@ -65,12 +65,12 @@ func (dq *UserDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]str
 			break
 		}
 
-		dq.deliverMessageToDevice(ctx, userDelivery, resp.Data)
+		dq.deliverMessageToDevice(ctx, EventDelivery, resp.Data)
 	}
 	return nil
 }
 
-func (dq *UserDeliveryQueueHandler) deliverMessageToDevice(ctx context.Context, msg *eventsv1.UserDelivery, devices []*devicev1.DeviceObject) {
+func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(ctx context.Context, msg *eventsv1.EventDelivery, devices []*devicev1.DeviceObject) {
 
 	for _, dev := range devices {
 
@@ -91,7 +91,7 @@ func (dq *UserDeliveryQueueHandler) deliverMessageToDevice(ctx context.Context, 
 
 }
 
-func (dq *UserDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *devicev1.DeviceObject) bool {
+func (dq *EventDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *devicev1.DeviceObject) bool {
 	status := dev.GetPresence()
 	if devicev1.PresenceStatus_OFFLINE == status {
 		return false
@@ -99,7 +99,7 @@ func (dq *UserDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *dev
 	return true
 }
 
-func (dq *UserDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.UserDelivery) error {
+func (dq *EventDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.EventDelivery) error {
 
 	deviceHeader := map[string]string{
 		HeaderProfileID: msg.GetTarget().GetRecepientId(),
@@ -109,7 +109,7 @@ func (dq *UserDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *de
 	return dq.userDeviceTopic.Publish(ctx, msg, deviceHeader)
 }
 
-func (dq *UserDeliveryQueueHandler) publishToFCM(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.UserDelivery) error {
+func (dq *EventDeliveryQueueHandler) publishToFCM(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.EventDelivery) error {
 
 	fields := msg.GetPayload().GetFields()
 
@@ -120,7 +120,7 @@ func (dq *UserDeliveryQueueHandler) publishToFCM(ctx context.Context, dev *devic
 	}
 	messageBody := ""
 	body, ok := fields["content"]
-	if ok && msg.GetEvent().GetEventType() == eventsv1.ChatEvent_TEXT {
+	if ok && msg.GetEvent().GetEventType() == eventsv1.EventLink_TEXT {
 		messageBody = body.String()
 	}
 

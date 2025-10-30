@@ -73,27 +73,27 @@ func main() {
 		log.WithError(err).Fatal("could not setup HTTP handlers")
 	}
 
-	userDeliveryQueuePublisher := frame.WithRegisterPublisher(
+	EventDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueUserEventDeliveryName,
 		cfg.QueueUserEventDeliveryURI,
 	)
-	userDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
+	EventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueUserEventDeliveryName,
 		cfg.QueueUserEventDeliveryURI,
-		queues.NewUserDeliveryQueueHandler(svc, deviceCli),
+		queues.NewEventDeliveryQueueHandler(svc, deviceCli),
 	)
-	
+
 	// Get publisher for event handlers
 	deliveryPublisher, _ := svc.QueueManager(ctx).GetPublisher(cfg.QueueUserEventDeliveryName)
 	workMan := svc.WorkManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-	
+
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
-		userDeliveryQueuePublisher, userDeliveryQueueSubscriber,
+		EventDeliveryQueuePublisher, EventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
-			events.NewRoomOutboxLoggingQueue(svc),
-			events.NewOutboxDeliveryEventHandler(dbPool, workMan, deliveryPublisher),
+			events.NewRoomOutboxLoggingQueue(ctx, svc, dbPool, workMan),
+			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),
 		))
 
 	// Initialize the service with all options

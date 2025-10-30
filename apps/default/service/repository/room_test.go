@@ -10,6 +10,7 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -22,10 +23,10 @@ func TestRoomRepositoryTestSuite(t *testing.T) {
 }
 
 func (s *RoomRepositoryTestSuite) TestCreateRoom() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomRepository(dbPool, workMan)
+		repo := repository.NewRoomRepository(ctx, dbPool, workMan)
 
 		room := &models.Room{
 			RoomType:    "group",
@@ -36,12 +37,12 @@ func (s *RoomRepositoryTestSuite) TestCreateRoom() {
 		}
 		room.GenID(ctx)
 
-		err := repo.Save(ctx, room)
-		s.NoError(err)
+		err := repo.Create(ctx, room)
+		require.NoError(t, err)
 		s.NotEmpty(room.GetID())
 
 		retrieved, err := repo.GetByID(ctx, room.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(room.Name, retrieved.Name)
 		s.Equal(room.Description, retrieved.Description)
 		s.Equal(room.IsPublic, retrieved.IsPublic)
@@ -49,10 +50,10 @@ func (s *RoomRepositoryTestSuite) TestCreateRoom() {
 }
 
 func (s *RoomRepositoryTestSuite) TestUpdateRoom() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomRepository(dbPool, workMan)
+		repo := repository.NewRoomRepository(ctx, dbPool, workMan)
 
 		room := &models.Room{
 			RoomType:    "group",
@@ -61,26 +62,26 @@ func (s *RoomRepositoryTestSuite) TestUpdateRoom() {
 			IsPublic:    true,
 		}
 		room.GenID(ctx)
-		err := repo.Save(ctx, room)
-		s.NoError(err)
+		err := repo.Create(ctx, room)
+		require.NoError(t, err)
 
 		room.Name = "Updated Name"
 		room.Description = "Updated Description"
-		err = repo.Save(ctx, room)
-		s.NoError(err)
+		_, err = repo.Update(ctx, room)
+		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, room.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal("Updated Name", retrieved.Name)
 		s.Equal("Updated Description", retrieved.Description)
 	})
 }
 
 func (s *RoomRepositoryTestSuite) TestDeleteRoom() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomRepository(dbPool, workMan)
+		repo := repository.NewRoomRepository(ctx, dbPool, workMan)
 
 		room := &models.Room{
 			RoomType: "group",
@@ -88,23 +89,23 @@ func (s *RoomRepositoryTestSuite) TestDeleteRoom() {
 			IsPublic: true,
 		}
 		room.GenID(ctx)
-		err := repo.Save(ctx, room)
-		s.NoError(err)
+		err := repo.Create(ctx, room)
+		require.NoError(t, err)
 
 		err = repo.Delete(ctx, room.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, room.GetID())
-		s.Error(err)
+		require.Error(t, err)
 		s.Nil(retrieved)
 	})
 }
 
 func (s *RoomRepositoryTestSuite) TestSearchRooms() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomRepository(dbPool, workMan)
+		repo := repository.NewRoomRepository(ctx, dbPool, workMan)
 
 		for range 3 {
 			room := &models.Room{
@@ -113,32 +114,32 @@ func (s *RoomRepositoryTestSuite) TestSearchRooms() {
 				IsPublic: true,
 			}
 			room.GenID(ctx)
-			err := repo.Save(ctx, room)
-			s.NoError(err)
+			err := repo.Create(ctx, room)
+			require.NoError(t, err)
 		}
 	})
 }
 
 func (s *RoomRepositoryTestSuite) TestGetRoomsByIDs() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomRepository(dbPool, workMan)
+		repo := repository.NewRoomRepository(ctx, dbPool, workMan)
 
 		room1 := &models.Room{RoomType: "group", Name: "Room 1", IsPublic: true}
 		room1.GenID(ctx)
 		room2 := &models.Room{RoomType: "group", Name: "Room 2", IsPublic: true}
 		room2.GenID(ctx)
 
-		s.NoError(repo.Save(ctx, room1))
-		s.NoError(repo.Save(ctx, room2))
+		require.NoError(t, repo.Create(ctx, room1))
+		require.NoError(t, repo.Create(ctx, room2))
 
 		retrieved1, err := repo.GetByID(ctx, room1.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(room1.Name, retrieved1.Name)
 
 		retrieved2, err := repo.GetByID(ctx, room2.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(room2.Name, retrieved2.Name)
 	})
 }

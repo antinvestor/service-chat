@@ -11,6 +11,7 @@ import (
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -30,10 +31,10 @@ func (s *IntegrationTestSuite) setupBusinessLayer(
 	workMan := svc.WorkManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
-	roomRepo := repository.NewRoomRepository(dbPool, workMan)
-	eventRepo := repository.NewRoomEventRepository(dbPool, workMan)
-	subRepo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
-	outboxRepo := repository.NewRoomOutboxRepository(dbPool, workMan)
+	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
+	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
+	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
@@ -43,7 +44,7 @@ func (s *IntegrationTestSuite) setupBusinessLayer(
 }
 
 func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness, subscriptionSvc := s.setupBusinessLayer(ctx, svc)
 
@@ -60,16 +61,16 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, createReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.NotNil(room)
 
 		// 2. Verify all members have access
 		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, member1ID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		// 3. Send messages
@@ -90,7 +91,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			}
 
 			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			s.NoError(err)
+			require.NoError(t, err)
 			s.Len(acks, 1)
 		}
 
@@ -101,7 +102,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		}
 
 		events, err := messageBusiness.GetHistory(ctx, historyReq, member1ID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(events), 5)
 
 		// 5. Update room
@@ -112,7 +113,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		}
 
 		updated, err := roomBusiness.UpdateRoom(ctx, updateReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal("Updated Room Name", updated.GetName())
 
 		// 6. Add new member
@@ -128,11 +129,11 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		}
 
 		err = roomBusiness.AddRoomSubscriptions(ctx, addReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// 7. Verify new member has access
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, newMemberID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasAccess)
 
 		// 8. Remove member
@@ -142,11 +143,11 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		}
 
 		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// 9. Verify removed member no longer has access
 		hasAccess, err = subscriptionSvc.HasAccess(ctx, member2ID, room.GetId())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.False(hasAccess)
 
 		// 10. Delete room
@@ -155,16 +156,16 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		}
 
 		err = roomBusiness.DeleteRoom(ctx, deleteReq, creatorID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// 11. Verify room is deleted
 		_, err = roomBusiness.GetRoom(ctx, room.GetId(), creatorID)
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -179,7 +180,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 			}
 
 			room, err := roomBusiness.CreateRoom(ctx, createReq, userID)
-			s.NoError(err)
+			require.NoError(t, err)
 			rooms = append(rooms, room)
 		}
 
@@ -202,7 +203,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 				}
 
 				_, err := messageBusiness.SendEvents(ctx, msgReq, userID)
-				s.NoError(err)
+				require.NoError(t, err)
 			}
 		}
 
@@ -214,7 +215,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 			}
 
 			events, err := messageBusiness.GetHistory(ctx, historyReq, userID)
-			s.NoError(err)
+			require.NoError(t, err)
 			s.GreaterOrEqual(len(events), 3)
 
 			// Verify all messages belong to this room
@@ -226,7 +227,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 }
 
 func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _, subscriptionSvc := s.setupBusinessLayer(ctx, svc)
 
@@ -242,7 +243,7 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, createReq, ownerID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Promote one member to admin
 		updateRoleReq := &chatv1.UpdateSubscriptionRoleRequest{
@@ -252,19 +253,19 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		}
 
 		err = roomBusiness.UpdateSubscriptionRole(ctx, updateRoleReq, ownerID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Verify roles
 		hasRole, err := subscriptionSvc.HasRole(ctx, ownerID, room.GetId(), repository.RoleOwner)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasRole)
 
 		hasRole, err = subscriptionSvc.HasRole(ctx, adminID, room.GetId(), repository.RoleAdmin)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasRole)
 
 		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleMember)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasRole)
 
 		// Admin should be able to update room
@@ -274,12 +275,12 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		}
 
 		_, err = roomBusiness.UpdateRoom(ctx, updateReq, adminID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Member should not be able to update room
 		updateReq.Name = "Updated by Member"
 		_, err = roomBusiness.UpdateRoom(ctx, updateReq, memberID)
-		s.Error(err)
+		require.Error(t, err)
 
 		// Only owner should be able to delete room
 		deleteReq := &chatv1.DeleteRoomRequest{
@@ -287,15 +288,15 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		}
 
 		err = roomBusiness.DeleteRoom(ctx, deleteReq, adminID)
-		s.Error(err) // Admin cannot delete
+		require.Error(t, err) // Admin cannot delete
 
 		err = roomBusiness.DeleteRoom(ctx, deleteReq, ownerID)
-		s.NoError(err) // Owner can delete
+		require.NoError(t, err) // Owner can delete
 	})
 }
 
 func (s *IntegrationTestSuite) TestMessageDeletion() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -308,10 +309,10 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, createReq, userID)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		// Send messages
-		messageIDs := []string{}
+		var messageIDs []string
 		for range 5 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": util.RandomString(10),
@@ -329,35 +330,35 @@ func (s *IntegrationTestSuite) TestMessageDeletion() {
 			}
 
 			acks, err := messageBusiness.SendEvents(ctx, msgReq, userID)
-			s.NoError(err)
+			require.NoError(t, err)
 			messageIDs = append(messageIDs, acks[0].GetEventId())
 		}
 
 		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 		// Delete some messages via repository
-		eventRepo := repository.NewRoomEventRepository(dbPool, svc.WorkManager())
+		eventRepo := repository.NewRoomEventRepository(ctx, dbPool, svc.WorkManager())
 		for i := range 3 {
-			err := eventRepo.Delete(ctx, messageIDs[i])
-			s.NoError(err)
+			err = eventRepo.Delete(ctx, messageIDs[i])
+			require.NoError(t, err)
 		}
 
 		// Verify deleted messages cannot be retrieved
 		for i := range 3 {
 			_, err := eventRepo.GetByID(ctx, messageIDs[i])
-			s.Error(err)
+			require.Error(t, err)
 		}
 
 		// Verify remaining messages can be retrieved
 		for i := 3; i < 5; i++ {
 			msg, err := eventRepo.GetByID(ctx, messageIDs[i])
-			s.NoError(err)
+			require.NoError(t, err)
 			s.NotNil(msg)
 		}
 	})
 }
 
 func (s *IntegrationTestSuite) TestSearchFunctionality() {
-	s.WithTestDependancies(s.T(), func(t *testing.T, dep *definition.DependancyOption) {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		roomBusiness, _, _ := s.setupBusinessLayer(ctx, svc)
 
@@ -378,7 +379,7 @@ func (s *IntegrationTestSuite) TestSearchFunctionality() {
 			}
 
 			_, err := roomBusiness.CreateRoom(ctx, createReq, userID)
-			s.NoError(err)
+			require.NoError(t, err)
 		}
 
 		// Search for "Alpha"
@@ -387,7 +388,7 @@ func (s *IntegrationTestSuite) TestSearchFunctionality() {
 		}
 
 		results, err := roomBusiness.SearchRooms(ctx, searchReq, userID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.GreaterOrEqual(len(results), 2)
 
 		// Verify results contain "Alpha"

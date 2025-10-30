@@ -10,6 +10,7 @@ import (
 	"github.com/pitabwire/frame/frametests"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -22,10 +23,10 @@ func TestSubscriptionRepositoryTestSuite(t *testing.T) {
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestCreateSubscription() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		sub := &models.RoomSubscription{
 			RoomID:               util.IDString(),
@@ -37,12 +38,12 @@ func (s *SubscriptionRepositoryTestSuite) TestCreateSubscription() {
 		}
 		sub.GenID(ctx)
 
-		err := repo.Save(ctx, sub)
-		s.NoError(err)
+		err := repo.Create(ctx, sub)
+		require.NoError(t, err)
 		s.NotEmpty(sub.GetID())
 
 		retrieved, err := repo.GetByID(ctx, sub.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(sub.RoomID, retrieved.RoomID)
 		s.Equal(sub.ProfileID, retrieved.ProfileID)
 		s.Equal(sub.Role, retrieved.Role)
@@ -50,10 +51,10 @@ func (s *SubscriptionRepositoryTestSuite) TestCreateSubscription() {
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestGetByRoomAndProfile() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 		profileID := util.IDString()
@@ -65,20 +66,20 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomAndProfile() {
 			IsActive:  true,
 		}
 		sub.GenID(ctx)
-		s.NoError(repo.Save(ctx, sub))
+		require.NoError(t, repo.Create(ctx, sub))
 
 		retrieved, err := repo.GetByRoomAndProfile(ctx, roomID, profileID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(sub.GetID(), retrieved.GetID())
 		s.Equal(repository.RoleAdmin, retrieved.Role)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestGetActiveByRoomAndProfile() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 		profileID := util.IDString()
@@ -90,24 +91,24 @@ func (s *SubscriptionRepositoryTestSuite) TestGetActiveByRoomAndProfile() {
 			IsActive:  true,
 		}
 		activeSub.GenID(ctx)
-		s.NoError(repo.Save(ctx, activeSub))
+		require.NoError(t, repo.Create(ctx, activeSub))
 
 		retrieved, err := repo.GetActiveByRoomAndProfile(ctx, roomID, profileID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(activeSub.GetID(), retrieved.GetID())
 
-		s.NoError(repo.Deactivate(ctx, activeSub.GetID()))
+		require.NoError(t, repo.Deactivate(ctx, activeSub.GetID()))
 
 		_, err = repo.GetActiveByRoomAndProfile(ctx, roomID, profileID)
-		s.Error(err)
+		require.Error(t, err)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
@@ -119,24 +120,24 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
 				IsActive:  i < 2,
 			}
 			sub.GenID(ctx)
-			s.NoError(repo.Save(ctx, sub))
+			require.NoError(t, repo.Create(ctx, sub))
 		}
 
 		allSubs, err := repo.GetByRoomID(ctx, roomID, false)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Len(allSubs, 3)
 
 		activeSubs, err := repo.GetByRoomID(ctx, roomID, true)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Len(activeSubs, 2)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		profileID := util.IDString()
 
@@ -148,20 +149,20 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
 				IsActive:  true,
 			}
 			sub.GenID(ctx)
-			s.NoError(repo.Save(ctx, sub))
+			require.NoError(t, repo.Create(ctx, sub))
 		}
 
 		subs, err := repo.GetByProfileID(ctx, profileID, true)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Len(subs, 3)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestUpdateRole() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		sub := &models.RoomSubscription{
 			RoomID:    util.IDString(),
@@ -170,22 +171,22 @@ func (s *SubscriptionRepositoryTestSuite) TestUpdateRole() {
 			IsActive:  true,
 		}
 		sub.GenID(ctx)
-		s.NoError(repo.Save(ctx, sub))
+		require.NoError(t, repo.Create(ctx, sub))
 
 		err := repo.UpdateRole(ctx, sub.GetID(), repository.RoleAdmin)
-		s.NoError(err)
+		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, sub.GetID())
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(repository.RoleAdmin, retrieved.Role)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 		adminID := util.IDString()
@@ -198,7 +199,7 @@ func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
 			IsActive:  true,
 		}
 		adminSub.GenID(ctx)
-		s.NoError(repo.Save(ctx, adminSub))
+		require.NoError(t, repo.Create(ctx, adminSub))
 
 		memberSub := &models.RoomSubscription{
 			RoomID:    roomID,
@@ -207,23 +208,23 @@ func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
 			IsActive:  true,
 		}
 		memberSub.GenID(ctx)
-		s.NoError(repo.Save(ctx, memberSub))
+		require.NoError(t, repo.Create(ctx, memberSub))
 
 		hasPermission, err := repo.HasPermission(ctx, roomID, adminID, repository.RoleAdmin)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.True(hasPermission)
 
 		hasPermission, err = repo.HasPermission(ctx, roomID, memberID, repository.RoleAdmin)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.False(hasPermission)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 
@@ -235,20 +236,20 @@ func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
 				IsActive:  i < 3,
 			}
 			sub.GenID(ctx)
-			s.NoError(repo.Save(ctx, sub))
+			require.NoError(t, repo.Create(ctx, sub))
 		}
 
 		count, err := repo.CountActiveMembers(ctx, roomID)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Equal(int64(3), count)
 	})
 }
 
 func (s *SubscriptionRepositoryTestSuite) TestBulkCreate() {
-	frametests.WithTestDependancies(s.T(), nil, func(t *testing.T, dep *definition.DependancyOption) {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomSubscriptionRepository(dbPool, workMan)
+		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		roomID := util.IDString()
 		subs := []*models.RoomSubscription{}
@@ -265,11 +266,11 @@ func (s *SubscriptionRepositoryTestSuite) TestBulkCreate() {
 		}
 
 		for _, sub := range subs {
-			s.NoError(repo.Save(ctx, sub))
+			require.NoError(t, repo.Create(ctx, sub))
 		}
 
 		retrieved, err := repo.GetByRoomID(ctx, roomID, true)
-		s.NoError(err)
+		require.NoError(t, err)
 		s.Len(retrieved, 5)
 	})
 }

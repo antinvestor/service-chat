@@ -85,14 +85,13 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 	})
 
 	// Broadcast user is typing to other room members
-	typingEvent := &eventsv1.UserDelivery{
-		Event: &eventsv1.ChatEvent{
+	typingEvent := &eventsv1.EventDelivery{
+		Event: &eventsv1.EventLink{
 			EventId:   util.IDString(),
 			RoomId:    roomID,
 			SenderId:  &profileID,
-			EventType: eventsv1.ChatEvent_STATE_TYPING,
+			EventType: eventsv1.EventLink_STATE_TYPING,
 			CreatedAt: timestamppb.Now(),
-			Version:   0,
 		},
 		Payload:      payload,
 		IsCompressed: false,
@@ -137,21 +136,20 @@ func (cb *connectBusiness) UpdateReadReceipt(ctx context.Context, profileID stri
 		sub.LastReadEventID = eventID
 		sub.LastReadAt = time.Now().Unix()
 
-		err = cb.subRepo.Save(ctx, sub)
+		_, err = cb.subRepo.Update(ctx, sub)
 		if err != nil {
 			return fmt.Errorf("failed to update subscription: %w", err)
 		}
 	}
 
 	// Broadcast read receipt to other room members
-	receiptEvent := &eventsv1.UserDelivery{
-		Event: &eventsv1.ChatEvent{
+	receiptEvent := &eventsv1.EventDelivery{
+		Event: &eventsv1.EventLink{
 			EventId:   eventID,
 			RoomId:    roomID,
 			SenderId:  &profileID,
-			EventType: eventsv1.ChatEvent_STATE_READ,
+			EventType: eventsv1.EventLink_STATE_READ,
 			CreatedAt: timestamppb.Now(),
-			Version:   0,
 		},
 		IsCompressed: false,
 		RetryCount:   0,
@@ -199,22 +197,21 @@ func (cb *connectBusiness) UpdateReadMarker(ctx context.Context, profileID strin
 
 	if subLastReadEventID != sub.LastReadEventID {
 		sub.LastReadAt = time.Now().Unix()
-		if err = cb.subRepo.Save(ctx, sub); err != nil {
+		if _, err = cb.subRepo.Update(ctx, sub); err != nil {
 			return fmt.Errorf("failed to update subscription: %w", err)
 		}
 	}
 
-	var receiptEvents []*eventsv1.UserDelivery
+	var receiptEvents []*eventsv1.EventDelivery
 	for _, eventID := range updatedEvents {
 		// Broadcast read receipt to other room members
-		receiptEvents = append(receiptEvents, &eventsv1.UserDelivery{
-			Event: &eventsv1.ChatEvent{
+		receiptEvents = append(receiptEvents, &eventsv1.EventDelivery{
+			Event: &eventsv1.EventLink{
 				EventId:   eventID,
 				RoomId:    roomID,
 				SenderId:  &profileID,
-				EventType: eventsv1.ChatEvent_STATE_READ,
+				EventType: eventsv1.EventLink_STATE_READ,
 				CreatedAt: timestamppb.Now(),
-				Version:   0,
 			},
 			IsCompressed: false,
 			RetryCount:   0,
@@ -224,7 +221,7 @@ func (cb *connectBusiness) UpdateReadMarker(ctx context.Context, profileID strin
 	return cb.broadCast(ctx, roomID, receiptEvents...)
 }
 
-func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayloads ...*eventsv1.UserDelivery) error {
+func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayloads ...*eventsv1.EventDelivery) error {
 
 	// Get the subscriptions tied to the room
 	subs, err := cb.subRepo.GetByRoomID(ctx, roomID, true)
@@ -235,7 +232,7 @@ func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayl
 	for _, sub := range subs {
 
 		for _, pl := range dlrPayloads {
-			pl.Target = &eventsv1.DeliveryTarget{
+			pl.Target = &eventsv1.EventReceipt{
 				RecepientId: sub.ProfileID,
 				TargetId:    util.IDString(),
 			}
