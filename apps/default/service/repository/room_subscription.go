@@ -20,10 +20,12 @@ const (
 
 type roomSubscriptionRepository struct {
 	datastore.BaseRepository[*models.RoomSubscription]
+
+	activeSubscriptionStates []models.RoomSubscriptionState
 }
 
-// GetByRoomAndProfile retrieves a subscription by room ID and profile ID.
-func (rsr *roomSubscriptionRepository) GetByRoomAndProfile(
+// GetOneByRoomAndProfile retrieves a subscription by room ID and profile ID.
+func (rsr *roomSubscriptionRepository) GetOneByRoomAndProfile(
 	ctx context.Context,
 	roomID, profileID string,
 ) (*models.RoomSubscription, error) {
@@ -35,14 +37,15 @@ func (rsr *roomSubscriptionRepository) GetByRoomAndProfile(
 	return subscription, err
 }
 
-// GetActiveByRoomAndProfile retrieves an active subscription by room ID and profile ID.
-func (rsr *roomSubscriptionRepository) GetActiveByRoomAndProfile(
+// GetOneByRoomProfileAndIsActive retrieves an active subscription by room ID and profile ID.
+func (rsr *roomSubscriptionRepository) GetOneByRoomProfileAndIsActive(
 	ctx context.Context,
-	roomID, profileID string,
+	roomID string, profileID string,
 ) (*models.RoomSubscription, error) {
+
 	subscription := &models.RoomSubscription{}
 	err := rsr.Pool().DB(ctx, true).
-		Where("room_id = ? AND profile_id = ? AND is_active = ?", roomID, profileID, true).
+		Where("room_id = ? AND profile_id = ? AND subscription_state IN ?", roomID, profileID, rsr.activeSubscriptionStates).
 		First(subscription).Error
 	return subscription, err
 }
@@ -57,11 +60,21 @@ func (rsr *roomSubscriptionRepository) GetByRoomID(
 	query := rsr.Pool().DB(ctx, true).Where("room_id = ?", roomID)
 
 	if activeOnly {
-		query = query.Where("is_active = ?", true)
+		query = query.Where("subscription_state IN ?", rsr.activeSubscriptionStates)
 	}
 
 	err := query.Find(&subscriptions).Error
 	return subscriptions, err
+}
+
+// GetByRoomIDAndProfiles retrieves a subscription by room ID and a list of profile IDs.
+func (rsr *roomSubscriptionRepository) GetByRoomIDAndProfiles(ctx context.Context, roomID string, profileID ...string) ([]*models.RoomSubscription, error) {
+	var subscriptionSlice []*models.RoomSubscription
+	err := rsr.Pool().DB(ctx, true).
+		Select("*"). // Explicitly select all columns including read-only unread_count
+		Where("room_id = ? AND profile_id = ?", roomID, profileID).
+		Find(&subscriptionSlice).Error
+	return subscriptionSlice, err
 }
 
 // GetByProfileID retrieves all subscriptions for a specific profile.
@@ -76,7 +89,7 @@ func (rsr *roomSubscriptionRepository) GetByProfileID(
 		Where("profile_id = ?", profileID)
 
 	if activeOnly {
-		query = query.Where("is_active = ?", true)
+		query = query.Where("subscription_state IN ?", rsr.activeSubscriptionStates)
 	}
 
 	err := query.Find(&subscriptions).Error
@@ -88,7 +101,7 @@ func (rsr *roomSubscriptionRepository) GetMembersByRoomID(ctx context.Context, r
 	var profileIDs []string
 	err := rsr.Pool().DB(ctx, true).
 		Model(&models.RoomSubscription{}).
-		Where("room_id = ? AND is_active = ?", roomID, true).
+		Where("room_id = ? AND subscription_state IN ?", roomID, rsr.activeSubscriptionStates).
 		Pluck("profile_id", &profileIDs).Error
 	return profileIDs, err
 }
@@ -100,7 +113,7 @@ func (rsr *roomSubscriptionRepository) GetByRole(
 ) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
 	err := rsr.Pool().DB(ctx, true).
-		Where("room_id = ? AND role = ? AND is_active = ?", roomID, role, true).
+		Where("room_id = ? AND role = ? AND subscription_state IN ?", roomID, role, rsr.activeSubscriptionStates).
 		Find(&subscriptions).Error
 	return subscriptions, err
 }
@@ -122,19 +135,23 @@ func (rsr *roomSubscriptionRepository) UpdateLastReadEventID(ctx context.Context
 }
 
 // Deactivate marks a subscription as inactive.
-func (rsr *roomSubscriptionRepository) Deactivate(ctx context.Context, id string) error {
-	return rsr.Pool().DB(ctx, false).
-		Model(&models.RoomSubscription{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{"is_active": false}).Error
+func (rsr *roomSubscriptionRepository) Deactivate(ctx context.Context, subscriptionIDs ...string) error {
+
+	_, err := rsr.BulkUpdate(ctx, subscriptionIDs, map[string]any{"subscription_state": models.RoomSubscriptionStateBlocked})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Activate marks a subscription as active.
-func (rsr *roomSubscriptionRepository) Activate(ctx context.Context, id string) error {
-	return rsr.Pool().DB(ctx, false).
-		Model(&models.RoomSubscription{}).
-		Where("id = ?", id).
-		Update("is_active", true).Error
+func (rsr *roomSubscriptionRepository) Activate(ctx context.Context, subscriptionIDs ...string) error {
+
+	_, err := rsr.BulkUpdate(ctx, subscriptionIDs, map[string]any{"subscription_state": models.RoomSubscriptionStateActive})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // CountActiveMembers counts the number of active members in a room.
@@ -142,7 +159,7 @@ func (rsr *roomSubscriptionRepository) CountActiveMembers(ctx context.Context, r
 	var count int64
 	err := rsr.Pool().DB(ctx, true).
 		Model(&models.RoomSubscription{}).
-		Where("room_id = ? AND is_active = ?", roomID, true).
+		Where("room_id = ? AND subscription_state IN ?", roomID, rsr.activeSubscriptionStates).
 		Count(&count).Error
 	return count, err
 }
@@ -152,7 +169,7 @@ func (rsr *roomSubscriptionRepository) HasPermission(
 	ctx context.Context,
 	roomID, profileID, minRole string,
 ) (bool, error) {
-	subscription, err := rsr.GetActiveByRoomAndProfile(ctx, roomID, profileID)
+	subscription, err := rsr.GetOneByRoomProfileAndIsActive(ctx, roomID, profileID)
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return false, nil
@@ -176,14 +193,14 @@ func (rsr *roomSubscriptionRepository) HasPermission(
 
 // IsActiveMember checks if a profile is an active member of a room.
 func (rsr *roomSubscriptionRepository) IsActiveMember(ctx context.Context, roomID, profileID string) (bool, error) {
-	subscription, err := rsr.GetActiveByRoomAndProfile(ctx, roomID, profileID)
+	subscription, err := rsr.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return false, nil
 		}
 		return false, err
 	}
-	return subscription.IsActive, nil
+	return subscription.IsActive(), nil
 }
 
 // BulkCreate creates multiple subscriptions in a single transaction.
@@ -197,5 +214,9 @@ func NewRoomSubscriptionRepository(ctx context.Context, dbPool pool.Pool, workMa
 		BaseRepository: datastore.NewBaseRepository[*models.RoomSubscription](
 			ctx, dbPool, workMan, func() *models.RoomSubscription { return &models.RoomSubscription{} },
 		),
+
+		activeSubscriptionStates: []models.RoomSubscriptionState{
+			models.RoomSubscriptionStateActive,
+		},
 	}
 }

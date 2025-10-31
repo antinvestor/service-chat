@@ -10,6 +10,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
+	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -169,8 +170,8 @@ func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRe
 
 	roomID := req.GetRoomId()
 
-	// Check if the user is an admin of the room
-	isAdmin, err := rb.subscriptionSvc.HasRole(ctx, profileID, roomID, "admin")
+	// Check if the user is an owner of the room
+	isAdmin, err := rb.subscriptionSvc.HasRole(ctx, profileID, roomID, repository.RoleOwner)
 	if err != nil {
 		return fmt.Errorf("failed to check admin status: %w", err)
 	}
@@ -203,53 +204,47 @@ func (rb *roomBusiness) SearchRooms(
 		return nil, fmt.Errorf("failed to get user subscriptions: %w", err)
 	}
 
+	var resultList []*chatv1.Room
+
 	if len(roomIDs) == 0 {
-		return []*chatv1.Room{}, nil
+		return resultList, nil
 	}
 
 	// Build the search query
-	query := &data.SearchQuery{
-		Query: req.GetQuery(),
-	}
 
-	if req.GetCount() > 0 {
-		offset := 0
-		if req.GetPage() > 0 {
-			offset = int(req.GetPage()-1) * int(req.GetCount())
-		}
-		query.Pagination = &data.Paginator{
-			Limit:  int(req.GetCount()),
-			Offset: offset,
-		}
-	}
+	query := data.NewSearchQuery(
+		req.GetQuery(),
+		data.WithSearchOffset(int(req.GetPage())),
+		data.WithSearchLimit(int(req.GetCount())),
+		data.WithSearchFiltersAndByValue(map[string]any{
+			"id": roomIDs,
+		}),
+		data.WithSearchFiltersOrByQuery(map[string]string{
+			"name":       "% ?",
+			"searchable": " @@ websearch_to_tsquery( 'english', ?) ",
+		}))
 
 	// Get rooms - need to convert JobResultPipe to slice
 	roomsPipe, err := rb.roomRepo.Search(ctx, query)
 	if err != nil {
+		util.Log(ctx).WithError(err).Error("failed to search rooms")
 		return nil, fmt.Errorf("failed to search rooms: %w", err)
 	}
 
-	// Collect rooms from pipe
-	var rooms []*models.Room
-	// TODO: Implement proper pipe reading based on frame.JobResultPipe interface
-	// For now, return empty list
-	_ = roomsPipe
+	for res := range roomsPipe.ResultChan() {
 
-	// Filter rooms by subscribed IDs
-	roomIDMap := make(map[string]bool)
-	for _, id := range roomIDs {
-		roomIDMap[id] = true
-	}
+		if res.IsError() {
 
-	// Convert to proto and filter
-	protoRooms := make([]*chatv1.Room, 0, len(rooms))
-	for _, room := range rooms {
-		if roomIDMap[room.GetID()] {
-			protoRooms = append(protoRooms, room.ToAPI())
+			return resultList, res.Error()
+		}
+
+		resultRoomSlice := res.Item()
+		for _, room := range resultRoomSlice {
+			resultList = append(resultList, room.ToAPI())
 		}
 	}
 
-	return protoRooms, nil
+	return resultList, nil
 }
 
 func (rb *roomBusiness) AddRoomSubscriptions(
@@ -341,7 +336,7 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 	}
 
 	// Update the member's role
-	sub, err := rb.subRepo.GetActiveByRoomAndProfile(ctx, req.GetRoomId(), req.GetProfileId())
+	sub, err := rb.subRepo.GetOneByRoomProfileAndIsActive(ctx, req.GetRoomId(), req.GetProfileId())
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return service.ErrRoomMemberNotFound
@@ -428,10 +423,10 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 	for profileID, role := range roleMap {
 		if !existingMap[profileID] {
 			sub := &models.RoomSubscription{
-				RoomID:    roomID,
-				ProfileID: profileID,
-				Role:      role,
-				IsActive:  true,
+				RoomID:            roomID,
+				ProfileID:         profileID,
+				Role:              role,
+				SubscriptionState: models.RoomSubscriptionStateActive,
 			}
 			sub.GenID(ctx)
 			newSubs = append(newSubs, sub)
@@ -440,10 +435,9 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 
 	// Save new subscriptions individually
 	if len(newSubs) > 0 {
-		for _, sub := range newSubs {
-			if err := rb.subRepo.Create(ctx, sub); err != nil {
-				return fmt.Errorf("failed to create subscription: %w", err)
-			}
+		err = rb.subRepo.BulkCreate(ctx, newSubs)
+		if err != nil {
+			return fmt.Errorf("failed to create subscription: %w", err)
 		}
 
 		// Send member added events using MessageBusiness
@@ -477,32 +471,30 @@ func (rb *roomBusiness) removeRoomMembers(
 	removerID string,
 ) error {
 	// Get all subscriptions for the room
-	allSubs, err := rb.subRepo.GetByRoomID(ctx, roomID, false)
+	subscriptionsToRemove, err := rb.subRepo.GetByRoomIDAndProfiles(ctx, roomID, profileIDs...)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriptions: %w", err)
 	}
 
-	// Create a map of profile IDs to remove
-	removeMap := make(map[string]bool)
-	for _, id := range profileIDs {
-		removeMap[id] = true
+	var subscriptionIDs []string
+	// Deactivate subscriptions
+	for _, sub := range subscriptionsToRemove {
+		subscriptionIDs = append(subscriptionIDs, sub.GetID())
 	}
 
-	// Deactivate subscriptions
-	for _, sub := range allSubs {
-		if removeMap[sub.ProfileID] {
-			if err := rb.subRepo.Deactivate(ctx, sub.GetID()); err != nil {
-				return fmt.Errorf("failed to deactivate subscription: %w", err)
-			}
+	err = rb.subRepo.Deactivate(ctx, subscriptionIDs...)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate subscription: %w", err)
+	}
 
-			// Send member removed event using MessageBusiness
-			_ = rb.sendRoomEvent(ctx, roomID, removerID, chatv1.RoomEventType_EVENT,
-				map[string]interface{}{"content": "Member removed from room"},
-				map[string]interface{}{
-					"profile_id": sub.ProfileID,
-					"removed_by": removerID,
-				})
-		}
+	for _, sub := range subscriptionsToRemove {
+		// Send member removed event using MessageBusiness
+		_ = rb.sendRoomEvent(ctx, roomID, removerID, chatv1.RoomEventType_EVENT,
+			map[string]interface{}{"content": "Member removed from room"},
+			map[string]interface{}{
+				"profile_id": sub.ProfileID,
+				"removed_by": removerID,
+			})
 	}
 
 	return nil

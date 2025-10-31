@@ -37,28 +37,29 @@ type RoomOutboxRepository interface {
 	GetFailedEntries(ctx context.Context, maxRetries, limit int) ([]*models.RoomOutbox, error)
 	UpdateState(ctx context.Context, roomID, eventID string, state models.RoomOutboxState) error
 	UpdateUpToState(ctx context.Context, roomID, eventID string, state models.RoomOutboxState) ([]string, error)
-	UpdateStatusWithError(ctx context.Context, id, status, errorMsg string) error
+	UpdateStatusWithError(ctx context.Context, id string, state models.RoomOutboxState, errorMsg string) error
 	IncrementRetryCount(ctx context.Context, id string) error
 	GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomOutbox, error)
 	GetBacklogCount(ctx context.Context) (int64, error)
 	CleanupOldEntries(ctx context.Context, olderThan time.Duration) (int64, error)
-	GetByStatus(ctx context.Context, status string, limit int) ([]*models.RoomOutbox, error)
+	GetByStatus(ctx context.Context, state models.RoomOutboxState, limit int) ([]*models.RoomOutbox, error)
 	GetPendingBySubscription(ctx context.Context, subscriptionID string, limit int) ([]*models.RoomOutbox, error)
 }
 
 // RoomSubscriptionRepository defines the interface for room subscription data access operations.
 type RoomSubscriptionRepository interface {
 	datastore.BaseRepository[*models.RoomSubscription]
-	GetByRoomAndProfile(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
-	GetActiveByRoomAndProfile(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
+	GetOneByRoomAndProfile(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
+	GetOneByRoomProfileAndIsActive(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
 	GetByRoomID(ctx context.Context, roomID string, activeOnly bool) ([]*models.RoomSubscription, error)
+	GetByRoomIDAndProfiles(ctx context.Context, roomID string, profileID ...string) ([]*models.RoomSubscription, error)
 	GetByProfileID(ctx context.Context, profileID string, activeOnly bool) ([]*models.RoomSubscription, error)
 	GetMembersByRoomID(ctx context.Context, roomID string) ([]string, error)
 	GetByRole(ctx context.Context, roomID, role string) ([]*models.RoomSubscription, error)
 	UpdateRole(ctx context.Context, id, role string) error
 	UpdateLastReadEventID(ctx context.Context, id string, eventID string) error
-	Deactivate(ctx context.Context, id string) error
-	Activate(ctx context.Context, id string) error
+	Deactivate(ctx context.Context, id ...string) error
+	Activate(ctx context.Context, id ...string) error
 	CountActiveMembers(ctx context.Context, roomID string) (int64, error)
 	HasPermission(ctx context.Context, roomID, profileID, minRole string) (bool, error)
 	IsActiveMember(ctx context.Context, roomID, profileID string) (bool, error)

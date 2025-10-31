@@ -375,7 +375,7 @@ func (s *ChatServerTestSuite) TestUpdateClientState() {
 
 		// Create room
 		createReq := connect.NewRequest(&chatv1.CreateRoomRequest{
-			Name:      "Client State Room",
+			Name:      "Client OutboxState Room",
 			IsPrivate: false,
 		})
 

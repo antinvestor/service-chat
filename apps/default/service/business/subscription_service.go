@@ -53,7 +53,7 @@ func (ss *subscriptionService) HasAccess(ctx context.Context, profileID, roomID 
 		return false, service.ErrMessageRoomIDRequired
 	}
 
-	sub, err := ss.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
+	sub, err := ss.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return false, nil
@@ -61,7 +61,7 @@ func (ss *subscriptionService) HasAccess(ctx context.Context, profileID, roomID 
 		return false, fmt.Errorf("failed to check subscription: %w", err)
 	}
 
-	return sub.IsActive, nil
+	return sub.IsActive(), nil
 }
 
 func (ss *subscriptionService) HasRole(ctx context.Context, profileID, roomID, role string) (bool, error) {
@@ -77,7 +77,7 @@ func (ss *subscriptionService) HasRole(ctx context.Context, profileID, roomID, r
 		return false, service.ErrRoleRequired
 	}
 
-	sub, err := ss.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
+	sub, err := ss.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return false, nil
@@ -85,7 +85,7 @@ func (ss *subscriptionService) HasRole(ctx context.Context, profileID, roomID, r
 		return false, fmt.Errorf("failed to check subscription: %w", err)
 	}
 
-	if !sub.IsActive {
+	if !sub.IsActive() {
 		return false, nil
 	}
 

@@ -11,13 +11,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	OutboxStatusPending    = "pending"
-	OutboxStatusProcessing = "processing"
-	OutboxStatusSent       = "sent"
-	OutboxStatusFailed     = "failed"
-)
-
 type roomOutboxRepository struct {
 	datastore.BaseRepository[*models.RoomOutbox]
 }
@@ -35,7 +28,7 @@ func (ror *roomOutboxRepository) GetByEventID(ctx context.Context, eventID strin
 func (ror *roomOutboxRepository) GetPendingEntries(ctx context.Context, limit int) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Pool().DB(ctx, true).
-		Where("status = ?", OutboxStatusPending).
+		Where("outbox_state IN ?", []models.RoomOutboxState{models.RoomOutboxStateLogged, models.RoomOutboxStateFailed}).
 		Order("created_at ASC")
 
 	if limit > 0 {
@@ -54,7 +47,7 @@ func (ror *roomOutboxRepository) GetFailedEntries(
 ) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Pool().DB(ctx, true).
-		Where("status = ? AND retry_count < ?", OutboxStatusFailed, maxRetries).
+		Where("outbox_state = ? AND retry_count < ?", models.RoomOutboxStateFailed, maxRetries).
 		Order("created_at ASC")
 
 	if limit > 0 {
@@ -66,22 +59,22 @@ func (ror *roomOutboxRepository) GetFailedEntries(
 }
 
 // UpdateStatus updates the status of an outbox entry.
-func (ror *roomOutboxRepository) UpdateStatus(ctx context.Context, id, status string) error {
+func (ror *roomOutboxRepository) UpdateStatus(ctx context.Context, id, state models.RoomOutboxState) error {
 	return ror.Pool().DB(ctx, false).
 		Model(&models.RoomOutbox{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status": status,
+			"outbox_state": state,
 		}).Error
 }
 
 // UpdateStatusWithError updates the status and error message of an outbox entry.
-func (ror *roomOutboxRepository) UpdateStatusWithError(ctx context.Context, id, status, errorMsg string) error {
+func (ror *roomOutboxRepository) UpdateStatusWithError(ctx context.Context, id string, state models.RoomOutboxState, errorMsg string) error {
 	return ror.Pool().DB(ctx, false).
 		Model(&models.RoomOutbox{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status":        status,
+			"outbox_state":  state,
 			"error_message": errorMsg,
 		}).Error
 }
@@ -118,7 +111,7 @@ func (ror *roomOutboxRepository) GetBacklogCount(ctx context.Context) (int64, er
 	var count int64
 	err := ror.Pool().DB(ctx, true).
 		Model(&models.RoomOutbox{}).
-		Where("status IN ?", []string{OutboxStatusPending, OutboxStatusProcessing}).
+		Where("outbox_state IN ?", []models.RoomOutboxState{models.RoomOutboxStateLogged}).
 		Count(&count).Error
 	return count, err
 }
@@ -127,7 +120,7 @@ func (ror *roomOutboxRepository) GetBacklogCount(ctx context.Context) (int64, er
 func (ror *roomOutboxRepository) CleanupOldEntries(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoffTime := time.Now().Add(-olderThan)
 	result := ror.Pool().DB(ctx, false).
-		Where("status = ? AND created_at < ?", OutboxStatusSent, cutoffTime).
+		Where("outbox_state >= ? AND created_at < ?", models.RoomOutboxStateSent, cutoffTime).
 		Delete(&models.RoomOutbox{})
 	return result.RowsAffected, result.Error
 }
@@ -135,12 +128,12 @@ func (ror *roomOutboxRepository) CleanupOldEntries(ctx context.Context, olderTha
 // GetByStatus retrieves outbox entries by status.
 func (ror *roomOutboxRepository) GetByStatus(
 	ctx context.Context,
-	status string,
+	state models.RoomOutboxState,
 	limit int,
 ) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Pool().DB(ctx, true).
-		Where("status = ?", status).
+		Where("outbox_state = ?", state).
 		Order("created_at ASC")
 
 	if limit > 0 {
@@ -159,7 +152,7 @@ func (ror *roomOutboxRepository) GetPendingBySubscription(
 ) ([]*models.RoomOutbox, error) {
 	var entries []*models.RoomOutbox
 	query := ror.Pool().DB(ctx, true).
-		Where("subscription_id = ? AND status = ?", subscriptionID, OutboxStatusPending).
+		Where("subscription_id = ? AND outbox_state = ?", subscriptionID, models.RoomOutboxStateLogged).
 		Order("created_at ASC")
 
 	if limit > 0 {
@@ -179,7 +172,7 @@ func (ror *roomOutboxRepository) UpdateState(
 	return ror.Pool().DB(ctx, false).
 		Model(&models.RoomOutbox{}).
 		Where("room_id = ? AND event_id = ?", roomID, eventID).
-		Update("state", state).Error
+		Update("outbox_state", state).Error
 }
 
 // UpdateUpToState updates the state of all outbox entries up to and including the specified eventID.
@@ -201,7 +194,7 @@ func (ror *roomOutboxRepository) UpdateUpToState(
 	// Find all entries that should be updated
 	var affectedEntries []*models.RoomOutbox
 	err = ror.Pool().DB(ctx, true).
-		Where("room_id = ? AND event_id <= ? AND state < ?", roomID, eventID, state).
+		Where("room_id = ? AND event_id <= ? AND outbox_state < ?", roomID, eventID, state).
 		Find(&affectedEntries).Error
 	if err != nil {
 		return nil, err
@@ -210,7 +203,7 @@ func (ror *roomOutboxRepository) UpdateUpToState(
 	// Update all entries up to the target event
 	err = ror.Pool().DB(ctx, false).
 		Model(&models.RoomOutbox{}).
-		Where("room_id = ? AND event_id <= ? AND state < ?", roomID, eventID, state).
+		Where("room_id = ? AND event_id <= ? AND outbox_state < ?", roomID, eventID, state).
 		Update("state", state).Error
 	if err != nil {
 		return nil, err

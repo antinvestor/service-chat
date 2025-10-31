@@ -314,7 +314,7 @@ func (mb *messageBusiness) MarkMessagesAsRead(
 	}
 
 	// Get the subscription
-	sub, err := mb.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
+	sub, err := mb.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return service.ErrSubscriptionNotFound

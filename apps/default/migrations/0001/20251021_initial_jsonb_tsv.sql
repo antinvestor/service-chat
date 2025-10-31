@@ -1,3 +1,5 @@
+-- +migrate Up
+-- +migrate StatementBegin
 CREATE OR REPLACE FUNCTION jsonb_to_tsv(jdoc jsonb)
     RETURNS tsvector AS $$
 DECLARE
@@ -41,3 +43,4 @@ BEGIN
     RETURN to_tsvector('english', COALESCE(search_text, ''));
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+-- +migrate StatementEnd

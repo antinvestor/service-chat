@@ -125,7 +125,7 @@ func (cb *connectBusiness) UpdateReadReceipt(ctx context.Context, profileID stri
 	}
 
 	// Update the subscription's last read event ID
-	sub, err := cb.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
+	sub, err := cb.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
@@ -181,7 +181,7 @@ func (cb *connectBusiness) UpdateReadMarker(ctx context.Context, profileID strin
 	}
 
 	// Update the subscription's last read event ID
-	sub, err := cb.subRepo.GetByRoomAndProfile(ctx, roomID, profileID)
+	sub, err := cb.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}

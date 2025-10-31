@@ -11,7 +11,7 @@ require (
 	github.com/antinvestor/apis/go/device v1.47.4
 	github.com/antinvestor/apis/go/notification v1.47.4
 	github.com/antinvestor/apis/go/profile v1.47.4
-	github.com/pitabwire/frame v1.64.1
+	github.com/pitabwire/frame v1.64.5
 	github.com/pitabwire/util v0.3.5
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0

@@ -54,19 +54,19 @@ func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) erro
 }
 
 func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) error {
-	EventLink, ok := payload.(*eventsv1.EventLink)
+	evtLink, ok := payload.(*eventsv1.EventLink)
 	if !ok {
 		return errors.New("invalid payload type, expected map[string]string{}")
 	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"room_id": EventLink.GetRoomId(),
+		"room_id": evtLink.GetRoomId(),
 		"type":    csq.Name(),
 	})
 	logger.Debug("handling outbox logging")
 
 	// Create outbox entries for each subscriber
-	subscriptions, err := csq.subscriptionRepo.GetByRoomID(ctx, EventLink.GetRoomId(), true) // active only
+	subscriptions, err := csq.subscriptionRepo.GetByRoomID(ctx, evtLink.GetRoomId(), true) // active only
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			logger.WithError(err).Error("no such subscribers exists")
@@ -77,20 +77,25 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	}
 
 	outboxEntries := make([]*models.RoomOutbox, 0, len(subscriptions))
-	var EventReceipts []*eventsv1.EventReceipt
+	var evtReceipts []*eventsv1.EventReceipt
 
 	for _, sub := range subscriptions {
+
+		if sub.ProfileID == evtLink.GetSenderId() {
+			continue
+		}
+
 		outbox := &models.RoomOutbox{
-			RoomID:         EventLink.GetRoomId(),
-			EventID:        EventLink.GetEventId(),
+			RoomID:         evtLink.GetRoomId(),
+			EventID:        evtLink.GetEventId(),
 			SubscriptionID: sub.GetID(),
-			State:          models.RoomOutboxStateLogged,
+			OutboxState:    models.RoomOutboxStateLogged,
 			RetryCount:     0,
 			ErrorMessage:   "",
 		}
 		outbox.GenID(ctx)
 		outboxEntries = append(outboxEntries, outbox)
-		EventReceipts = append(EventReceipts, &eventsv1.EventReceipt{
+		evtReceipts = append(evtReceipts, &eventsv1.EventReceipt{
 			RecepientId: sub.ProfileID,
 			TargetId:    outbox.GetID(),
 		})
@@ -105,8 +110,8 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		}
 
 		eventBroadcast := eventsv1.EventBroadcast{
-			Event:    EventLink,
-			Targets:  EventReceipts,
+			Event:    evtLink,
+			Targets:  evtReceipts,
 			Priority: 0,
 		}
 

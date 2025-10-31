@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	chatv1 "github.com/antinvestor/apis/go/chat/v1"
@@ -17,6 +18,8 @@ type Room struct {
 	Description string `json:"description"`
 	Properties  data.JSONMap
 	IsPublic    bool
+
+	Searchable string `gorm:"->;type:tsvector;-:migration"` // read-only in GORM
 }
 
 // ToAPI converts Room model to API representation.
@@ -94,6 +97,8 @@ type RoomOutboxState int
 
 const (
 	RoomOutboxStateLogged RoomOutboxState = iota
+	RoomOutboxStateQueued
+	RoomOutboxStateFailed
 	RoomOutboxStateSent
 	RoomOutboxStateDelivered
 	RoomOutboxStateRead
@@ -105,23 +110,30 @@ type RoomOutbox struct {
 	RoomID         string          `gorm:"type:varchar(50)"`
 	SubscriptionID string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
 	EventID        string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
-	State          RoomOutboxState `gorm:"index:idx_subscription_event_state"  json:"state"`
+	OutboxState    RoomOutboxState `gorm:"index:idx_subscription_event_outbox_state" json:"outboxstate"`
 	RetryCount     int             `json:"retry_count"`
 	ErrorMessage   string          `json:"error_message"`
 }
 
+type RoomSubscriptionState int
+
+const (
+	RoomSubscriptionStateProposed RoomSubscriptionState = iota
+	RoomSubscriptionStateActive
+	RoomSubscriptionStateBlocked
+)
+
 // RoomSubscription represents a user's subscription to a room.
 type RoomSubscription struct {
 	data.BaseModel
-	RoomID               string `gorm:"type:varchar(50)"`
-	ProfileID            string `gorm:"type:varchar(50)"`
-	Role                 string
-	IsActive             bool
-	LastReadEventID      string `gorm:"type:varchar(50)"` // ID of the last read event (naturally time-sorted)
-	LastReadAt           int64
-	UnreadCount          int `gorm:"column:unread_count;default:0"` // Unread message count
-	NotificationsEnabled bool
-	Properties           data.JSONMap
+	RoomID              string `gorm:"type:varchar(50)"`
+	ProfileID           string `gorm:"type:varchar(50)"`
+	Role                string
+	SubscriptionState   RoomSubscriptionState
+	LastReadEventID     string `gorm:"type:varchar(50)"` // ID of the last read event (naturally time-sorted)
+	LastReadAt          int64
+	DisableNotification bool
+	Properties          data.JSONMap
 }
 
 // ToAPI converts RoomSubscription model to API representation.
@@ -138,8 +150,12 @@ func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 	return &chatv1.RoomSubscription{
 		RoomId:     rs.RoomID,
 		ProfileId:  rs.ProfileID,
-		Roles:      []string{rs.Role},
+		Roles:      strings.Split(rs.Role, ","),
 		JoinedAt:   timestamppb.New(rs.CreatedAt),
 		LastActive: lastActive,
 	}
+}
+
+func (rs *RoomSubscription) IsActive() bool {
+	return RoomSubscriptionStateActive == rs.SubscriptionState
 }

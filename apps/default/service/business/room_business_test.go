@@ -345,7 +345,7 @@ func (s *RoomBusinessTestSuite) TestSearchRooms() {
 
 		results, err := roomBusiness.SearchRooms(ctx, searchReq, userID)
 		require.NoError(t, err)
-		s.GreaterOrEqual(len(results), 1)
+		require.GreaterOrEqual(t, len(results), 1)
 
 		found := false
 		for _, room := range results {
@@ -354,6 +354,6 @@ func (s *RoomBusinessTestSuite) TestSearchRooms() {
 				break
 			}
 		}
-		s.True(found)
+		require.True(t, found)
 	})
 }

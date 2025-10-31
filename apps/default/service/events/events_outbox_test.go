@@ -9,6 +9,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
+	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
@@ -70,8 +71,8 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueuePayloadType() {
 		s.NotNil(payloadType)
 
 		// Should be map[string]string
-		_, ok := payloadType.(map[string]string)
-		s.True(ok, "Payload type should be map[string]string")
+		_, ok := payloadType.(*eventsv1.EventLink)
+		s.True(ok, "Payload type should be eventsv1.EventLink")
 	})
 }
 
@@ -80,13 +81,14 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueValidateValidPayload() {
 		ctx, svc := s.CreateService(t, dep)
 		queue := s.createQueue(ctx, svc)
 
-		validPayload := map[string]string{
-			"room_id":       util.IDString(),
-			"room_event_id": util.IDString(),
-			"sender_id":     util.IDString(),
+		creatorID := util.IDString()
+		validPayload := eventsv1.EventLink{
+			EventId:  util.IDString(),
+			RoomId:   util.IDString(),
+			SenderId: &creatorID,
 		}
 
-		err := queue.Validate(ctx, validPayload)
+		err := queue.Validate(ctx, &validPayload)
 		require.NoError(t, err)
 	})
 }
@@ -149,13 +151,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
-		queuePayload := map[string]string{
-			"room_id":       room.GetId(),
-			"room_event_id": eventID,
-			"sender_id":     creatorID,
+		queuePayload := eventsv1.EventLink{
+			EventId:  eventID,
+			RoomId:   room.GetId(),
+			SenderId: &creatorID,
 		}
 
-		err = queue.Execute(ctx, queuePayload)
+		err = queue.Execute(ctx, &queuePayload)
 		require.NoError(t, err)
 
 		// Verify outbox entries were created for all subscribers
@@ -186,6 +188,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		workMan := svc.WorkManager()
 		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+		outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -201,11 +204,12 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		require.NoError(t, err)
 
 		// Get member's subscription
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
+		memberSub, err := subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), memberID)
 		require.NoError(t, err)
 
 		// Initial unread count should be 0
-		s.Equal(0, memberSub.UnreadCount)
+		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
+		s.Equal(0, len(evts))
 
 		// Send a message
 		payload, _ := structpb.NewStruct(map[string]interface{}{
@@ -228,19 +232,23 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
-		queuePayload := map[string]string{
-			"room_id":       room.GetId(),
-			"room_event_id": eventID,
-			"sender_id":     creatorID,
+		queuePayload := eventsv1.EventLink{
+			EventId:  eventID,
+			RoomId:   room.GetId(),
+			SenderId: &creatorID,
 		}
 
-		err = queue.Execute(ctx, queuePayload)
+		err = queue.Execute(ctx, &queuePayload)
 		require.NoError(t, err)
 
 		// Verify unread count increased (generated column)
-		memberSub, err = subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
+		memberSub, err = subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), memberID)
 		require.NoError(t, err)
-		s.Equal(1, memberSub.UnreadCount)
+
+		evts, err = outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
+		require.NoError(t, err)
+
+		s.Equal(1, len(evts))
 	})
 }
 
@@ -266,7 +274,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		require.NoError(t, err)
 
 		// Get sender's subscription
-		senderSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), senderID)
+		senderSub, err := subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), senderID)
 		require.NoError(t, err)
 
 		// Send a message
@@ -290,13 +298,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
-		queuePayload := map[string]string{
-			"room_id":       room.GetId(),
-			"room_event_id": eventID,
-			"sender_id":     senderID,
+		queuePayload := eventsv1.EventLink{
+			EventId:  eventID,
+			RoomId:   room.GetId(),
+			SenderId: &senderID,
 		}
 
-		err = queue.Execute(ctx, queuePayload)
+		err = queue.Execute(ctx, &queuePayload)
 		require.NoError(t, err)
 
 		// Verify sender has no outbox entries (they sent the message)
@@ -305,9 +313,12 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 		s.Empty(pending, "Sender should not have outbox entries for their own messages")
 
 		// Verify sender's unread count is 0
-		senderSub, err = subRepo.GetByRoomAndProfile(ctx, room.GetId(), senderID)
+		senderSub, err = subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), senderID)
 		require.NoError(t, err)
-		s.Equal(0, senderSub.UnreadCount)
+
+		evts, err := outboxRepo.GetPendingBySubscription(ctx, senderSub.GetID(), 10000)
+		require.NoError(t, err)
+		s.Equal(0, len(evts))
 	})
 }
 
@@ -319,6 +330,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 		workMan := svc.WorkManager()
 		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+		outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -355,20 +367,22 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 			eventID := acks[0].GetEventId()
 
 			// Execute the outbox logging queue for each message
-			queuePayload := map[string]string{
-				"room_id":       room.GetId(),
-				"room_event_id": eventID,
-				"sender_id":     creatorID,
+			queuePayload := eventsv1.EventLink{
+				EventId:  eventID,
+				RoomId:   room.GetId(),
+				SenderId: &creatorID,
 			}
 
-			err = queue.Execute(ctx, queuePayload)
+			err = queue.Execute(ctx, &queuePayload)
 			require.NoError(t, err)
 		}
 
 		// Verify member's unread count is 5
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
+		memberSub, err := subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), memberID)
 		require.NoError(t, err)
-		s.Equal(5, memberSub.UnreadCount)
+
+		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
+		s.Equal(5, len(evts))
 	})
 }
 
@@ -396,7 +410,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		require.NoError(t, err)
 
 		// Deactivate member's subscription
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
+		memberSub, err := subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), memberID)
 		require.NoError(t, err)
 		err = subRepo.Deactivate(ctx, memberSub.GetID())
 		require.NoError(t, err)
@@ -422,13 +436,13 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
-		queuePayload := map[string]string{
-			"room_id":       room.GetId(),
-			"room_event_id": eventID,
-			"sender_id":     creatorID,
+		queuePayload := eventsv1.EventLink{
+			EventId:  eventID,
+			RoomId:   room.GetId(),
+			SenderId: &creatorID,
 		}
 
-		err = queue.Execute(ctx, queuePayload)
+		err = queue.Execute(ctx, &queuePayload)
 		require.NoError(t, err)
 
 		// Verify inactive member has no outbox entries
@@ -444,13 +458,15 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithMissingRoomID() {
 		queue := s.createQueue(ctx, svc)
 
 		// Execute with missing room_id
-		queuePayload := map[string]string{
-			"room_event_id": util.IDString(),
-			"sender_id":     util.IDString(),
+
+		sender := util.IDString()
+		queuePayload := eventsv1.EventLink{
+			EventId:  util.IDString(),
+			SenderId: &sender,
 		}
 
 		// Should handle gracefully (may return error or handle empty room_id)
-		_ = queue.Execute(ctx, queuePayload)
+		_ = queue.Execute(ctx, &queuePayload)
 		// Test passes if no panic occurs
 	})
 }
@@ -461,14 +477,16 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithNonExistentRoom() {
 		queue := s.createQueue(ctx, svc)
 
 		// Execute with non-existent room
-		queuePayload := map[string]string{
-			"room_id":       util.IDString(), // Non-existent
-			"room_event_id": util.IDString(),
-			"sender_id":     util.IDString(),
+
+		senderID := util.IDString()
+		queuePayload := eventsv1.EventLink{
+			EventId:  util.IDString(),
+			RoomId:   util.IDString(),
+			SenderId: &senderID,
 		}
 
 		// Should handle gracefully (no subscribers)
-		err := queue.Execute(ctx, queuePayload)
+		err := queue.Execute(ctx, &queuePayload)
 		// Should not error or should handle no subscribers gracefully
 		require.NoError(t, err)
 	})
@@ -482,6 +500,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 		workMan := svc.WorkManager()
 		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 		subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+		outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 		// Create room with member
 		creatorID := util.IDString()
@@ -523,20 +542,23 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 
 		// Execute queue for all messages
 		for _, eventID := range eventIDs {
-			queuePayload := map[string]string{
-				"room_id":       room.GetId(),
-				"room_event_id": eventID,
-				"sender_id":     creatorID,
+			queuePayload := eventsv1.EventLink{
+				EventId:   eventID,
+				RoomId:    room.GetId(),
+				SenderId:  &creatorID,
+				EventType: 0,
+				CreatedAt: nil,
 			}
-
-			err = queue.Execute(ctx, queuePayload)
+			err = queue.Execute(ctx, &queuePayload)
 			require.NoError(t, err)
 		}
 
 		// Verify member's unread count matches message count
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
+		memberSub, err := subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), memberID)
 		require.NoError(t, err)
-		s.Equal(messageCount, memberSub.UnreadCount)
+
+		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
+		s.Equal(messageCount, len(evts))
 	})
 }
 
@@ -583,18 +605,17 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 		require.NoError(t, err)
 		eventID := acks[0].GetEventId()
 
-		queuePayload := map[string]string{
-			"room_id":       room.GetId(),
-			"room_event_id": eventID,
-			"sender_id":     creatorID,
+		queuePayload := eventsv1.EventLink{
+			EventId:  eventID,
+			RoomId:   room.GetId(),
+			SenderId: &creatorID,
 		}
-
 		// Execute once
-		err = queue.Execute(ctx, queuePayload)
+		err = queue.Execute(ctx, &queuePayload)
 		require.NoError(t, err)
 
 		// Get member subscription
-		memberSub, err := subRepo.GetByRoomAndProfile(ctx, room.GetId(), memberID)
+		memberSub, err := subRepo.GetOneByRoomAndProfile(ctx, room.GetId(), memberID)
 		require.NoError(t, err)
 
 		// Count outbox entries
@@ -603,7 +624,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 		count1 := len(pending1)
 
 		// Execute again (simulating duplicate event)
-		err = queue.Execute(ctx, queuePayload)
+		err = queue.Execute(ctx, &queuePayload)
 		require.NoError(t, err)
 
 		// Count outbox entries again

@@ -31,7 +31,7 @@ func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			State:          models.RoomOutboxStateLogged,
+			OutboxState:    models.RoomOutboxStateLogged,
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
@@ -44,7 +44,7 @@ func (s *OutboxRepositoryTestSuite) TestCreateOutbox() {
 		require.NoError(t, err)
 		s.Equal(outbox.RoomID, retrieved.RoomID)
 		s.Equal(outbox.EventID, retrieved.EventID)
-		s.Equal(outbox.State, retrieved.State)
+		s.Equal(outbox.OutboxState, retrieved.OutboxState)
 	})
 }
 
@@ -62,7 +62,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 				RoomID:         roomID,
 				SubscriptionID: subscriptionID,
 				EventID:        util.IDString(),
-				State:          models.RoomOutboxStateLogged,
+				OutboxState:    models.RoomOutboxStateLogged,
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -73,7 +73,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 			RoomID:         roomID,
 			SubscriptionID: subscriptionID,
 			EventID:        util.IDString(),
-			State:          models.RoomOutboxStateSent,
+			OutboxState:    models.RoomOutboxStateSent,
 			RetryCount:     0,
 		}
 		sentOutbox.GenID(ctx)
@@ -84,7 +84,7 @@ func (s *OutboxRepositoryTestSuite) TestGetPendingBySubscription() {
 		s.Len(pending, 5)
 
 		for _, entry := range pending {
-			s.Equal(models.RoomOutboxStateLogged, entry.State)
+			s.Equal(models.RoomOutboxStateLogged, entry.OutboxState)
 		}
 	})
 }
@@ -102,7 +102,7 @@ func (s *OutboxRepositoryTestSuite) TestGetByRoomID() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				State:          models.RoomOutboxStateLogged,
+				OutboxState:    models.RoomOutboxStateLogged,
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -125,20 +125,20 @@ func (s *OutboxRepositoryTestSuite) TestUpdateStatus() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			State:          models.RoomOutboxStateLogged,
+			OutboxState:    models.RoomOutboxStateLogged,
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, outbox))
 
 		// Update via direct DB call since UpdateStatus exists but has type mismatch
-		outbox.State = models.RoomOutboxStateSent
+		outbox.OutboxState = models.RoomOutboxStateSent
 		_, err := repo.Update(ctx, outbox)
 		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
 		require.NoError(t, err)
-		s.Equal(models.RoomOutboxStateSent, retrieved.State)
+		s.Equal(models.RoomOutboxStateSent, retrieved.OutboxState)
 	})
 }
 
@@ -152,7 +152,7 @@ func (s *OutboxRepositoryTestSuite) TestIncrementRetryCount() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			State:          models.RoomOutboxStateLogged,
+			OutboxState:    models.RoomOutboxStateLogged,
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
@@ -182,14 +182,14 @@ func (s *OutboxRepositoryTestSuite) TestMarkAsFailed() {
 			RoomID:         util.IDString(),
 			SubscriptionID: util.IDString(),
 			EventID:        util.IDString(),
-			State:          models.RoomOutboxStateLogged,
+			OutboxState:    models.RoomOutboxStateLogged,
 			RetryCount:     0,
 		}
 		outbox.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, outbox))
 
 		errorMsg := "Connection timeout"
-		err := repo.UpdateStatusWithError(ctx, outbox.GetID(), repository.OutboxStatusFailed, errorMsg)
+		err := repo.UpdateStatusWithError(ctx, outbox.GetID(), models.RoomOutboxStateFailed, errorMsg)
 		require.NoError(t, err)
 
 		retrieved, err := repo.GetByID(ctx, outbox.GetID())
@@ -211,7 +211,7 @@ func (s *OutboxRepositoryTestSuite) TestDeleteOldEntries() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				State:          models.RoomOutboxStateSent,
+				OutboxState:    models.RoomOutboxStateSent,
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -237,7 +237,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				State:          models.RoomOutboxStateLogged,
+				OutboxState:    models.RoomOutboxStateLogged,
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -249,7 +249,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 				RoomID:         roomID,
 				SubscriptionID: util.IDString(),
 				EventID:        util.IDString(),
-				State:          models.RoomOutboxStateSent,
+				OutboxState:    models.RoomOutboxStateSent,
 				RetryCount:     0,
 			}
 			outbox.GenID(ctx)
@@ -261,7 +261,7 @@ func (s *OutboxRepositoryTestSuite) TestCountPendingByRoom() {
 
 		count := 0
 		for _, entry := range pendingEntries {
-			if entry.State == models.RoomOutboxStateLogged {
+			if entry.OutboxState == models.RoomOutboxStateLogged {
 				count++
 			}
 		}

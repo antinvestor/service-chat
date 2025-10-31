@@ -29,12 +29,11 @@ func (s *SubscriptionRepositoryTestSuite) TestCreateSubscription() {
 		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		sub := &models.RoomSubscription{
-			RoomID:               util.IDString(),
-			ProfileID:            util.IDString(),
-			Role:                 repository.RoleMember,
-			IsActive:             true,
-			NotificationsEnabled: true,
-			Properties:           data.JSONMap{"test": "data"},
+			RoomID:            util.IDString(),
+			ProfileID:         util.IDString(),
+			Role:              repository.RoleMember,
+			SubscriptionState: models.RoomSubscriptionStateActive,
+			Properties:        data.JSONMap{"test": "data"},
 		}
 		sub.GenID(ctx)
 
@@ -60,15 +59,15 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomAndProfile() {
 		profileID := util.IDString()
 
 		sub := &models.RoomSubscription{
-			RoomID:    roomID,
-			ProfileID: profileID,
-			Role:      repository.RoleAdmin,
-			IsActive:  true,
+			RoomID:            roomID,
+			ProfileID:         profileID,
+			Role:              repository.RoleAdmin,
+			SubscriptionState: models.RoomSubscriptionStateActive,
 		}
 		sub.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, sub))
 
-		retrieved, err := repo.GetByRoomAndProfile(ctx, roomID, profileID)
+		retrieved, err := repo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 		require.NoError(t, err)
 		s.Equal(sub.GetID(), retrieved.GetID())
 		s.Equal(repository.RoleAdmin, retrieved.Role)
@@ -85,21 +84,21 @@ func (s *SubscriptionRepositoryTestSuite) TestGetActiveByRoomAndProfile() {
 		profileID := util.IDString()
 
 		activeSub := &models.RoomSubscription{
-			RoomID:    roomID,
-			ProfileID: profileID,
-			Role:      repository.RoleMember,
-			IsActive:  true,
+			RoomID:            roomID,
+			ProfileID:         profileID,
+			Role:              repository.RoleMember,
+			SubscriptionState: models.RoomSubscriptionStateActive,
 		}
 		activeSub.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, activeSub))
 
-		retrieved, err := repo.GetActiveByRoomAndProfile(ctx, roomID, profileID)
+		retrieved, err := repo.GetOneByRoomProfileAndIsActive(ctx, roomID, profileID)
 		require.NoError(t, err)
 		s.Equal(activeSub.GetID(), retrieved.GetID())
 
 		require.NoError(t, repo.Deactivate(ctx, activeSub.GetID()))
 
-		_, err = repo.GetActiveByRoomAndProfile(ctx, roomID, profileID)
+		_, err = repo.GetOneByRoomProfileAndIsActive(ctx, roomID, profileID)
 		require.Error(t, err)
 	})
 }
@@ -113,11 +112,17 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
 		roomID := util.IDString()
 
 		for i := range 3 {
+
+			subState := models.RoomSubscriptionStateActive
+			if i >= 2 {
+				subState = models.RoomSubscriptionStateBlocked
+			}
+
 			sub := &models.RoomSubscription{
-				RoomID:    roomID,
-				ProfileID: util.IDString(),
-				Role:      repository.RoleMember,
-				IsActive:  i < 2,
+				RoomID:            roomID,
+				ProfileID:         util.IDString(),
+				Role:              repository.RoleMember,
+				SubscriptionState: subState,
 			}
 			sub.GenID(ctx)
 			require.NoError(t, repo.Create(ctx, sub))
@@ -143,10 +148,10 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
 
 		for range 3 {
 			sub := &models.RoomSubscription{
-				RoomID:    util.IDString(),
-				ProfileID: profileID,
-				Role:      repository.RoleMember,
-				IsActive:  true,
+				RoomID:            util.IDString(),
+				ProfileID:         profileID,
+				Role:              repository.RoleMember,
+				SubscriptionState: models.RoomSubscriptionStateActive,
 			}
 			sub.GenID(ctx)
 			require.NoError(t, repo.Create(ctx, sub))
@@ -165,10 +170,10 @@ func (s *SubscriptionRepositoryTestSuite) TestUpdateRole() {
 		repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
 
 		sub := &models.RoomSubscription{
-			RoomID:    util.IDString(),
-			ProfileID: util.IDString(),
-			Role:      repository.RoleMember,
-			IsActive:  true,
+			RoomID:            util.IDString(),
+			ProfileID:         util.IDString(),
+			Role:              repository.RoleMember,
+			SubscriptionState: models.RoomSubscriptionStateActive,
 		}
 		sub.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, sub))
@@ -193,19 +198,19 @@ func (s *SubscriptionRepositoryTestSuite) TestHasPermission() {
 		memberID := util.IDString()
 
 		adminSub := &models.RoomSubscription{
-			RoomID:    roomID,
-			ProfileID: adminID,
-			Role:      repository.RoleAdmin,
-			IsActive:  true,
+			RoomID:            roomID,
+			ProfileID:         adminID,
+			Role:              repository.RoleAdmin,
+			SubscriptionState: models.RoomSubscriptionStateActive,
 		}
 		adminSub.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, adminSub))
 
 		memberSub := &models.RoomSubscription{
-			RoomID:    roomID,
-			ProfileID: memberID,
-			Role:      repository.RoleMember,
-			IsActive:  true,
+			RoomID:            roomID,
+			ProfileID:         memberID,
+			Role:              repository.RoleMember,
+			SubscriptionState: models.RoomSubscriptionStateActive,
 		}
 		memberSub.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, memberSub))
@@ -229,11 +234,17 @@ func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
 		roomID := util.IDString()
 
 		for i := range 5 {
+
+			subState := models.RoomSubscriptionStateActive
+			if i >= 3 {
+				subState = models.RoomSubscriptionStateBlocked
+			}
+
 			sub := &models.RoomSubscription{
-				RoomID:    roomID,
-				ProfileID: util.IDString(),
-				Role:      repository.RoleMember,
-				IsActive:  i < 3,
+				RoomID:            roomID,
+				ProfileID:         util.IDString(),
+				Role:              repository.RoleMember,
+				SubscriptionState: subState,
 			}
 			sub.GenID(ctx)
 			require.NoError(t, repo.Create(ctx, sub))
@@ -256,10 +267,10 @@ func (s *SubscriptionRepositoryTestSuite) TestBulkCreate() {
 
 		for range 5 {
 			sub := &models.RoomSubscription{
-				RoomID:    roomID,
-				ProfileID: util.IDString(),
-				Role:      repository.RoleMember,
-				IsActive:  true,
+				RoomID:            roomID,
+				ProfileID:         util.IDString(),
+				Role:              repository.RoleMember,
+				SubscriptionState: models.RoomSubscriptionStateActive,
 			}
 			sub.GenID(ctx)
 			subs = append(subs, sub)

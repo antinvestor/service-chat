@@ -86,14 +86,19 @@ func (bs *BaseTestSuite) CreateService(
 		frame.WithConfig(&cfg),
 		frametests.WithNoopDriver())
 
-	// Initialize service with datastore
+	// Initialize service with datastore : pool.WithTraceConfig(&cfg)
 	svc.Init(ctx, frame.WithDatastore())
 
 	var serviceOptions []frame.Option
 
 	// Get pool and migrate
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-	err = repository.Migrate(ctx, dbPool, "../../migrations/0001")
+
+	migrationPool := pool.NewPool(ctx)
+	err = migrationPool.AddConnection(ctx, pool.WithConnection(testDS.String(), false), pool.WithPreparedStatements(false))
+	require.NoError(t, err)
+
+	err = repository.Migrate(ctx, migrationPool, "../../migrations/0001")
 	require.NoError(t, err)
 
 	EventDeliveryQueuePublisher := frame.WithRegisterPublisher(

@@ -19,6 +19,7 @@ import (
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
 	"github.com/pitabwire/frame/security"
 	securityconnect "github.com/pitabwire/frame/security/interceptors/connect"
 	"github.com/pitabwire/frame/security/openid"
@@ -117,7 +118,7 @@ func handleDatabaseMigration(
 	cfg aconfig.ChatConfig,
 	log *util.LogEntry,
 ) bool {
-	serviceOptions := []frame.Option{frame.WithDatastore()}
+	serviceOptions := []frame.Option{frame.WithDatastore(pool.WithPreparedStatements(false))}
 
 	if !cfg.DoDatabaseMigrate() {
 		return false
