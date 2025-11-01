@@ -18,8 +18,6 @@ type Room struct {
 	Description string `json:"description"`
 	Properties  data.JSONMap
 	IsPublic    bool
-
-	Searchable string `gorm:"->;type:tsvector;-:migration"` // read-only in GORM
 }
 
 // ToAPI converts Room model to API representation.

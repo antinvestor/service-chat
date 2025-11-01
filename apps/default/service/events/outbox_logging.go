@@ -7,9 +7,9 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
-	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore/pool"
+	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 )
@@ -17,22 +17,22 @@ import (
 const RoomOutboxLoggingEventName = "room.outbox.logging.event"
 
 type RoomOutboxLoggingQueue struct {
-	svc              *frame.Service
+	evtsManager      frevents.Manager
 	subscriptionRepo repository.RoomSubscriptionRepository
 	outboxRepo       repository.RoomOutboxRepository
 }
 
 func NewRoomOutboxLoggingQueue(
 	ctx context.Context,
-	svc *frame.Service,
 	dbPool pool.Pool,
 	workMan workerpool.Manager,
+	evtsManager frevents.Manager,
 ) *RoomOutboxLoggingQueue {
 
 	return &RoomOutboxLoggingQueue{
-		svc:              svc,
 		subscriptionRepo: repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan),
 		outboxRepo:       repository.NewRoomOutboxRepository(ctx, dbPool, workMan),
+		evtsManager:      evtsManager,
 	}
 }
 
@@ -115,7 +115,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 			Priority: 0,
 		}
 
-		err = csq.svc.Emit(ctx, RoomOutboxDeliveryEventName, &eventBroadcast)
+		err = csq.evtsManager.Emit(ctx, RoomOutboxDeliveryEventName, &eventBroadcast)
 		if err != nil {
 			logger.WithError(err).Error(" failed to publish event broadcast")
 			return nil

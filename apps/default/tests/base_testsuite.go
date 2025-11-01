@@ -115,12 +115,13 @@ func (bs *BaseTestSuite) CreateService(
 	// Get publisher for event handlers
 	deliveryPublisher, _ := svc.QueueManager(ctx).GetPublisher(cfg.QueueUserEventDeliveryName)
 	workMan := svc.WorkManager()
+	eventsMan := svc.EventsManager(ctx)
 
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
 		EventDeliveryQueuePublisher, EventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
-			events.NewRoomOutboxLoggingQueue(ctx, svc, dbPool, workMan),
+			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
 			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),
 		))
 

@@ -188,8 +188,8 @@ github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJw
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
 github.com/panjf2000/ants/v2 v2.11.3 h1:AfI0ngBoXJmYOpDh9m516vjqoUu2sLrIVgppI9TZVpg=
 github.com/panjf2000/ants/v2 v2.11.3/go.mod h1:8u92CYMUc6gyvTIw8Ru7Mt7+/ESnJahz5EVtqfrilek=
-github.com/pitabwire/frame v1.64.5 h1:oWP9An+lEtS8h2YJxZGlGR4j7vSKjtuVsr8VEl905fk=
-github.com/pitabwire/frame v1.64.5/go.mod h1:krIucUEJ6eH5iSpsenfpgKSOoBz7nSumrIVS7hZCXiE=
+github.com/pitabwire/frame v1.64.8 h1:f4R/P+RNdJFAwXeU1iY26zNOuWyr/m7In9vdLUxaDHs=
+github.com/pitabwire/frame v1.64.8/go.mod h1:krIucUEJ6eH5iSpsenfpgKSOoBz7nSumrIVS7hZCXiE=
 github.com/pitabwire/natspubsub v0.7.3 h1:0wznBBXiRhcHlW1FWexXS/8Tv2f24C1K+6JuorxkJgo=
 github.com/pitabwire/natspubsub v0.7.3/go.mod h1:Nyo8Jwu0bxFj3yK5q/+UpmPGcJS/9rq25l0542QiBKE=
 github.com/pitabwire/util v0.3.5 h1:+0edmrGEyLaC/Q4+9i1auPxpygd1N1Q/r0Gj5rlLkaU=

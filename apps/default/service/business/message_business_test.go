@@ -31,6 +31,7 @@ func (s *MessageBusinessTestSuite) setupBusinessLayer(
 ) (business.MessageBusiness, business.RoomBusiness) {
 
 	workMan := svc.WorkManager()
+	evtsMan := svc.EventsManager(ctx)
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
@@ -39,7 +40,7 @@ func (s *MessageBusinessTestSuite) setupBusinessLayer(
 	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
-	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
+	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, outboxRepo, subRepo, subscriptionSvc)
 	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
 
 	return messageBusiness, roomBusiness

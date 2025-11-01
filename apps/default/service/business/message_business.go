@@ -11,31 +11,32 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
-	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
+	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type messageBusiness struct {
-	service         *frame.Service
 	eventRepo       repository.RoomEventRepository
 	outboxRepo      repository.RoomOutboxRepository
 	subRepo         repository.RoomSubscriptionRepository
 	subscriptionSvc SubscriptionService
+	evtsManager     frevents.Manager
 }
 
 // NewMessageBusiness creates a new instance of MessageBusiness.
 func NewMessageBusiness(
-	service *frame.Service,
+	evtsManager frevents.Manager,
 	eventRepo repository.RoomEventRepository,
 	outboxRepo repository.RoomOutboxRepository,
 	subRepo repository.RoomSubscriptionRepository,
 	subscriptionSvc SubscriptionService,
 ) MessageBusiness {
 	return &messageBusiness{
-		service:         service,
+
+		evtsManager:     evtsManager,
 		eventRepo:       eventRepo,
 		outboxRepo:      outboxRepo,
 		subRepo:         subRepo,
@@ -168,7 +169,7 @@ func (mb *messageBusiness) SendEvents(
 			CreatedAt: timestamppb.New(event.CreatedAt),
 		}
 
-		emitErr := mb.service.Emit(ctx, events.RoomOutboxLoggingEventName, &outboxEventLink)
+		emitErr := mb.evtsManager.Emit(ctx, events.RoomOutboxLoggingEventName, &outboxEventLink)
 		if emitErr != nil {
 			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to emit event: %v", emitErr)})
 			responses[responseIdx] = &chatv1.StreamAck{

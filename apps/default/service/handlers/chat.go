@@ -47,6 +47,7 @@ func NewChatServer(
 	profileCli *profilev1.ProfileClient,
 ) *ChatServer {
 	workMan := service.WorkManager()
+	evtsMan := service.EventsManager(ctx)
 	dbPool := service.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
@@ -56,7 +57,7 @@ func NewChatServer(
 
 	// Initialize business layers
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
-	messageBusiness := business.NewMessageBusiness(service, eventRepo, outboxRepo, subRepo, subscriptionSvc)
+	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, outboxRepo, subRepo, subscriptionSvc)
 	connectBusiness := business.NewConnectBusiness(service, subRepo, eventRepo, subscriptionSvc)
 	roomBusiness := business.NewRoomBusiness(service, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
 

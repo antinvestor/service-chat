@@ -66,13 +66,11 @@ func main() {
 	}
 
 	// Setup Connect server
-	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, cfg, serviceName, log)
+	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli)
 
-	// Setup HTTP handlers and proxy
-	serviceOptions, err := setupServiceOptions(ctx, connectHandler)
-	if err != nil {
-		log.WithError(err).Fatal("could not setup HTTP handlers")
-	}
+	// Setup HTTP handlers
+	// Start with datastore option
+	serviceOptions := []frame.Option{frame.WithDatastore(), frame.WithHTTPHandler(connectHandler)}
 
 	EventDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueUserEventDeliveryName,
@@ -87,13 +85,14 @@ func main() {
 	// Get publisher for event handlers
 	deliveryPublisher, _ := svc.QueueManager(ctx).GetPublisher(cfg.QueueUserEventDeliveryName)
 	workMan := svc.WorkManager()
+	eventsMan := svc.EventsManager(ctx)
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
 		EventDeliveryQueuePublisher, EventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
-			events.NewRoomOutboxLoggingQueue(ctx, svc, dbPool, workMan),
+			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
 			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),
 		))
 
@@ -180,21 +179,18 @@ func setupDeviceClient(
 // setupConnectServer initializes and configures the gRPC server.
 func setupConnectServer(ctx context.Context, svc *frame.Service,
 	notificationCli *notificationv1.NotificationClient,
-	profileCli *profilev1.ProfileClient,
-	cfg aconfig.ChatConfig,
-	serviceName string,
-	log *util.LogEntry) http.Handler {
+	profileCli *profilev1.ProfileClient) http.Handler {
 
 	securityMan := svc.SecurityManager()
 
 	otelInterceptor, err := otelconnect.NewInterceptor()
 	if err != nil {
-		log.WithError(err).Fatal("could not configure open telemetry")
+		util.Log(ctx).WithError(err).Fatal("could not configure open telemetry")
 	}
 
 	validateInterceptor, err := securityconnect.NewValidationInterceptor()
 	if err != nil {
-		log.WithError(err).Fatal("could not configure validation interceptor")
+		util.Log(ctx).WithError(err).Fatal("could not configure validation interceptor")
 	}
 
 	authInterceptor := securityconnect.NewAuthInterceptor(securityMan.GetAuthenticator(ctx))
@@ -205,17 +201,4 @@ func setupConnectServer(ctx context.Context, svc *frame.Service,
 		implementation, connect.WithInterceptors(authInterceptor, otelInterceptor, validateInterceptor))
 
 	return serverHandler
-}
-
-// setupServiceOptions configures HTTP handlers and proxy.
-func setupServiceOptions(
-	_ context.Context,
-	serverHandler http.Handler,
-) ([]frame.Option, error) {
-	// Start with datastore option
-	serviceOptions := []frame.Option{frame.WithDatastore()}
-
-	serviceOptions = append(serviceOptions, frame.WithHTTPHandler(serverHandler))
-
-	return serviceOptions, nil
 }

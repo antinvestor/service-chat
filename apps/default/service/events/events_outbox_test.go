@@ -32,6 +32,7 @@ func (s *OutboxEventTestSuite) setupBusinessLayer(
 ) (business.RoomBusiness, business.MessageBusiness) {
 
 	workMan := svc.WorkManager()
+	evtsMan := svc.EventsManager(ctx)
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
@@ -40,7 +41,7 @@ func (s *OutboxEventTestSuite) setupBusinessLayer(
 	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
-	messageBusiness := business.NewMessageBusiness(svc, eventRepo, outboxRepo, subRepo, subscriptionSvc)
+	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, outboxRepo, subRepo, subscriptionSvc)
 	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
 
 	return roomBusiness, messageBusiness
@@ -48,8 +49,9 @@ func (s *OutboxEventTestSuite) setupBusinessLayer(
 
 func (s *OutboxEventTestSuite) createQueue(ctx context.Context, svc *frame.Service) *events.RoomOutboxLoggingQueue {
 	workMan := svc.WorkManager()
+	eventsMan := svc.EventsManager(ctx)
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-	return events.NewRoomOutboxLoggingQueue(ctx, svc, dbPool, workMan)
+	return events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan)
 }
 
 func (s *OutboxEventTestSuite) TestOutboxLoggingQueueName() {
