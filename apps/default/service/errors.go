@@ -12,7 +12,7 @@ var (
 	ErrItemExist          = connect.NewError(connect.CodeAlreadyExists, errors.New("specified item already exists"))
 	ErrItemDoesNotExist   = connect.NewError(connect.CodeNotFound, errors.New("specified item does not exist"))
 
-	// Room errors.
+	// ErrRoomNameRequired is returned when room name is not provided.
 	ErrRoomNameRequired    = connect.NewError(connect.CodeInvalidArgument, errors.New("room name is required"))
 	ErrRoomIDRequired      = connect.NewError(connect.CodeInvalidArgument, errors.New("room ID is required"))
 	ErrRoomMembersRequired = connect.NewError(
@@ -46,7 +46,7 @@ var (
 	)
 	ErrRoomMemberNotFound = connect.NewError(connect.CodeNotFound, errors.New("member not found in room"))
 
-	// Message errors.
+	// ErrMessageRoomIDRequired is returned when message room ID is not provided.
 	ErrMessageRoomIDRequired  = connect.NewError(connect.CodeInvalidArgument, errors.New("room ID is required"))
 	ErrMessageContentRequired = connect.NewError(connect.CodeInvalidArgument, errors.New("message content is required"))
 	ErrMessageNotFound        = connect.NewError(connect.CodeNotFound, errors.New("message not found"))
@@ -63,7 +63,7 @@ var (
 		errors.New("you don't have permission to send messages to this room"),
 	)
 
-	// Subscription errors.
+	// ErrProfileIDsRequired is returned when profile IDs are not provided.
 	ErrProfileIDsRequired = connect.NewError(
 		connect.CodeInvalidArgument,
 		errors.New("at least one profile ID is required"),

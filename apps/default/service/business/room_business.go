@@ -267,11 +267,9 @@ func (rb *roomBusiness) AddRoomSubscriptions(
 	}
 
 	// Extract profile IDs and roles from members
-	var profileIDs []string
 	roleMap := make(map[string]string)
 
 	for _, member := range req.GetMembers() {
-		profileIDs = append(profileIDs, member.GetProfileId())
 		// Use first role or default to "member"
 		role := "member"
 		if len(member.GetRoles()) > 0 {

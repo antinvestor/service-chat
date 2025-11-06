@@ -45,7 +45,7 @@ func NewChatServer(
 	ctx context.Context,
 	service *frame.Service,
 	notificationCli notificationv1connect.NotificationServiceClient,
-	profileCli profilev1connect.ProfileServiceClient) *ChatServer {
+	_ profilev1connect.ProfileServiceClient) *ChatServer {
 	workMan := service.WorkManager()
 	evtsMan := service.EventsManager()
 	dbPool := service.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
@@ -126,7 +126,7 @@ func (ps *ChatServer) withTimeout(ctx context.Context, timeout time.Duration) (c
 
 func (ps *ChatServer) Connect(
 	ctx context.Context,
-	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent],
+	_ *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent],
 ) error {
 	// Validate authentication
 	profileID, err := ps.validateAuthentication(ctx)
@@ -518,17 +518,17 @@ func (ps *ChatServer) UpdateClientState(
 	}
 
 	// Process each client state
-	var errors []string
+	var errorList []string
 
 	for i, clientState := range req.Msg.GetClientStates() {
 		if clientState == nil {
-			errors = append(errors, fmt.Sprintf("client state at index %d is nil", i))
+			errorList = append(errorList, fmt.Sprintf("client state at index %d is nil", i))
 			continue
 		}
 
 		// Validate and process the client state
 		if err := ps.processClientState(ctx, clientState, profileID, req.Msg.GetRoomId()); err != nil {
-			errors = append(errors, fmt.Sprintf("client state at index %d: %v", i, err))
+			errorList = append(errorList, fmt.Sprintf("client state at index %d: %v", i, err))
 			continue
 		}
 	}
@@ -536,11 +536,11 @@ func (ps *ChatServer) UpdateClientState(
 	// Prepare response
 	response := &chatv1.UpdateClientStateResponse{}
 
-	// If there were errors, return first error
-	if len(errors) > 0 {
+	// If there were errorList, return first error
+	if len(errorList) > 0 {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			fmt.Errorf("failed to process client states: %s", errors[0]),
+			fmt.Errorf("failed to process client states: %s", errorList[0]),
 		)
 	}
 
@@ -548,19 +548,6 @@ func (ps *ChatServer) UpdateClientState(
 }
 
 // Helper methods
-
-// bidiStreamWrapper wraps connect.BidiStream to implement business.ConnectionStream.
-type bidiStreamWrapper struct {
-	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent]
-}
-
-func (w *bidiStreamWrapper) Receive() (*chatv1.ConnectRequest, error) {
-	return w.stream.Receive()
-}
-
-func (w *bidiStreamWrapper) Send(event *chatv1.ServerEvent) error {
-	return w.stream.Send(event)
-}
 
 // processClientState handles individual client state processing with comprehensive validation.
 func (ps *ChatServer) processClientState(
@@ -726,7 +713,7 @@ func (ps *ChatServer) processPresenceState(
 	ctx context.Context,
 	presence *chatv1.PresenceEvent,
 	profileID string,
-	roomID string,
+	_ string,
 ) error {
 	if presence == nil {
 		return errors.New("presence event cannot be nil")
