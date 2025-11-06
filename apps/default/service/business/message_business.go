@@ -44,6 +44,7 @@ func NewMessageBusiness(
 	}
 }
 
+//nolint:gocognit,funlen // Complex event validation and processing logic required for message delivery
 func (mb *messageBusiness) SendEvents(
 	ctx context.Context,
 	req *chatv1.SendEventRequest,

@@ -133,6 +133,7 @@ const (
 	maxInt32 = 2147483647
 )
 
+//nolint:gochecknoglobals // Global pool for efficient channel reuse across connections
 var (
 	// errorChanPool provides efficient reuse of error channels via sync.Pool.
 	// This reduces allocations in the hot path where connections are frequently
@@ -168,31 +169,37 @@ var (
 	//
 	// These metrics are exported to your OpenTelemetry collector and can be
 	// visualized in Prometheus, Grafana, Datadog, or other OTLP-compatible platforms.
+	//nolint:gochecknoglobals // OpenTelemetry metrics must be global for instrumentation
 	connectionsActiveGauge = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connections.active",
 		"Current number of active connections",
 	)
+	//nolint:gochecknoglobals // OpenTelemetry metrics must be global for instrumentation
 	connectionsTotalCounter = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connections.total",
 		"Total connection attempts",
 	)
+	//nolint:gochecknoglobals // OpenTelemetry metrics must be global for instrumentation
 	connectionsFailedCounter = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connections.failed",
 		"Failed connection attempts",
 	)
+	//nolint:gochecknoglobals // OpenTelemetry metrics must be global for instrumentation
 	connectionsDisconnectedCounter = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connections.disconnected",
 		"Total disconnections",
 	)
+	//nolint:gochecknoglobals // OpenTelemetry metrics must be global for instrumentation
 	connectionsCleanedCounter = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connections.cleaned",
 		"Stale connections cleaned",
 	)
+	//nolint:gochecknoglobals // OpenTelemetry metrics must be global for instrumentation
 	connectionDurationHistogram = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connection.duration",
@@ -408,6 +415,7 @@ func NewConnectionManager(
 	if poolSize > maxInt32 { // Max int32
 		poolSize = maxInt32
 	}
+	//nolint:gosec // Overflow checked above
 	poolSizeInt32 := int32(poolSize) // Support 1000 devices by default
 	if poolSizeInt32 < minPoolSize {
 		poolSizeInt32 = 10000 // Minimum pool size for small deployments
@@ -495,6 +503,8 @@ func (cm *connectionManager) startBackgroundTasks(ctx context.Context) {
 //	if err != nil {
 //	    log.Error("Connection failed", "error", err)
 //	}
+//
+//nolint:funlen // Connection lifecycle management requires coordination of multiple goroutines and cleanup
 func (cm *connectionManager) HandleConnection(
 	ctx context.Context,
 	profileID string,

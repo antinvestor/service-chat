@@ -73,6 +73,8 @@ func (cm *connectionManager) processAcknowledgement(
 
 // processStateUpdate handles specific device commands.
 // Commands include typing indicators, read markers, and room events (messages).
+//
+//nolint:gocognit,funlen // Comprehensive validation for all client state types prevents spoofing attacks
 func (cm *connectionManager) processStateUpdate(
 	ctx context.Context,
 	conn *Connection,
