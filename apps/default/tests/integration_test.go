@@ -1,4 +1,4 @@
-package tests
+package tests_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
@@ -17,7 +18,7 @@ import (
 )
 
 type IntegrationTestSuite struct {
-	BaseTestSuite
+	tests.BaseTestSuite
 }
 
 func TestIntegrationTestSuite(t *testing.T) {
@@ -90,8 +91,8 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 				},
 			}
 
-			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			require.NoError(t, err)
+			acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			require.NoError(t, sendErr)
 			s.Len(acks, 1)
 		}
 

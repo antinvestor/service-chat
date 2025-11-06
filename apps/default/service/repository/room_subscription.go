@@ -16,6 +16,12 @@ const (
 	RoleAdmin  = "admin"
 	RoleMember = "member"
 	RoleGuest  = "guest"
+
+	// Role hierarchy levels (highest to lowest).
+	roleOwnerLevel  = 4
+	roleAdminLevel  = 3
+	roleMemberLevel = 2
+	roleGuestLevel  = 1
 )
 
 type roomSubscriptionRepository struct {
@@ -188,10 +194,10 @@ func (rsr *roomSubscriptionRepository) HasPermission(
 
 	// Role hierarchy: owner > admin > member > guest
 	roleHierarchy := map[string]int{
-		RoleOwner:  4,
-		RoleAdmin:  3,
-		RoleMember: 2,
-		RoleGuest:  1,
+		RoleOwner:  roleOwnerLevel,
+		RoleAdmin:  roleAdminLevel,
+		RoleMember: roleMemberLevel,
+		RoleGuest:  roleGuestLevel,
 	}
 
 	userRoleLevel := roleHierarchy[subscription.Role]

@@ -1,34 +1,52 @@
+# ---------- Builder ----------
 FROM golang:1.25 AS builder
 
-# Set working directory
 WORKDIR /app
 
+# Inject version info from build args
+ARG VERSION=dev
+ARG REVISION=none
+ARG BUILDTIME
+ARG TARGETOS
+ARG TARGETARCH
+
+# Cache dependencies first
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy project files
+# Copy the actual source
 COPY ./apps/gateway ./apps/gateway
-COPY ./internal ./internal
+COPY ./proto ./proto
 
-# Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
-    -ldflags '-extldflags "-static"' -o binary ./apps/gateway/cmd/main.go
+# Build static binary for target platform
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w \
+        -X main.version=${VERSION} \
+        -X main.commit=${REVISION} \
+        -X main.date=${BUILDTIME}" \
+    -o /gateway ./apps/gateway/cmd/main.go
 
-# Final minimal image
-FROM gcr.io/distroless/static:nonroot
+# ---------- Final ----------
+FROM cgr.dev/chainguard/static:latest
 
-# Copy from builder stage
-COPY --from=builder /app/binary /gateway
+# Copy binary from builder
+COPY --from=builder /gateway /gateway
 
-# Run as non-root user
-USER 65532:65532
+# Use non-root user
+USER nonroot:nonroot
 
-# Document ports
-EXPOSE 80
-EXPOSE 50051
+# Expose your app ports
+EXPOSE 80 50051
 
-# Set working directory
-WORKDIR /
+# Add OCI metadata labels
+ARG VERSION
+ARG REVISION
+ARG BUILDTIME
+LABEL org.opencontainers.image.title="Gateway Service"
+LABEL org.opencontainers.image.version=$VERSION
+LABEL org.opencontainers.image.revision=$REVISION
+LABEL org.opencontainers.image.created=$BUILDTIME
+LABEL org.opencontainers.image.source="https://github.com/antinvestor/service-chat"
 
-# Run the binary
+# Set entrypoint
 ENTRYPOINT ["/gateway"]

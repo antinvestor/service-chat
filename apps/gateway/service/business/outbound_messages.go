@@ -44,11 +44,11 @@ func (cm *connectionManager) handleOutboundRequests(
 }
 
 func toEventDelivery(req *pubsub.Message) (*eventsv1.EventDelivery, error) {
-	EventDelivery := &eventsv1.EventDelivery{}
-	err := proto.Unmarshal(req.Body, EventDelivery)
+	eventDelivery := &eventsv1.EventDelivery{}
+	err := proto.Unmarshal(req.Body, eventDelivery)
 	if err != nil {
 		return nil, err
 	}
 
-	return EventDelivery, nil
+	return eventDelivery, nil
 }

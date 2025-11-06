@@ -131,14 +131,21 @@ func (ss *subscriptionService) GetSubscribedRoomIDs(ctx context.Context, profile
 	return roomIDs, nil
 }
 
+const (
+	roleOwnerLevel  = 3
+	roleAdminLevel  = 2
+	roleMemberLevel = 1
+	roleGuestLevel  = 0
+)
+
 // hasMinimumRole checks if the user's role meets or exceeds the required role.
 func hasMinimumRole(userRole, requiredRole string) bool {
 	// Define role hierarchy (highest to lowest)
 	roleHierarchy := map[string]int{
-		"owner":  3,
-		"admin":  2,
-		"member": 1,
-		"guest":  0,
+		"owner":  roleOwnerLevel,
+		"admin":  roleAdminLevel,
+		"member": roleMemberLevel,
+		"guest":  roleGuestLevel,
 	}
 
 	// Default to lowest privilege if role is unknown

@@ -27,6 +27,11 @@ import (
 const (
 	// MaxBatchSize defines the maximum number of items to process in a single batch.
 	MaxBatchSize = 50
+
+	// Default timeout constants.
+	defaultTimeout     = 30 * time.Second
+	sendEventsTimeout  = 10 * time.Second
+	updateStateTimeout = 15 * time.Second
 )
 
 type ChatServer struct {
@@ -116,7 +121,7 @@ func (ps *ChatServer) validateAuthentication(ctx context.Context) (string, error
 // withTimeout creates a context with timeout for resource efficiency.
 func (ps *ChatServer) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
-		timeout = 30 * time.Second // Default timeout
+		timeout = defaultTimeout
 	}
 	return context.WithTimeout(ctx, timeout)
 }
@@ -195,7 +200,7 @@ func (ps *ChatServer) SendEvent(
 	}
 
 	// Create timeout context for the operation
-	timeoutCtx, cancel := ps.withTimeout(ctx, 10*time.Second)
+	timeoutCtx, cancel := ps.withTimeout(ctx, sendEventsTimeout)
 	defer cancel()
 
 	// Send the events
@@ -254,7 +259,7 @@ func (ps *ChatServer) GetHistory(
 	req.Msg.Limit = limit
 
 	// Create timeout context for the operation
-	timeoutCtx, cancel := ps.withTimeout(ctx, 15*time.Second)
+	timeoutCtx, cancel := ps.withTimeout(ctx, updateStateTimeout)
 	defer cancel()
 
 	events, err := ps.MessageBusiness.GetHistory(timeoutCtx, req.Msg, profileID)

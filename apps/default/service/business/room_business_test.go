@@ -26,7 +26,7 @@ func TestRoomBusinessTestSuite(t *testing.T) {
 
 func (s *RoomBusinessTestSuite) setupBusinessLayer(
 	ctx context.Context, svc *frame.Service,
-) (business.RoomBusiness, business.MessageBusiness) {
+) business.RoomBusiness {
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
@@ -40,13 +40,13 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, outboxRepo, subRepo, subscriptionSvc)
 	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
 
-	return roomBusiness, messageBusiness
+	return roomBusiness
 }
 
 func (s *RoomBusinessTestSuite) TestCreateRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -68,7 +68,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		req := &chatv1.CreateRoomRequest{
 			Name: "",
@@ -82,7 +82,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithoutName() {
 func (s *RoomBusinessTestSuite) TestGetRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -104,7 +104,7 @@ func (s *RoomBusinessTestSuite) TestGetRoom() {
 func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		otherUserID := util.IDString()
@@ -126,7 +126,7 @@ func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -154,7 +154,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		memberID := util.IDString()
@@ -182,7 +182,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
@@ -210,7 +210,7 @@ func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		newMemberID := util.IDString()
@@ -251,7 +251,7 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		memberID := util.IDString()
@@ -284,7 +284,7 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
 		memberID := util.IDString()
@@ -323,7 +323,7 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 func (s *RoomBusinessTestSuite) TestSearchRooms() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		roomBusiness, _ := s.setupBusinessLayer(ctx, svc)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
 

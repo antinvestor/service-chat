@@ -170,8 +170,8 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 		outboxCount := 0
 		for _, sub := range subs {
 			if sub.ProfileID != creatorID {
-				pending, err := outboxRepo.GetPendingBySubscription(ctx, sub.GetID(), 10)
-				require.NoError(t, err)
+				pending, pendingErr := outboxRepo.GetPendingBySubscription(ctx, sub.GetID(), 10)
+				require.NoError(t, pendingErr)
 				outboxCount += len(pending)
 			}
 		}
@@ -210,6 +210,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 
 		// Initial unread count should be 0
 		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
+		require.NoError(t, err)
 		s.Empty(evts)
 
 		// Send a message
@@ -228,8 +229,8 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-		require.NoError(t, err)
+		acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+		require.NoError(t, sendErr)
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
@@ -294,8 +295,8 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, senderID)
-		require.NoError(t, err)
+		acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, senderID)
+		require.NoError(t, sendErr)
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
@@ -363,8 +364,8 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 				},
 			}
 
-			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			require.NoError(t, err)
+			acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			require.NoError(t, sendErr)
 			eventID := acks[0].GetEventId()
 
 			// Execute the outbox logging queue for each message
@@ -383,6 +384,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 		require.NoError(t, err)
 
 		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
+		require.NoError(t, err)
 		s.Len(evts, 5)
 	})
 }
@@ -432,8 +434,8 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-		require.NoError(t, err)
+		acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+		require.NoError(t, sendErr)
 		eventID := acks[0].GetEventId()
 
 		// Execute the outbox logging queue
@@ -536,8 +538,8 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 				},
 			}
 
-			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			require.NoError(t, err)
+			acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			require.NoError(t, sendErr)
 			eventIDs[i] = acks[0].GetEventId()
 		}
 
@@ -559,6 +561,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 		require.NoError(t, err)
 
 		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
+		require.NoError(t, err)
 		s.Len(evts, messageCount)
 	})
 }

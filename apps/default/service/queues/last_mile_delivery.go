@@ -20,6 +20,8 @@ const (
 	HeaderPriority  = "priority"
 	HeaderProfileID = "profile_id"
 	HeaderDeviceID  = "device_id"
+	// DeviceSearchPageSize defines the number of devices to fetch per page when searching.
+	DeviceSearchPageSize = 100
 )
 
 type EventDeliveryQueueHandler struct {
@@ -39,17 +41,17 @@ func NewEventDeliveryQueueHandler(
 }
 
 func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
-	EventDelivery := &eventsv1.EventDelivery{}
-	err := proto.Unmarshal(payload, EventDelivery)
+	eventDelivery := &eventsv1.EventDelivery{}
+	err := proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
 		return err
 	}
 
 	response, err := dq.deviceCli.Search(ctx, connect.NewRequest(&devicev1.SearchRequest{
-		Query: EventDelivery.GetTarget().GetRecepientId(),
+		Query: eventDelivery.GetTarget().GetRecepientId(),
 		Page:  0,
-		Count: 100,
+		Count: DeviceSearchPageSize,
 	}))
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to query user devices")
@@ -58,7 +60,7 @@ func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]st
 
 	for response.Receive() {
 		resp := response.Msg()
-		dq.deliverMessageToDevice(ctx, EventDelivery, resp.GetData())
+		dq.deliverMessageToDevice(ctx, eventDelivery, resp.GetData())
 	}
 
 	if deviceErr := response.Err(); deviceErr != nil {
@@ -91,12 +93,8 @@ func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
 	}
 }
 
-func (dq *EventDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *devicev1.DeviceObject) bool {
-	status := dev.GetPresence()
-	if devicev1.PresenceStatus_OFFLINE == status {
-		return false
-	}
-	return true
+func (dq *EventDeliveryQueueHandler) deviceIsOnline(_ context.Context, dev *devicev1.DeviceObject) bool {
+	return dev.GetPresence() != devicev1.PresenceStatus_OFFLINE
 }
 
 func (dq *EventDeliveryQueueHandler) publishToDevice(

@@ -187,8 +187,8 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 				},
 			}
 
-			_, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			require.NoError(t, err)
+			_, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			require.NoError(t, sendErr)
 		}
 
 		// Get history
@@ -394,8 +394,8 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 				},
 			}
 
-			acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
-			require.NoError(t, err)
+			acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			require.NoError(t, sendErr)
 			s.Len(acks, 1)
 			s.NotEmpty(acks[0].GetEventId())
 		}

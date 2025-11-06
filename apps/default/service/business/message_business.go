@@ -330,8 +330,8 @@ func (mb *messageBusiness) MarkMessagesAsRead(
 	sub.LastReadEventID = eventID
 	sub.LastReadAt = time.Now().Unix()
 
-	if _, err := mb.subRepo.Update(ctx, sub); err != nil {
-		return fmt.Errorf("failed to update subscription: %w", err)
+	if _, updateErr := mb.subRepo.Update(ctx, sub); updateErr != nil {
+		return fmt.Errorf("failed to update subscription: %w", updateErr)
 	}
 
 	return nil

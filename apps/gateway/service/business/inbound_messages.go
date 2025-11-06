@@ -11,6 +11,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const (
+	// clientStateTimeout is the timeout for updating client state.
+	clientStateTimeout = 5 * time.Second
+)
+
 // handleInboundRequests processes commands from edge devices.
 // This is the main entry point for all client-originated messages.
 func (cm *connectionManager) handleInboundRequests(
@@ -208,7 +213,7 @@ func (cm *connectionManager) processStateUpdate(
 	}
 
 	// Forward to chat service for processing and distribution
-	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	reqCtx, cancel := context.WithTimeout(ctx, clientStateTimeout)
 	defer cancel()
 
 	updateReq := &chatv1.UpdateClientStateRequest{

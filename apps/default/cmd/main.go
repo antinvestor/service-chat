@@ -78,11 +78,11 @@ func main() {
 	// Start with datastore option
 	serviceOptions := []frame.Option{frame.WithDatastore(), frame.WithHTTPHandler(connectHandler)}
 
-	EventDeliveryQueuePublisher := frame.WithRegisterPublisher(
+	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueUserEventDeliveryName,
 		cfg.QueueUserEventDeliveryURI,
 	)
-	EventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
+	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueUserEventDeliveryName,
 		cfg.QueueUserEventDeliveryURI,
 		queues.NewEventDeliveryQueueHandler(svc, deviceCli),
@@ -96,7 +96,7 @@ func main() {
 
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
-		EventDeliveryQueuePublisher, EventDeliveryQueueSubscriber,
+		eventDeliveryQueuePublisher, eventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
 			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),

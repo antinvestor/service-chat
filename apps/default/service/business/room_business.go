@@ -86,7 +86,7 @@ func (rb *roomBusiness) CreateRoom(
 	}
 
 	// Send room created event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdBy, chatv1.RoomEventType_EVENT,
+	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdBy,
 		map[string]interface{}{"content": "Room created"},
 		map[string]interface{}{"created_by": createdBy})
 
@@ -156,7 +156,7 @@ func (rb *roomBusiness) UpdateRoom(
 	}
 
 	// Send room updated event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, room.GetID(), updatedBy, chatv1.RoomEventType_EVENT,
+	_ = rb.sendRoomEvent(ctx, room.GetID(), updatedBy,
 		map[string]interface{}{"content": "Room details updated"},
 		map[string]interface{}{"updated_by": updatedBy})
 
@@ -181,12 +181,12 @@ func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRe
 	}
 
 	// Soft delete the room
-	if err := rb.roomRepo.Delete(ctx, roomID); err != nil {
-		return fmt.Errorf("failed to delete room: %w", err)
+	if deleteErr := rb.roomRepo.Delete(ctx, roomID); deleteErr != nil {
+		return fmt.Errorf("failed to delete room: %w", deleteErr)
 	}
 
 	// Send room deleted event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, roomID, profileID, chatv1.RoomEventType_EVENT,
+	_ = rb.sendRoomEvent(ctx, roomID, profileID,
 		map[string]interface{}{"content": "Room deleted"},
 		map[string]interface{}{"deleted_by": profileID})
 
@@ -344,12 +344,12 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 		sub.Role = req.GetRoles()[0]
 	}
 
-	if _, err := rb.subRepo.Update(ctx, sub); err != nil {
-		return fmt.Errorf("failed to update member role: %w", err)
+	if _, updateErr := rb.subRepo.Update(ctx, sub); updateErr != nil {
+		return fmt.Errorf("failed to update member role: %w", updateErr)
 	}
 
 	// Send member role updated event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, req.GetRoomId(), updaterID, chatv1.RoomEventType_EVENT,
+	_ = rb.sendRoomEvent(ctx, req.GetRoomId(), updaterID,
 		map[string]interface{}{"content": "Member role updated"},
 		map[string]interface{}{
 			"profile_id": req.GetProfileId(),
@@ -396,11 +396,6 @@ func (rb *roomBusiness) SearchRoomSubscriptions(
 
 // Helper function to add members to a room with specific roles.
 func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID string, roleMap map[string]string) error {
-	profileIDs := make([]string, 0, len(roleMap))
-	for profileID := range roleMap {
-		profileIDs = append(profileIDs, profileID)
-	}
-
 	// Get existing subscriptions to avoid duplicates
 	existingSubs, err := rb.subRepo.GetByRoomID(ctx, roomID, false)
 	if err != nil {
@@ -437,7 +432,7 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 
 		// Send member added events using MessageBusiness
 		for _, sub := range newSubs {
-			_ = rb.sendRoomEvent(ctx, roomID, sub.ProfileID, chatv1.RoomEventType_EVENT,
+			_ = rb.sendRoomEvent(ctx, roomID, sub.ProfileID,
 				map[string]interface{}{"content": "Member added to room"},
 				map[string]interface{}{
 					"profile_id": sub.ProfileID,
@@ -484,7 +479,7 @@ func (rb *roomBusiness) removeRoomMembers(
 
 	for _, sub := range subscriptionsToRemove {
 		// Send member removed event using MessageBusiness
-		_ = rb.sendRoomEvent(ctx, roomID, removerID, chatv1.RoomEventType_EVENT,
+		_ = rb.sendRoomEvent(ctx, roomID, removerID,
 			map[string]interface{}{"content": "Member removed from room"},
 			map[string]interface{}{
 				"profile_id": sub.ProfileID,
@@ -500,7 +495,6 @@ func (rb *roomBusiness) sendRoomEvent(
 	ctx context.Context,
 	roomID string,
 	senderID string,
-	eventType chatv1.RoomEventType,
 	content map[string]interface{},
 	metadata map[string]interface{},
 ) error {
@@ -523,7 +517,7 @@ func (rb *roomBusiness) sendRoomEvent(
 			{
 				RoomId:   roomID,
 				SenderId: senderID,
-				Type:     eventType,
+				Type:     chatv1.RoomEventType_EVENT,
 				Payload:  payload,
 			},
 		},

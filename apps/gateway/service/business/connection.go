@@ -106,10 +106,31 @@ import (
 	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
 	"connectrpc.com/connect"
 	"github.com/pitabwire/frame/data"
-	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/frame/telemetry"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+const (
+	// Connection management constants.
+	errorChannelBufferSize = 2     // Buffer for inbound/outbound workers
+	defaultDevicePoolSize  = 1000  // Default number of devices to support
+	minPoolSize            = 10000 // Minimum pool size
+	millisecondsMultiplier = 1000  // For converting seconds to milliseconds
+
+	// Timeouts and intervals.
+	staleCheckInterval    = 30 * time.Second
+	metricsReportInterval = 10 * time.Second
+	healthCheckInterval   = 60 * time.Second
+	connectionAckTimeout  = 30 * time.Second
+	presenceUpdateTimeout = 3 * time.Second
+
+	// Thresholds.
+	staleThresholdMultiplier = 3   // Multiplier for heartbeat interval to determine staleness
+	utilizationThreshold     = 80  // Pool utilization threshold percentage
+	utilizationScaleFactor   = 100 // Scale factor for utilization percentage
+	// maxInt32 is the maximum value for int32 to prevent overflow.
+	maxInt32 = 2147483647
 )
 
 var (
@@ -118,7 +139,7 @@ var (
 	// created and destroyed. Channels are drained before being returned to the pool.
 	errorChanPool = sync.Pool{
 		New: func() any {
-			return make(chan error, 2) // Buffer of 2 for inbound/outbound workers
+			return make(chan error, errorChannelBufferSize) // Buffer of 2 for inbound/outbound workers
 		},
 	}
 
@@ -162,11 +183,6 @@ var (
 		"gateway.connections.failed",
 		"Failed connection attempts",
 	)
-	connectionsReplacedCounter = telemetry.DimensionlessMeasure(
-		"",
-		"gateway.connections.replaced",
-		"Replaced existing connections",
-	)
 	connectionsDisconnectedCounter = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connections.disconnected",
@@ -177,20 +193,10 @@ var (
 		"gateway.connections.cleaned",
 		"Stale connections cleaned",
 	)
-	poolSizeGauge = telemetry.DimensionlessMeasure(
-		"",
-		"gateway.pool.size",
-		"Current connection pool size",
-	)
-	poolUtilizationGauge = telemetry.DimensionlessMeasure(
-		"",
-		"gateway.pool.utilization",
-		"Pool utilization percentage",
-	)
 	connectionDurationHistogram = telemetry.DimensionlessMeasure(
 		"",
 		"gateway.connection.duration",
-		"Connection lifetime in seconds",
+		"Connection duration in milliseconds",
 	)
 )
 
@@ -325,7 +331,6 @@ func (p *connectionPool) forEach(fn func(*Connection)) {
 // - Metrics reporting: Logs all metrics every 10 seconds
 // - Health monitoring: Checks pool utilization every 60 seconds.
 type connectionManager struct {
-	qManager queue.Manager   // Queue for outbound messages
 	connPool *connectionPool // Local connection pool for this gateway
 
 	deviceCli  devicev1connect.DeviceServiceClient
@@ -362,7 +367,7 @@ type connectionManager struct {
 //   - heartbeatIntervalSec: Expected heartbeat interval (stale = 3x this value)
 //
 // Pool Sizing Strategy:
-// The pool size is calculated as maxConnectionsPerDevice * 1000, with a minimum
+// The pool size is calculated as maxConnectionsPerDevice * defaultDevicePoolSize, with a minimum
 // of 10,000. This assumes:
 //   - 1000 unique devices/profiles in typical deployment
 //   - Each device may have multiple connections (different sessions)
@@ -399,15 +404,19 @@ func NewConnectionManager(
 	// Calculate optimal pool size based on expected device count
 	// Formula: maxConnectionsPerDevice * expected_devices
 	// Minimum 10,000 to handle burst traffic
-	poolSize := int32(maxConnectionsPerDevice * 1000) // Support 1000 devices by default
-	if poolSize < 10000 {
-		poolSize = 10000 // Minimum pool size for small deployments
+	poolSize := maxConnectionsPerDevice * defaultDevicePoolSize
+	if poolSize > maxInt32 { // Max int32
+		poolSize = maxInt32
+	}
+	poolSizeInt32 := int32(poolSize) // Support 1000 devices by default
+	if poolSizeInt32 < minPoolSize {
+		poolSizeInt32 = 10000 // Minimum pool size for small deployments
 	}
 
 	cm := &connectionManager{
 		chatClient: chatClient,
 		deviceCli:  deviceClient,
-		connPool:   newConnectionPool(poolSize),
+		connPool:   newConnectionPool(poolSizeInt32),
 
 		gatewayID: gatewayID,
 
@@ -519,7 +528,7 @@ func (cm *connectionManager) HandleConnection(
 	startTime := time.Now()
 	defer func() {
 		duration := time.Since(startTime)
-		connectionDurationHistogram.Add(ctx, int64(duration.Seconds()*1000)) // milliseconds
+		connectionDurationHistogram.Add(ctx, int64(duration.Seconds()*millisecondsMultiplier)) // milliseconds
 	}()
 
 	// Setup connection with timeout
@@ -579,7 +588,11 @@ func (cm *connectionManager) HandleConnection(
 	}()
 
 	// Use pooled error channel for efficiency
-	errChan := errorChanPool.Get().(chan error)
+	errChanInterface := errorChanPool.Get()
+	errChan, ok := errChanInterface.(chan error)
+	if !ok {
+		errChan = make(chan error, errorChannelBufferSize)
+	}
 	defer func() {
 		// Drain and return to pool
 		for len(errChan) > 0 {
@@ -822,7 +835,7 @@ func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream Devic
 // Stale Detection:
 // A connection is considered stale if:
 //
-//	(current_time - last_heartbeat) > (heartbeatIntervalSec * 3)
+//	(current_time - last_heartbeat) > (heartbeatIntervalSec * staleThresholdMultiplier)
 //
 // This 3x multiplier provides tolerance for network jitter and allows
 // up to 2 missed heartbeats before considering the connection dead.
@@ -845,7 +858,7 @@ func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream Devic
 func (cm *connectionManager) cleanupStaleConnections(ctx context.Context) {
 	defer cm.wg.Done()
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(staleCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -862,7 +875,7 @@ func (cm *connectionManager) cleanupStaleConnections(ctx context.Context) {
 // Called by cleanupStaleConnections background task.
 func (cm *connectionManager) performCleanup(ctx context.Context) {
 	now := time.Now().Unix()
-	staleThreshold := int64(cm.heartbeatIntervalSec * 3) // 3x heartbeat interval
+	staleThreshold := int64(cm.heartbeatIntervalSec * staleThresholdMultiplier) // 3x heartbeat interval
 
 	staleCount := 0
 	cm.connPool.forEach(func(conn *Connection) {
@@ -913,7 +926,7 @@ func (cm *connectionManager) performCleanup(ctx context.Context) {
 func (cm *connectionManager) reportMetrics(ctx context.Context) {
 	defer cm.wg.Done()
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(metricsReportInterval)
 	defer ticker.Stop()
 
 	for {
@@ -934,7 +947,7 @@ func (cm *connectionManager) publishMetrics(ctx context.Context) {
 	// Get current values
 	activeConns := atomic.LoadInt32(&cm.activeConns)
 	poolSize := cm.connPool.size()
-	utilization := float64(poolSize) / float64(cm.connPool.maxSize) * 100
+	utilization := float64(poolSize) / float64(cm.connPool.maxSize) * utilizationScaleFactor
 
 	// Log for debugging - telemetry counters are already being updated in real-time
 	// The gauge values are tracked via Add/Sub operations in HandleConnection
@@ -971,7 +984,7 @@ func (cm *connectionManager) publishMetrics(ctx context.Context) {
 func (cm *connectionManager) monitorHealth(ctx context.Context) {
 	defer cm.wg.Done()
 
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(healthCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -991,10 +1004,10 @@ func (cm *connectionManager) performHealthCheck(ctx context.Context) {
 	activeConns := atomic.LoadInt32(&cm.activeConns)
 
 	// Calculate pool utilization percentage
-	utilization := float64(poolSize) / float64(cm.connPool.maxSize) * 100
+	utilization := float64(poolSize) / float64(cm.connPool.maxSize) * utilizationScaleFactor
 
 	// Warn if utilization exceeds 80% threshold
-	if utilization > 80 {
+	if utilization > utilizationThreshold {
 		util.Log(ctx).WithFields(map[string]any{
 			"pool_size":    poolSize,
 			"max_size":     cm.connPool.maxSize,
@@ -1056,7 +1069,7 @@ func (cm *connectionManager) Shutdown(ctx context.Context) error {
 		select {
 		case <-done:
 			util.Log(ctx).Info("Connection manager shutdown complete")
-		case <-time.After(30 * time.Second):
+		case <-time.After(connectionAckTimeout):
 			util.Log(ctx).Warn("Connection manager shutdown timed out")
 		}
 	})
@@ -1081,7 +1094,7 @@ func (cm *connectionManager) updatePresence(
 	}
 
 	// Use a background context with timeout to avoid blocking
-	presenceCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	presenceCtx, cancel := context.WithTimeout(ctx, presenceUpdateTimeout)
 	defer cancel()
 
 	presenceReq := &devicev1.UpdatePresenceRequest{

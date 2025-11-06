@@ -54,16 +54,16 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 		return errors.New("invalid payload type, expected eventsv1.EventBroadcast{}")
 	}
 
-	EventLink := broadcast.GetEvent()
+	eventLink := broadcast.GetEvent()
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"room_id": EventLink.GetRoomId(),
+		"room_id": eventLink.GetRoomId(),
 		"type":    dlrEH.Name(),
 	})
 	logger.Debug("handling outbox delivery map")
 
 	// Create outbox entries for each subscriber
-	EventLinkData, err := dlrEH.eventRepo.GetByID(ctx, EventLink.GetEventId())
+	eventLinkData, err := dlrEH.eventRepo.GetByID(ctx, eventLink.GetEventId())
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			logger.WithError(err).Error("no such chat event exists")
@@ -74,15 +74,15 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 	}
 
 	for _, target := range broadcast.GetTargets() {
-		EventDelivery := &eventsv1.EventDelivery{
-			Event:        EventLink,
+		eventDelivery := &eventsv1.EventDelivery{
+			Event:        eventLink,
 			Target:       target,
-			Payload:      EventLinkData.Content.ToProtoStruct(),
+			Payload:      eventLinkData.Content.ToProtoStruct(),
 			IsCompressed: false,
 			RetryCount:   0,
 		}
 
-		err = dlrEH.deliveryTopic.Publish(ctx, EventDelivery)
+		err = dlrEH.deliveryTopic.Publish(ctx, eventDelivery)
 		if err != nil {
 			logger.WithError(err).Error("failed to deliver event to user")
 			return err

@@ -5,7 +5,6 @@ import (
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
-	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/pitabwire/frame"
@@ -18,7 +17,6 @@ import (
 // It focuses on the Connect functionality for real-time communication with edge devices.
 type GatewayServer struct {
 	svc        *frame.Service
-	deviceCli  *devicev1connect.DeviceServiceClient
 	chatClient chatv1connect.ChatServiceClient
 	cm         business.ConnectionManager
 

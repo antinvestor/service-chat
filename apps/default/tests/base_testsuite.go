@@ -103,12 +103,12 @@ func (bs *BaseTestSuite) CreateService(
 	err = repository.Migrate(ctx, migrationPool, "../../migrations/0001")
 	require.NoError(t, err)
 
-	EventDeliveryQueuePublisher := frame.WithRegisterPublisher(
+	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueUserEventDeliveryName,
 		cfg.QueueUserEventDeliveryURI,
 	)
 
-	EventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
+	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueUserEventDeliveryName,
 		cfg.QueueUserEventDeliveryURI,
 		queues.NewEventDeliveryQueueHandler(svc, bs.GetDevice(t)),
@@ -121,7 +121,7 @@ func (bs *BaseTestSuite) CreateService(
 
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
-		EventDeliveryQueuePublisher, EventDeliveryQueueSubscriber,
+		eventDeliveryQueuePublisher, eventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
 			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),
@@ -166,8 +166,8 @@ func (bs *BaseTestSuite) GetDevice(t *testing.T) devicev1connect.DeviceServiceCl
 }
 
 func (bs *BaseTestSuite) CreateTestProfiles(
-	ctx context.Context,
-	svc *frame.Service,
+	_ context.Context,
+	_ *frame.Service,
 	contacts []string,
 ) ([]*profilev1.ProfileObject, error) {
 	// Mock profile creation for testing
