@@ -2,14 +2,15 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"connectrpc.com/connect"
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
-	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
-	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
-	profilev1 "github.com/antinvestor/apis/go/profile/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
@@ -30,8 +31,8 @@ const (
 
 type ChatServer struct {
 	Service         *frame.Service
-	NotificationCli *notificationv1.NotificationClient
-	ProfileCli      *profilev1.ProfileClient
+	NotificationCli notificationv1connect.NotificationServiceClient
+	ProfileCli      profilev1connect.ProfileServiceClient
 	ConnectBusiness business.ClientStateBusiness
 	RoomBusiness    business.RoomBusiness
 	MessageBusiness business.MessageBusiness
@@ -43,11 +44,10 @@ type ChatServer struct {
 func NewChatServer(
 	ctx context.Context,
 	service *frame.Service,
-	notificationCli *notificationv1.NotificationClient,
-	profileCli *profilev1.ProfileClient,
-) *ChatServer {
+	notificationCli notificationv1connect.NotificationServiceClient,
+	profileCli profilev1connect.ProfileServiceClient) *ChatServer {
 	workMan := service.WorkManager()
-	evtsMan := service.EventsManager(ctx)
+	evtsMan := service.EventsManager()
 	dbPool := service.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
@@ -70,7 +70,7 @@ func NewChatServer(
 	}
 }
 
-// toAPIError converts internal errors to appropriate gRPC status codes
+// toAPIError converts internal errors to appropriate gRPC status codes.
 func (ps *ChatServer) toAPIError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
@@ -88,17 +88,17 @@ func (ps *ChatServer) toAPIError(ctx context.Context, err error) error {
 	default:
 		// Log internal errors for debugging
 		util.Log(ctx).WithError(err).Error("Internal server error")
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("internal server error"))
+		return connect.NewError(connect.CodeInternal, errors.New("internal server error"))
 	}
 }
 
-// validateAuthentication extracts and validates authentication claims
+// validateAuthentication extracts and validates authentication claims.
 func (ps *ChatServer) validateAuthentication(ctx context.Context) (string, error) {
 	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return "", connect.NewError(
 			connect.CodeUnauthenticated,
-			fmt.Errorf("request needs to be authenticated"),
+			errors.New("request needs to be authenticated"),
 		)
 	}
 
@@ -106,14 +106,14 @@ func (ps *ChatServer) validateAuthentication(ctx context.Context) (string, error
 	if err != nil || profileID == "" {
 		return "", connect.NewError(
 			connect.CodeUnauthenticated,
-			fmt.Errorf("invalid authentication claims"),
+			errors.New("invalid authentication claims"),
 		)
 	}
 
 	return profileID, nil
 }
 
-// withTimeout creates a context with timeout for resource efficiency
+// withTimeout creates a context with timeout for resource efficiency.
 func (ps *ChatServer) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
 		timeout = 30 * time.Second // Default timeout
@@ -157,7 +157,7 @@ func (ps *ChatServer) Connect(
 
 	return connect.NewError(
 		connect.CodeUnimplemented,
-		fmt.Errorf("real-time connections should be established through the gateway service"),
+		errors.New("real-time connections should be established through the gateway service"),
 	)
 }
 
@@ -175,14 +175,14 @@ func (ps *ChatServer) SendEvent(
 	if req.Msg == nil {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			fmt.Errorf("request cannot be nil"),
+			errors.New("request cannot be nil"),
 		)
 	}
 
 	if len(req.Msg.GetEvent()) == 0 {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			fmt.Errorf("at least one event must be provided"),
+			errors.New("at least one event must be provided"),
 		)
 	}
 
@@ -233,14 +233,14 @@ func (ps *ChatServer) GetHistory(
 	if req.Msg == nil {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			fmt.Errorf("request cannot be nil"),
+			errors.New("request cannot be nil"),
 		)
 	}
 
 	if req.Msg.GetRoomId() == "" {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			fmt.Errorf("room_id must be specified"),
+			errors.New("room_id must be specified"),
 		)
 	}
 
@@ -477,7 +477,7 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 	}), nil
 }
 
-// UpdateClientState handles client state updates (typing indicators, presence, read receipts)
+// UpdateClientState handles client state updates (typing indicators, presence, read receipts).
 func (ps *ChatServer) UpdateClientState(
 	ctx context.Context,
 	req *connect.Request[chatv1.UpdateClientStateRequest],
@@ -562,7 +562,7 @@ func (w *bidiStreamWrapper) Send(event *chatv1.ServerEvent) error {
 	return w.stream.Send(event)
 }
 
-// processClientState handles individual client state processing with comprehensive validation
+// processClientState handles individual client state processing with comprehensive validation.
 func (ps *ChatServer) processClientState(
 	ctx context.Context,
 	clientState *chatv1.ClientState,
@@ -590,7 +590,7 @@ func (ps *ChatServer) processClientState(
 	}
 }
 
-// processReceiptState handles receipt acknowledgments
+// processReceiptState handles receipt acknowledgments.
 func (ps *ChatServer) processReceiptState(
 	ctx context.Context,
 	receipt *chatv1.ReceiptEvent,
@@ -598,7 +598,7 @@ func (ps *ChatServer) processReceiptState(
 	roomID string,
 ) error {
 	if receipt == nil {
-		return fmt.Errorf("receipt event cannot be nil")
+		return errors.New("receipt event cannot be nil")
 	}
 
 	// Validate and override profile_id
@@ -611,12 +611,12 @@ func (ps *ChatServer) processReceiptState(
 	}
 
 	if targetRoomID == "" {
-		return fmt.Errorf("room_id must be specified")
+		return errors.New("room_id must be specified")
 	}
 
 	// Validate event_ids are provided
 	if len(receipt.GetEventId()) == 0 {
-		return fmt.Errorf("at least one event_id must be provided")
+		return errors.New("at least one event_id must be provided")
 	}
 
 	// Process read receipts for each event
@@ -638,7 +638,7 @@ func (ps *ChatServer) processReceiptState(
 	return nil
 }
 
-// processReadMarkerState handles read marker updates
+// processReadMarkerState handles read marker updates.
 func (ps *ChatServer) processReadMarkerState(
 	ctx context.Context,
 	readMarker *chatv1.ReadMarker,
@@ -646,7 +646,7 @@ func (ps *ChatServer) processReadMarkerState(
 	roomID string,
 ) error {
 	if readMarker == nil {
-		return fmt.Errorf("read marker event cannot be nil")
+		return errors.New("read marker event cannot be nil")
 	}
 
 	// Validate and override profile_id
@@ -659,11 +659,11 @@ func (ps *ChatServer) processReadMarkerState(
 	}
 
 	if targetRoomID == "" {
-		return fmt.Errorf("room_id must be specified")
+		return errors.New("room_id must be specified")
 	}
 
 	if readMarker.GetUpToEventId() == "" {
-		return fmt.Errorf("up_to_event_id must be specified")
+		return errors.New("up_to_event_id must be specified")
 	}
 
 	// Mark messages as read up to the specified event
@@ -679,7 +679,7 @@ func (ps *ChatServer) processReadMarkerState(
 	return nil
 }
 
-// processTypingState handles typing indicators
+// processTypingState handles typing indicators.
 func (ps *ChatServer) processTypingState(
 	ctx context.Context,
 	typing *chatv1.TypingEvent,
@@ -687,7 +687,7 @@ func (ps *ChatServer) processTypingState(
 	roomID string,
 ) error {
 	if typing == nil {
-		return fmt.Errorf("typing event cannot be nil")
+		return errors.New("typing event cannot be nil")
 	}
 
 	// Validate and override profile_id
@@ -700,7 +700,7 @@ func (ps *ChatServer) processTypingState(
 	}
 
 	if targetRoomID == "" {
-		return fmt.Errorf("room_id must be specified")
+		return errors.New("room_id must be specified")
 	}
 
 	// Set timestamp if not provided
@@ -721,7 +721,7 @@ func (ps *ChatServer) processTypingState(
 	return nil
 }
 
-// processPresenceState handles presence updates
+// processPresenceState handles presence updates.
 func (ps *ChatServer) processPresenceState(
 	ctx context.Context,
 	presence *chatv1.PresenceEvent,
@@ -729,7 +729,7 @@ func (ps *ChatServer) processPresenceState(
 	roomID string,
 ) error {
 	if presence == nil {
-		return fmt.Errorf("presence event cannot be nil")
+		return errors.New("presence event cannot be nil")
 	}
 
 	// Validate and override profile_id
@@ -767,7 +767,7 @@ func (ps *ChatServer) processRoomEventState(
 	senderID string,
 ) error {
 	if roomEvent == nil {
-		return fmt.Errorf("room event cannot be nil")
+		return errors.New("room event cannot be nil")
 	}
 
 	// Set timestamp if not provided

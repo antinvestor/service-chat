@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"connectrpc.com/connect"
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -64,7 +64,6 @@ func (cm *connectionManager) processAcknowledgement(
 			},
 		},
 	})
-
 }
 
 // processStateUpdate handles specific device commands.
@@ -96,7 +95,6 @@ func (cm *connectionManager) processStateUpdate(
 	switch st := clientState.GetState().(type) {
 	case *chatv1.ClientState_Receipt:
 		if st.Receipt != nil {
-
 			// Validate that the profile_id in receipt matches the authenticated user
 			if st.Receipt.GetProfileId() != "" && st.Receipt.GetProfileId() != profileID {
 				util.Log(ctx).WithFields(map[string]any{
@@ -115,7 +113,6 @@ func (cm *connectionManager) processStateUpdate(
 
 	case *chatv1.ClientState_ReadMarker:
 		if st.ReadMarker != nil {
-
 			// Validate that the profile_id in receipt matches the authenticated user
 			if st.ReadMarker.GetProfileId() != "" && st.ReadMarker.GetProfileId() != profileID {
 				util.Log(ctx).WithFields(map[string]any{
@@ -242,7 +239,6 @@ func (cm *connectionManager) processStateUpdate(
 	}
 
 	return nil
-
 }
 
 // updateLastActive updates the last active timestamp in cache.
@@ -256,7 +252,7 @@ func (cm *connectionManager) updateLastActive(ctx context.Context, connKey strin
 		conn.metadata.LastActive = now
 		conn.metadata.LastHeartbeat = now
 		conn.mu.Unlock()
-		
+
 		util.Log(ctx).WithField("conn_key", connKey).
 			Debug("Updated last active timestamp")
 	}

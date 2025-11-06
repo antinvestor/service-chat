@@ -3,8 +3,8 @@ package handlers_test
 import (
 	"testing"
 
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"connectrpc.com/connect"
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame/frametests/definition"
@@ -179,7 +179,7 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 		roomID := createResp.Msg.GetRoom().GetId()
 
 		// Send messages
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			payload, _ := structpb.NewStruct(map[string]interface{}{
 				"text": "Message",
 			})

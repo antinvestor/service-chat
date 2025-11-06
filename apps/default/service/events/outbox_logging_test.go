@@ -21,9 +21,12 @@ func TestClientSetupQueueSuite(t *testing.T) {
 	suite.Run(t, new(ClientSetupQueueTestSuite))
 }
 
-func (csqts *ClientSetupQueueTestSuite) createQueue(ctx context.Context, svc *frame.Service) *events.RoomOutboxLoggingQueue {
+func (csqts *ClientSetupQueueTestSuite) createQueue(
+	ctx context.Context,
+	svc *frame.Service,
+) *events.RoomOutboxLoggingQueue {
 	workMan := svc.WorkManager()
-	eventsMan := svc.EventsManager(ctx)
+	eventsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 	return events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan)
 }

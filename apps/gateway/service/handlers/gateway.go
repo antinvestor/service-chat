@@ -3,10 +3,10 @@ package handlers
 import (
 	"context"
 
+	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	"connectrpc.com/connect"
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
-	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
-	devicev1 "github.com/antinvestor/apis/go/device/v1"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/security"
@@ -18,7 +18,7 @@ import (
 // It focuses on the Connect functionality for real-time communication with edge devices.
 type GatewayServer struct {
 	svc        *frame.Service
-	deviceCli  *devicev1.DeviceClient
+	deviceCli  *devicev1connect.DeviceServiceClient
 	chatClient chatv1connect.ChatServiceClient
 	cm         business.ConnectionManager
 

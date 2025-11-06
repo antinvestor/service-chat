@@ -42,7 +42,6 @@ func (rsr *roomSubscriptionRepository) GetOneByRoomProfileAndIsActive(
 	ctx context.Context,
 	roomID string, profileID string,
 ) (*models.RoomSubscription, error) {
-
 	subscription := &models.RoomSubscription{}
 	err := rsr.Pool().DB(ctx, true).
 		Where("room_id = ? AND profile_id = ? AND subscription_state IN ?", roomID, profileID, rsr.activeSubscriptionStates).
@@ -68,7 +67,11 @@ func (rsr *roomSubscriptionRepository) GetByRoomID(
 }
 
 // GetByRoomIDAndProfiles retrieves a subscription by room ID and a list of profile IDs.
-func (rsr *roomSubscriptionRepository) GetByRoomIDAndProfiles(ctx context.Context, roomID string, profileID ...string) ([]*models.RoomSubscription, error) {
+func (rsr *roomSubscriptionRepository) GetByRoomIDAndProfiles(
+	ctx context.Context,
+	roomID string,
+	profileID ...string,
+) ([]*models.RoomSubscription, error) {
 	var subscriptionSlice []*models.RoomSubscription
 	err := rsr.Pool().DB(ctx, true).
 		Select("*"). // Explicitly select all columns including read-only unread_count
@@ -136,8 +139,11 @@ func (rsr *roomSubscriptionRepository) UpdateLastReadEventID(ctx context.Context
 
 // Deactivate marks a subscription as inactive.
 func (rsr *roomSubscriptionRepository) Deactivate(ctx context.Context, subscriptionIDs ...string) error {
-
-	_, err := rsr.BulkUpdate(ctx, subscriptionIDs, map[string]any{"subscription_state": models.RoomSubscriptionStateBlocked})
+	_, err := rsr.BulkUpdate(
+		ctx,
+		subscriptionIDs,
+		map[string]any{"subscription_state": models.RoomSubscriptionStateBlocked},
+	)
 	if err != nil {
 		return err
 	}
@@ -146,8 +152,11 @@ func (rsr *roomSubscriptionRepository) Deactivate(ctx context.Context, subscript
 
 // Activate marks a subscription as active.
 func (rsr *roomSubscriptionRepository) Activate(ctx context.Context, subscriptionIDs ...string) error {
-
-	_, err := rsr.BulkUpdate(ctx, subscriptionIDs, map[string]any{"subscription_state": models.RoomSubscriptionStateActive})
+	_, err := rsr.BulkUpdate(
+		ctx,
+		subscriptionIDs,
+		map[string]any{"subscription_state": models.RoomSubscriptionStateActive},
+	)
 	if err != nil {
 		return err
 	}
@@ -209,7 +218,11 @@ func (rsr *roomSubscriptionRepository) BulkCreate(ctx context.Context, subscript
 }
 
 // NewRoomSubscriptionRepository creates a new room subscription repository instance.
-func NewRoomSubscriptionRepository(ctx context.Context, dbPool pool.Pool, workMan workerpool.Manager) RoomSubscriptionRepository {
+func NewRoomSubscriptionRepository(
+	ctx context.Context,
+	dbPool pool.Pool,
+	workMan workerpool.Manager,
+) RoomSubscriptionRepository {
 	return &roomSubscriptionRepository{
 		BaseRepository: datastore.NewBaseRepository[*models.RoomSubscription](
 			ctx, dbPool, workMan, func() *models.RoomSubscription { return &models.RoomSubscription{} },

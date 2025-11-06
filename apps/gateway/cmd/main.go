@@ -4,11 +4,13 @@ import (
 	"context"
 	"net/http"
 
+	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
+	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
-	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
-	apis "github.com/antinvestor/apis/go/common"
-	devicev1 "github.com/antinvestor/apis/go/device/v1"
+	"github.com/antinvestor/apis/go/chat"
+	"github.com/antinvestor/apis/go/common"
+	"github.com/antinvestor/apis/go/device"
 	gtwconfig "github.com/antinvestor/service-chat/apps/gateway/config"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/antinvestor/service-chat/apps/gateway/service/handlers"
@@ -24,7 +26,6 @@ import (
 )
 
 func main() {
-	serviceName := "service_chat_gateway"
 	ctx := context.Background()
 
 	// Initialize configuration
@@ -34,8 +35,12 @@ func main() {
 		return
 	}
 
+	if cfg.Name() == "" {
+		cfg.ServiceName = "service_chat_gateway"
+	}
+
 	// Create service
-	ctx, svc := frame.NewServiceWithContext(ctx, serviceName, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client())
+	ctx, svc := frame.NewServiceWithContext(ctx, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client())
 	defer svc.Stop(ctx)
 	log := svc.Log(ctx)
 
@@ -99,24 +104,13 @@ func setupChatServiceClient(
 	cfg gtwconfig.GatewayConfig,
 ) (chatv1connect.ChatServiceClient, error) {
 	// Create HTTP client for the chat service
-	httpClient, err := apis.HTTPClient(ctx,
-		apis.WithEndpoint(cfg.ChatServiceURI),
-		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
-		apis.WithTokenUsername(sm.JwtClientID()),
-		apis.WithTokenPassword(sm.JwtClientSecret()),
-		apis.WithScopes(openid.ConstSystemScopeInternal),
-		apis.WithAudiences("service_chat"))
-	if err != nil {
-		return nil, err
-	}
-
-	// Create chat service client
-	client := chatv1connect.NewChatServiceClient(
-		httpClient,
-		cfg.ChatServiceURI,
-	)
-
-	return client, nil
+	return chat.NewClient(ctx,
+		common.WithEndpoint(cfg.ChatServiceURI),
+		common.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
+		common.WithTokenUsername(sm.JwtClientID()),
+		common.WithTokenPassword(sm.JwtClientSecret()),
+		common.WithScopes(openid.ConstSystemScopeInternal),
+		common.WithAudiences("service_chat"))
 }
 
 // setupDeviceClient creates and configures the device service client.
@@ -124,14 +118,14 @@ func setupDeviceClient(
 	ctx context.Context,
 	sm security.Manager,
 	cfg gtwconfig.GatewayConfig,
-) (*devicev1.DeviceClient, error) {
-	return devicev1.NewDeviceClient(ctx,
-		apis.WithEndpoint(cfg.DeviceServiceURI),
-		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
-		apis.WithTokenUsername(sm.JwtClientID()),
-		apis.WithTokenPassword(sm.JwtClientSecret()),
-		apis.WithScopes(openid.ConstSystemScopeInternal),
-		apis.WithAudiences("service_device"))
+) (devicev1connect.DeviceServiceClient, error) {
+	return device.NewClient(ctx,
+		common.WithEndpoint(cfg.DeviceServiceURI),
+		common.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
+		common.WithTokenUsername(sm.JwtClientID()),
+		common.WithTokenPassword(sm.JwtClientSecret()),
+		common.WithScopes(openid.ConstSystemScopeInternal),
+		common.WithAudiences("service_device"))
 }
 
 // setupGatewayServer initializes and configures the gateway server.
@@ -141,7 +135,6 @@ func setupGatewayServer(
 	chatServiceClient chatv1connect.ChatServiceClient,
 	connectionManager business.ConnectionManager,
 ) http.Handler {
-
 	securityMan := svc.SecurityManager()
 
 	otelInterceptor, err := otelconnect.NewInterceptor()

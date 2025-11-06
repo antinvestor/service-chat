@@ -3,7 +3,7 @@ package repository_test
 import (
 	"testing"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"

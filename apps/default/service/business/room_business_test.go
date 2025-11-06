@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -27,9 +27,8 @@ func TestRoomBusinessTestSuite(t *testing.T) {
 func (s *RoomBusinessTestSuite) setupBusinessLayer(
 	ctx context.Context, svc *frame.Service,
 ) (business.RoomBusiness, business.MessageBusiness) {
-
 	workMan := svc.WorkManager()
-	evtsMan := svc.EventsManager(ctx)
+	evtsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)

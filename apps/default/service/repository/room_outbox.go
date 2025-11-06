@@ -69,7 +69,12 @@ func (ror *roomOutboxRepository) UpdateStatus(ctx context.Context, id, state mod
 }
 
 // UpdateStatusWithError updates the status and error message of an outbox entry.
-func (ror *roomOutboxRepository) UpdateStatusWithError(ctx context.Context, id string, state models.RoomOutboxState, errorMsg string) error {
+func (ror *roomOutboxRepository) UpdateStatusWithError(
+	ctx context.Context,
+	id string,
+	state models.RoomOutboxState,
+	errorMsg string,
+) error {
 	return ror.Pool().DB(ctx, false).
 		Model(&models.RoomOutbox{}).
 		Where("id = ?", id).

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/pitabwire/frame/data"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -108,9 +108,9 @@ type RoomOutbox struct {
 	RoomID         string          `gorm:"type:varchar(50)"`
 	SubscriptionID string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
 	EventID        string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
-	OutboxState    RoomOutboxState `gorm:"index:idx_subscription_event_outbox_state" json:"outboxstate"`
-	RetryCount     int             `json:"retry_count"`
-	ErrorMessage   string          `json:"error_message"`
+	OutboxState    RoomOutboxState `gorm:"index:idx_subscription_event_outbox_state"           json:"outboxstate"`
+	RetryCount     int             `                                                           json:"retry_count"`
+	ErrorMessage   string          `                                                           json:"error_message"`
 }
 
 type RoomSubscriptionState int

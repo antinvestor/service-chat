@@ -28,7 +28,6 @@ func NewRoomOutboxLoggingQueue(
 	workMan workerpool.Manager,
 	evtsManager frevents.Manager,
 ) *RoomOutboxLoggingQueue {
-
 	return &RoomOutboxLoggingQueue{
 		subscriptionRepo: repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan),
 		outboxRepo:       repository.NewRoomOutboxRepository(ctx, dbPool, workMan),
@@ -80,7 +79,6 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	var evtReceipts []*eventsv1.EventReceipt
 
 	for _, sub := range subscriptions {
-
 		if sub.ProfileID == evtLink.GetSenderId() {
 			continue
 		}

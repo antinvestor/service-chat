@@ -4,19 +4,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/antinvestor/apis/go/common"
-	"github.com/antinvestor/apis/go/common/mocks"
-	commonv1 "github.com/antinvestor/apis/go/common/v1"
-	devicev1 "github.com/antinvestor/apis/go/device/v1"
-	devicev1_mocks "github.com/antinvestor/apis/go/device/v1_mocks"
-	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
-	notificationv1_mocks "github.com/antinvestor/apis/go/notification/v1_mocks"
-	profilev1 "github.com/antinvestor/apis/go/profile/v1"
-	profilev1_mocks "github.com/antinvestor/apis/go/profile/v1_mocks"
+	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
+	devicemocks "github.com/antinvestor/apis/go/device/mocks"
+	notificationmocks "github.com/antinvestor/apis/go/notification/mocks"
+	profilemocks "github.com/antinvestor/apis/go/profile/mocks"
 	iconfig "github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/queues"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/gojuno/minimock/v3"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
@@ -28,8 +27,6 @@ import (
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/grpc"
 )
 
 const PostgresqlDBImage = "postgres:latest"
@@ -82,7 +79,8 @@ func (bs *BaseTestSuite) CreateService(
 	cfg.DatabasePrimaryURL = []string{testDS.String()}
 	cfg.DatabaseReplicaURL = []string{testDS.String()}
 
-	ctx, svc := frame.NewServiceWithContext(t.Context(), "chat tests",
+	ctx, svc := frame.NewServiceWithContext(t.Context(),
+		frame.WithName("chat tests"),
 		frame.WithConfig(&cfg),
 		frametests.WithNoopDriver())
 
@@ -95,7 +93,11 @@ func (bs *BaseTestSuite) CreateService(
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	migrationPool := pool.NewPool(ctx)
-	err = migrationPool.AddConnection(ctx, pool.WithConnection(testDS.String(), false), pool.WithPreparedStatements(false))
+	err = migrationPool.AddConnection(
+		ctx,
+		pool.WithConnection(testDS.String(), false),
+		pool.WithPreparedStatements(false),
+	)
 	require.NoError(t, err)
 
 	err = repository.Migrate(ctx, migrationPool, "../../migrations/0001")
@@ -109,13 +111,13 @@ func (bs *BaseTestSuite) CreateService(
 	EventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueUserEventDeliveryName,
 		cfg.QueueUserEventDeliveryURI,
-		queues.NewEventDeliveryQueueHandler(svc, bs.GetDevice(ctx)),
+		queues.NewEventDeliveryQueueHandler(svc, bs.GetDevice(t)),
 	)
 
 	// Get publisher for event handlers
-	deliveryPublisher, _ := svc.QueueManager(ctx).GetPublisher(cfg.QueueUserEventDeliveryName)
+	deliveryPublisher, _ := svc.QueueManager().GetPublisher(cfg.QueueUserEventDeliveryName)
 	workMan := svc.WorkManager()
-	eventsMan := svc.EventsManager(ctx)
+	eventsMan := svc.EventsManager()
 
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
@@ -135,59 +137,32 @@ func (bs *BaseTestSuite) CreateService(
 	return ctx, svc
 }
 
-// GetRepoDeps is a helper to create repository dependencies
+// GetRepoDeps is a helper to create repository dependencies.
 func (bs *BaseTestSuite) GetRepoDeps(ctx context.Context, svc *frame.Service) (workerpool.Manager, pool.Pool) {
 	workMan := svc.WorkManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 	return workMan, dbPool
 }
 
-func (bs *BaseTestSuite) GetNotificationCli(_ context.Context) *notificationv1.NotificationClient {
-	mockSvc := notificationv1_mocks.NewMockNotificationServiceClient(bs.Ctrl)
-	mockSvc.EXPECT().Send(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(ctx context.Context, _ *notificationv1.SendRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[notificationv1.SendResponse], error) {
-			// Return a successful response with a generated message ID
-			const randomIDLength = 6
-			resp := &notificationv1.SendResponse{
-				Data: []*commonv1.StatusResponse{
-					{
-						Id:         util.IDString(),
-						State:      commonv1.STATE_ACTIVE,
-						Status:     commonv1.STATUS_SUCCESSFUL,
-						ExternalId: util.RandomString(randomIDLength),
-					},
-				},
-			}
+func (bs *BaseTestSuite) GetNotificationCli(t *testing.T) notificationv1connect.NotificationServiceClient {
+	ctrl := minimock.NewController(t)
 
-			// Create a custom mock implementation
-			mockStream := mocks.NewMockServerStreamingClient[notificationv1.SendResponse](ctx)
-			err := mockStream.SendMsg(resp)
-			if err != nil {
-				return nil, err
-			}
-
-			return mockStream, nil
-		}).
-		AnyTimes()
-	cli := notificationv1.Init(&common.GrpcClientBase{}, mockSvc)
-
-	return cli
+	mocksvc := notificationmocks.NewNotificationServiceClientMock(ctrl)
+	return mocksvc
 }
 
-func (bs *BaseTestSuite) GetProfileCli(_ context.Context) *profilev1.ProfileClient {
-	mockProfileService := profilev1_mocks.NewMockProfileServiceClient(bs.Ctrl)
+func (bs *BaseTestSuite) GetProfileCli(t *testing.T) profilev1connect.ProfileServiceClient {
+	ctrl := minimock.NewController(t)
+	mocksvc := profilemocks.NewProfileServiceClientMock(ctrl)
 
-	cli := profilev1.Init(&common.GrpcClientBase{}, mockProfileService)
-
-	return cli
+	return mocksvc
 }
 
-func (bs *BaseTestSuite) GetDevice(_ context.Context) *devicev1.DeviceClient {
-	mockSvc := devicev1_mocks.NewMockDeviceServiceClient(bs.Ctrl)
+func (bs *BaseTestSuite) GetDevice(t *testing.T) devicev1connect.DeviceServiceClient {
+	ctrl := minimock.NewController(t)
+	mockSvc := devicemocks.NewDeviceServiceClientMock(ctrl)
 
-	cli := devicev1.Init(&common.GrpcClientBase{}, mockSvc)
-
-	return cli
+	return mockSvc
 }
 
 func (bs *BaseTestSuite) CreateTestProfiles(
@@ -224,7 +199,7 @@ func (bs *BaseTestSuite) WithTestDependencies(
 	frametests.WithTestDependencies(t, options, testFn)
 }
 
-// WithAuthClaims adds authentication claims to a context for testing
+// WithAuthClaims adds authentication claims to a context for testing.
 func (bs *BaseTestSuite) WithAuthClaims(ctx context.Context, profileID string) context.Context {
 	claims := &security.AuthenticationClaims{
 		TenantID:  util.IDString(),

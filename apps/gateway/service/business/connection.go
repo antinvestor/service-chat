@@ -90,7 +90,6 @@
 // All operations are thread-safe. The connection pool uses atomic operations
 // for size tracking and RWMutex for map access. Connection metadata is
 // immutable after creation.
-//
 package business
 
 import (
@@ -101,9 +100,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
-	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
-	devicev1 "github.com/antinvestor/apis/go/device/v1"
+	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
+	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
+	"connectrpc.com/connect"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/frame/telemetry"
@@ -146,15 +147,51 @@ var (
 	//
 	// These metrics are exported to your OpenTelemetry collector and can be
 	// visualized in Prometheus, Grafana, Datadog, or other OTLP-compatible platforms.
-	connectionsActiveGauge         = telemetry.DimensionlessMeasure("", "gateway.connections.active", "Current number of active connections")
-	connectionsTotalCounter        = telemetry.DimensionlessMeasure("", "gateway.connections.total", "Total connection attempts")
-	connectionsFailedCounter       = telemetry.DimensionlessMeasure("", "gateway.connections.failed", "Failed connection attempts")
-	connectionsReplacedCounter     = telemetry.DimensionlessMeasure("", "gateway.connections.replaced", "Replaced existing connections")
-	connectionsDisconnectedCounter = telemetry.DimensionlessMeasure("", "gateway.connections.disconnected", "Total disconnections")
-	connectionsCleanedCounter      = telemetry.DimensionlessMeasure("", "gateway.connections.cleaned", "Stale connections cleaned")
-	poolSizeGauge                  = telemetry.DimensionlessMeasure("", "gateway.pool.size", "Current connection pool size")
-	poolUtilizationGauge           = telemetry.DimensionlessMeasure("", "gateway.pool.utilization", "Pool utilization percentage")
-	connectionDurationHistogram    = telemetry.DimensionlessMeasure("", "gateway.connection.duration", "Connection lifetime in seconds")
+	connectionsActiveGauge = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.connections.active",
+		"Current number of active connections",
+	)
+	connectionsTotalCounter = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.connections.total",
+		"Total connection attempts",
+	)
+	connectionsFailedCounter = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.connections.failed",
+		"Failed connection attempts",
+	)
+	connectionsReplacedCounter = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.connections.replaced",
+		"Replaced existing connections",
+	)
+	connectionsDisconnectedCounter = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.connections.disconnected",
+		"Total disconnections",
+	)
+	connectionsCleanedCounter = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.connections.cleaned",
+		"Stale connections cleaned",
+	)
+	poolSizeGauge = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.pool.size",
+		"Current connection pool size",
+	)
+	poolUtilizationGauge = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.pool.utilization",
+		"Pool utilization percentage",
+	)
+	connectionDurationHistogram = telemetry.DimensionlessMeasure(
+		"",
+		"gateway.connection.duration",
+		"Connection lifetime in seconds",
+	)
 )
 
 // connectionPool manages active connections with atomic operations for high performance.
@@ -170,7 +207,7 @@ var (
 // - get(): O(1) with read lock only
 // - remove(): O(1) with write lock
 // - size(): O(1) lock-free atomic read
-// - forEach(): O(n) with snapshot to release lock early
+// - forEach(): O(n) with snapshot to release lock early.
 type connectionPool struct {
 	mu          sync.RWMutex           // Protects connections map
 	connections map[string]*Connection // Key: "profileID:deviceID"
@@ -286,12 +323,12 @@ func (p *connectionPool) forEach(fn func(*Connection)) {
 // Background Tasks (started in NewConnectionManager):
 // - Stale cleanup: Removes connections with no heartbeat for 3x heartbeat interval
 // - Metrics reporting: Logs all metrics every 10 seconds
-// - Health monitoring: Checks pool utilization every 60 seconds
+// - Health monitoring: Checks pool utilization every 60 seconds.
 type connectionManager struct {
 	qManager queue.Manager   // Queue for outbound messages
 	connPool *connectionPool // Local connection pool for this gateway
 
-	deviceCli  *devicev1.DeviceClient
+	deviceCli  devicev1connect.DeviceServiceClient
 	chatClient chatv1connect.ChatServiceClient
 
 	// Gateway instance ID
@@ -350,7 +387,7 @@ type connectionManager struct {
 func NewConnectionManager(
 	ctx context.Context,
 	chatClient chatv1connect.ChatServiceClient,
-	deviceClient *devicev1.DeviceClient,
+	deviceClient devicev1connect.DeviceServiceClient,
 	maxConnectionsPerDevice int,
 	connectionTimeoutSec int,
 	heartbeatIntervalSec int,
@@ -483,7 +520,6 @@ func (cm *connectionManager) HandleConnection(
 	defer func() {
 		duration := time.Since(startTime)
 		connectionDurationHistogram.Add(ctx, int64(duration.Seconds()*1000)) // milliseconds
-
 	}()
 
 	// Setup connection with timeout
@@ -637,7 +673,7 @@ func (cm *connectionManager) handleInboundStream(
 		if err != nil {
 			util.Log(ctx).WithError(err).WithField("error_type", "stream.receive.error").Error("Stream receive failed")
 			select {
-			case errChan <- fmt.Errorf("%w: %v", ErrStreamReceiveFailed, err):
+			case errChan <- fmt.Errorf("%w: %w", ErrStreamReceiveFailed, err):
 			default:
 			}
 			return err
@@ -647,8 +683,10 @@ func (cm *connectionManager) handleInboundStream(
 		err = cm.handleInboundRequests(ctx, conn, req)
 		if err != nil {
 			// Don't break connection on processing errors, just log
-			util.Log(ctx).WithError(err).WithField("error_type", "inbound.processing.error").Warn("Inbound processing error")
-
+			util.Log(ctx).
+				WithError(err).
+				WithField("error_type", "inbound.processing.error").
+				Warn("Inbound processing error")
 		}
 	}
 }
@@ -747,7 +785,7 @@ func (cm *connectionManager) handleOutboundStream(
 	}
 }
 
-// sendConnectionAck sends initial connection acknowledgment to device
+// sendConnectionAck sends initial connection acknowledgment to device.
 func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream DeviceStream) error {
 	payload := data.JSONMap{
 		"status":     "connected",
@@ -783,7 +821,8 @@ func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream Devic
 //
 // Stale Detection:
 // A connection is considered stale if:
-//   (current_time - last_heartbeat) > (heartbeatIntervalSec * 3)
+//
+//	(current_time - last_heartbeat) > (heartbeatIntervalSec * 3)
 //
 // This 3x multiplier provides tolerance for network jitter and allows
 // up to 2 missed heartbeats before considering the connection dead.
@@ -892,7 +931,6 @@ func (cm *connectionManager) reportMetrics(ctx context.Context) {
 // Note: Gauges in OpenTelemetry are typically set to absolute values, but since
 // we're using counters (DimensionlessMeasure), we just track the current state.
 func (cm *connectionManager) publishMetrics(ctx context.Context) {
-
 	// Get current values
 	activeConns := atomic.LoadInt32(&cm.activeConns)
 	poolSize := cm.connPool.size()
@@ -949,7 +987,6 @@ func (cm *connectionManager) monitorHealth(ctx context.Context) {
 // performHealthCheck checks the health of the connection manager.
 // Called by monitorHealth background task.
 func (cm *connectionManager) performHealthCheck(ctx context.Context) {
-
 	poolSize := cm.connPool.size()
 	activeConns := atomic.LoadInt32(&cm.activeConns)
 
@@ -1055,7 +1092,7 @@ func (cm *connectionManager) updatePresence(
 
 	// Fire and forget - don't block on presence update
 	go func() {
-		_, err := cm.deviceCli.Svc().UpdatePresence(presenceCtx, presenceReq)
+		_, err := cm.deviceCli.UpdatePresence(presenceCtx, connect.NewRequest(presenceReq))
 		if err != nil {
 			util.Log(presenceCtx).WithError(err).
 				WithFields(map[string]any{

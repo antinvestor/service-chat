@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 
-	devicev1 "github.com/antinvestor/apis/go/device/v1"
+	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
+	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
+	"connectrpc.com/connect"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/queue"
@@ -22,13 +24,13 @@ const (
 
 type EventDeliveryQueueHandler struct {
 	service   *frame.Service
-	deviceCli *devicev1.DeviceClient
+	deviceCli devicev1connect.DeviceServiceClient
 
 	userDeviceTopic queue.Publisher
 }
 
 func NewEventDeliveryQueueHandler(
-	svc *frame.Service, deviceCli *devicev1.DeviceClient,
+	svc *frame.Service, deviceCli devicev1connect.DeviceServiceClient,
 ) queue.SubscribeWorker {
 	return &EventDeliveryQueueHandler{
 		service:   svc,
@@ -37,7 +39,6 @@ func NewEventDeliveryQueueHandler(
 }
 
 func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
-
 	EventDelivery := &eventsv1.EventDelivery{}
 	err := proto.Unmarshal(payload, EventDelivery)
 	if err != nil {
@@ -45,37 +46,37 @@ func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]st
 		return err
 	}
 
-	response, err := dq.deviceCli.Svc().Search(ctx, &devicev1.SearchRequest{
-		Query: EventDelivery.Target.RecepientId,
+	response, err := dq.deviceCli.Search(ctx, connect.NewRequest(&devicev1.SearchRequest{
+		Query: EventDelivery.GetTarget().GetRecepientId(),
 		Page:  0,
 		Count: 100,
-	})
+	}))
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to query user devices")
 		return err
 	}
 
-	for {
-		resp, deviceErr := response.Recv()
-		if deviceErr != nil {
-
-			if !errors.Is(deviceErr, io.EOF) {
-				util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
-			}
-			break
-		}
-
-		dq.deliverMessageToDevice(ctx, EventDelivery, resp.Data)
+	for response.Receive() {
+		resp := response.Msg()
+		dq.deliverMessageToDevice(ctx, EventDelivery, resp.GetData())
 	}
+
+	if deviceErr := response.Err(); deviceErr != nil {
+		if !errors.Is(deviceErr, io.EOF) {
+			util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
+		}
+	}
+
 	return nil
 }
 
-func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(ctx context.Context, msg *eventsv1.EventDelivery, devices []*devicev1.DeviceObject) {
-
+func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
+	ctx context.Context,
+	msg *eventsv1.EventDelivery,
+	devices []*devicev1.DeviceObject,
+) {
 	for _, dev := range devices {
-
 		if dq.deviceIsOnline(ctx, dev) {
-
 			err := dq.publishToDevice(ctx, dev, msg)
 			if err == nil {
 				continue
@@ -88,7 +89,6 @@ func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(ctx context.Context,
 			util.Log(ctx).WithError(err).Error("failed to deliver message via FCM")
 		}
 	}
-
 }
 
 func (dq *EventDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *devicev1.DeviceObject) bool {
@@ -99,8 +99,11 @@ func (dq *EventDeliveryQueueHandler) deviceIsOnline(ctx context.Context, dev *de
 	return true
 }
 
-func (dq *EventDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.EventDelivery) error {
-
+func (dq *EventDeliveryQueueHandler) publishToDevice(
+	ctx context.Context,
+	dev *devicev1.DeviceObject,
+	msg *eventsv1.EventDelivery,
+) error {
 	deviceHeader := map[string]string{
 		HeaderProfileID: msg.GetTarget().GetRecepientId(),
 		HeaderDeviceID:  dev.GetId(),
@@ -109,40 +112,50 @@ func (dq *EventDeliveryQueueHandler) publishToDevice(ctx context.Context, dev *d
 	return dq.userDeviceTopic.Publish(ctx, msg, deviceHeader)
 }
 
-func (dq *EventDeliveryQueueHandler) publishToFCM(ctx context.Context, dev *devicev1.DeviceObject, msg *eventsv1.EventDelivery) error {
+func (dq *EventDeliveryQueueHandler) publishToFCM(
+	ctx context.Context,
+	dev *devicev1.DeviceObject,
+	msgList ...*eventsv1.EventDelivery,
+) error {
+	var messages []*devicev1.NotifyMessage
 
-	fields := msg.GetPayload().GetFields()
+	for _, msg := range msgList {
+		fields := msg.GetPayload().GetFields()
 
-	messageTitle := "Stawi message"
-	title, ok := fields["title"]
-	if ok {
-		messageTitle = title.String()
-	}
-	messageBody := ""
-	body, ok := fields["content"]
-	if ok && msg.GetEvent().GetEventType() == eventsv1.EventLink_TEXT {
-		messageBody = body.String()
-	}
+		messageTitle := "Stawi message"
+		title, ok := fields["title"]
+		if ok {
+			messageTitle = title.String()
+		}
+		messageBody := ""
+		body, ok := fields["content"]
+		if ok && msg.GetEvent().GetEventType() == eventsv1.EventLink_TEXT {
+			messageBody = body.String()
+		}
 
-	extraData, err := structpb.NewStruct(map[string]any{
-		"event":  msg.GetEvent(),
-		"target": msg.GetTarget(),
-	})
+		extraData, err := structpb.NewStruct(map[string]any{
+			"event":  msg.GetEvent(),
+			"target": msg.GetTarget(),
+		})
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+
+		messages = append(messages, &devicev1.NotifyMessage{
+			Title:  messageTitle,
+			Body:   messageBody,
+			Data:   msg.GetPayload(),
+			Extras: extraData,
+		})
 	}
 
 	notification := &devicev1.NotifyRequest{
-		DeviceId: dev.GetId(),
-		KeyType:  devicev1.KeyType_FCM_TOKEN,
-		Title:    messageTitle,
-		Body:     messageBody,
-		Data:     msg.GetPayload(),
-		Extras:   extraData,
+		DeviceId:      dev.GetId(),
+		KeyType:       devicev1.KeyType_FCM_TOKEN,
+		Notifications: messages,
 	}
-
-	resp, err := dq.deviceCli.Svc().Notify(ctx, notification)
+	resp, err := dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
 	if err != nil {
 		return err
 	}

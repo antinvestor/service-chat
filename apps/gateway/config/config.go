@@ -12,9 +12,9 @@ type GatewayConfig struct {
 	DeviceServiceURI string `envDefault:"device.api.antinvestor.com:443" env:"DEVICE_SERVICE_URI"`
 
 	// Connection management
-	MaxConnectionsPerDevice int `envDefault:"1" env:"MAX_CONNECTIONS_PER_DEVICE"`
+	MaxConnectionsPerDevice int `envDefault:"1"   env:"MAX_CONNECTIONS_PER_DEVICE"`
 	ConnectionTimeoutSec    int `envDefault:"300" env:"CONNECTION_TIMEOUT_SEC"`
-	HeartbeatIntervalSec    int `envDefault:"30" env:"HEARTBEAT_INTERVAL_SEC"`
+	HeartbeatIntervalSec    int `envDefault:"30"  env:"HEARTBEAT_INTERVAL_SEC"`
 
 	// Rate limiting
 	MaxEventsPerSecond int `envDefault:"100" env:"MAX_EVENTS_PER_SECOND"`
@@ -22,10 +22,10 @@ type GatewayConfig struct {
 	// Cache configuration (Redis or similar)
 	// Connection metadata is stored in cache to enable horizontal scaling
 	// and allow multiple gateway instances to coordinate
-	CacheName string `envDefault:"defaultCache" env:"CACHE_NAME"`
+	CacheName string `envDefault:"defaultCache"           env:"CACHE_NAME"`
 	CacheURI  string `envDefault:"redis://localhost:6379" env:"CACHE_URI"`
 
 	// Queue for receiving user-targeted deliveries from default service
-	QueueUserEventDeliveryName string `envDefault:"user.event.delivery" env:"QUEUE_USER_EVENT_DELIVERY_NAME"`
+	QueueUserEventDeliveryName string `envDefault:"user.event.delivery"       env:"QUEUE_USER_EVENT_DELIVERY_NAME"`
 	QueueUserEventDeliveryURI  string `envDefault:"mem://user.event.delivery" env:"QUEUE_USER_EVENT_DELIVERY_URI"`
 }

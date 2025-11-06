@@ -3,7 +3,7 @@ package business
 import (
 	"context"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 )
 
 // RoomBusiness defines the business logic for room operations.

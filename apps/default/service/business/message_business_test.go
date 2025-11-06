@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -29,9 +29,8 @@ func TestMessageBusinessTestSuite(t *testing.T) {
 func (s *MessageBusinessTestSuite) setupBusinessLayer(
 	ctx context.Context, svc *frame.Service,
 ) (business.MessageBusiness, business.RoomBusiness) {
-
 	workMan := svc.WorkManager()
-	evtsMan := svc.EventsManager(ctx)
+	evtsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
@@ -261,9 +260,7 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 }
 
 func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
-
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-
 		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
 

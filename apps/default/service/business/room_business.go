@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
@@ -213,15 +213,14 @@ func (rb *roomBusiness) SearchRooms(
 	// Build the search query
 
 	query := data.NewSearchQuery(
-		req.GetQuery(),
 		data.WithSearchOffset(int(req.GetPage())),
 		data.WithSearchLimit(int(req.GetCount())),
 		data.WithSearchFiltersAndByValue(map[string]any{
 			"id": roomIDs,
 		}),
-		data.WithSearchFiltersOrByQuery(map[string]string{
-			"name":       "% ?",
-			"searchable": " @@ websearch_to_tsquery( 'english', ?) ",
+		data.WithSearchFiltersOrByValue(map[string]any{
+			"name % ?": req.GetQuery(),
+			"searchable @@ websearch_to_tsquery( 'english', ?) ": req.GetQuery(),
 		}))
 
 	// Get rooms - need to convert JobResultPipe to slice
@@ -232,9 +231,7 @@ func (rb *roomBusiness) SearchRooms(
 	}
 
 	for res := range roomsPipe.ResultChan() {
-
 		if res.IsError() {
-
 			return resultList, res.Error()
 		}
 

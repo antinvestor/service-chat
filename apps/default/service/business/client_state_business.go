@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
@@ -102,7 +102,12 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 }
 
 // UpdateReadReceipt update read receipt and notifies room subscribers.
-func (cb *connectBusiness) UpdateReadReceipt(ctx context.Context, profileID string, roomID string, eventID string) error {
+func (cb *connectBusiness) UpdateReadReceipt(
+	ctx context.Context,
+	profileID string,
+	roomID string,
+	eventID string,
+) error {
 	if profileID == "" {
 		return service.ErrUnspecifiedID
 	}
@@ -158,7 +163,12 @@ func (cb *connectBusiness) UpdateReadReceipt(ctx context.Context, profileID stri
 	return cb.broadCast(ctx, roomID, receiptEvent)
 }
 
-func (cb *connectBusiness) UpdateReadMarker(ctx context.Context, profileID string, roomID string, upToEventID string) error {
+func (cb *connectBusiness) UpdateReadMarker(
+	ctx context.Context,
+	profileID string,
+	roomID string,
+	upToEventID string,
+) error {
 	if profileID == "" {
 		return service.ErrUnspecifiedID
 	}
@@ -216,13 +226,11 @@ func (cb *connectBusiness) UpdateReadMarker(ctx context.Context, profileID strin
 			IsCompressed: false,
 			RetryCount:   0,
 		})
-
 	}
 	return cb.broadCast(ctx, roomID, receiptEvents...)
 }
 
 func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayloads ...*eventsv1.EventDelivery) error {
-
 	// Get the subscriptions tied to the room
 	subs, err := cb.subRepo.GetByRoomID(ctx, roomID, true)
 	if err != nil {
@@ -230,7 +238,6 @@ func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayl
 	}
 
 	for _, sub := range subs {
-
 		for _, pl := range dlrPayloads {
 			pl.Target = &eventsv1.EventReceipt{
 				RecepientId: sub.ProfileID,
@@ -243,7 +250,6 @@ func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayl
 				return err
 			}
 		}
-
 	}
 
 	return nil

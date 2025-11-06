@@ -112,7 +112,6 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByRoomID() {
 		roomID := util.IDString()
 
 		for i := range 3 {
-
 			subState := models.RoomSubscriptionStateActive
 			if i >= 2 {
 				subState = models.RoomSubscriptionStateBlocked
@@ -234,7 +233,6 @@ func (s *SubscriptionRepositoryTestSuite) TestCountActiveMembers() {
 		roomID := util.IDString()
 
 		for i := range 5 {
-
 			subState := models.RoomSubscriptionStateActive
 			if i >= 3 {
 				subState = models.RoomSubscriptionStateBlocked

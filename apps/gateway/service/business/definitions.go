@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/pitabwire/frame/queue"
 )
 
@@ -21,7 +21,6 @@ type Metadata struct {
 
 func (cm *Metadata) Key() string {
 	return fmt.Sprintf("%s:%s", cm.ProfileID, cm.DeviceID)
-
 }
 
 // Connection represents an active edge device connection.

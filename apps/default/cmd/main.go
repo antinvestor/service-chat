@@ -4,13 +4,16 @@ import (
 	"context"
 	"net/http"
 
+	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
+	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
+	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"connectrpc.com/connect"
 	"connectrpc.com/otelconnect"
-	"github.com/antinvestor/apis/go/chat/v1/chatv1connect"
-	apis "github.com/antinvestor/apis/go/common"
-	devicev1 "github.com/antinvestor/apis/go/device/v1"
-	notificationv1 "github.com/antinvestor/apis/go/notification/v1"
-	profilev1 "github.com/antinvestor/apis/go/profile/v1"
+	"github.com/antinvestor/apis/go/common"
+	"github.com/antinvestor/apis/go/device"
+	"github.com/antinvestor/apis/go/notification"
+	"github.com/antinvestor/apis/go/profile"
 	aconfig "github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
@@ -27,7 +30,6 @@ import (
 )
 
 func main() {
-	serviceName := "service_chat"
 	ctx := context.Background()
 
 	// Initialize configuration
@@ -37,8 +39,12 @@ func main() {
 		return
 	}
 
+	if cfg.Name() == "" {
+		cfg.ServiceName = "service_chat"
+	}
+
 	// Create service
-	ctx, svc := frame.NewServiceWithContext(ctx, serviceName, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client())
+	ctx, svc := frame.NewServiceWithContext(ctx, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client())
 	defer svc.Stop(ctx)
 	log := svc.Log(ctx)
 
@@ -83,9 +89,9 @@ func main() {
 	)
 
 	// Get publisher for event handlers
-	deliveryPublisher, _ := svc.QueueManager(ctx).GetPublisher(cfg.QueueUserEventDeliveryName)
+	deliveryPublisher, _ := svc.QueueManager().GetPublisher(cfg.QueueUserEventDeliveryName)
 	workMan := svc.WorkManager()
-	eventsMan := svc.EventsManager(ctx)
+	eventsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	// Register queue handlers and event handlers
@@ -131,56 +137,54 @@ func handleDatabaseMigration(
 		log.WithError(err).Fatal("main -- Could not migrate successfully")
 	}
 	return true
-
 }
 
 // setupNotificationClient creates and configures the notification client.
 func setupNotificationClient(
 	ctx context.Context,
 	clHolder security.InternalOauth2ClientHolder,
-	cfg aconfig.ChatConfig) (*notificationv1.NotificationClient, error) {
-	return notificationv1.NewNotificationClient(ctx,
-		apis.WithEndpoint(cfg.NotificationServiceURI),
-		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
-		apis.WithTokenUsername(clHolder.JwtClientID()),
-		apis.WithTokenPassword(clHolder.JwtClientSecret()),
-		apis.WithScopes(openid.ConstSystemScopeInternal),
-		apis.WithAudiences("service_notifications"))
+	cfg aconfig.ChatConfig) (notificationv1connect.NotificationServiceClient, error) {
+	return notification.NewClient(ctx,
+		common.WithEndpoint(cfg.NotificationServiceURI),
+		common.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
+		common.WithTokenUsername(clHolder.JwtClientID()),
+		common.WithTokenPassword(clHolder.JwtClientSecret()),
+		common.WithScopes(openid.ConstSystemScopeInternal),
+		common.WithAudiences("service_notifications"))
 }
 
 // setupProfileClient creates and configures the profile client.
 func setupProfileClient(
 	ctx context.Context,
 	clHolder security.InternalOauth2ClientHolder,
-	cfg aconfig.ChatConfig) (*profilev1.ProfileClient, error) {
-	return profilev1.NewProfileClient(ctx,
-		apis.WithEndpoint(cfg.ProfileServiceURI),
-		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
-		apis.WithTokenUsername(clHolder.JwtClientID()),
-		apis.WithTokenPassword(clHolder.JwtClientSecret()),
-		apis.WithScopes(openid.ConstSystemScopeInternal),
-		apis.WithAudiences("service_profile"))
+	cfg aconfig.ChatConfig) (profilev1connect.ProfileServiceClient, error) {
+	return profile.NewClient(ctx,
+		common.WithEndpoint(cfg.ProfileServiceURI),
+		common.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
+		common.WithTokenUsername(clHolder.JwtClientID()),
+		common.WithTokenPassword(clHolder.JwtClientSecret()),
+		common.WithScopes(openid.ConstSystemScopeInternal),
+		common.WithAudiences("service_profile"))
 }
 
 // setupDeviceClient creates and configures the device client.
 func setupDeviceClient(
 	ctx context.Context,
 	clHolder security.InternalOauth2ClientHolder,
-	cfg aconfig.ChatConfig) (*devicev1.DeviceClient, error) {
-	return devicev1.NewDeviceClient(ctx,
-		apis.WithEndpoint(cfg.DeviceServiceURI),
-		apis.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
-		apis.WithTokenUsername(clHolder.JwtClientID()),
-		apis.WithTokenPassword(clHolder.JwtClientSecret()),
-		apis.WithScopes(openid.ConstSystemScopeInternal),
-		apis.WithAudiences("service_device"))
+	cfg aconfig.ChatConfig) (devicev1connect.DeviceServiceClient, error) {
+	return device.NewClient(ctx,
+		common.WithEndpoint(cfg.DeviceServiceURI),
+		common.WithTokenEndpoint(cfg.GetOauth2TokenEndpoint()),
+		common.WithTokenUsername(clHolder.JwtClientID()),
+		common.WithTokenPassword(clHolder.JwtClientSecret()),
+		common.WithScopes(openid.ConstSystemScopeInternal),
+		common.WithAudiences("service_device"))
 }
 
 // setupConnectServer initializes and configures the gRPC server.
 func setupConnectServer(ctx context.Context, svc *frame.Service,
-	notificationCli *notificationv1.NotificationClient,
-	profileCli *profilev1.ProfileClient) http.Handler {
-
+	notificationCli notificationv1connect.NotificationServiceClient,
+	profileCli profilev1connect.ProfileServiceClient) http.Handler {
 	securityMan := svc.SecurityManager()
 
 	otelInterceptor, err := otelconnect.NewInterceptor()

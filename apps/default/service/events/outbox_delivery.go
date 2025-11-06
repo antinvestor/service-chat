@@ -20,8 +20,12 @@ type OutboxDeliveryEventHandler struct {
 	deliveryTopic queue.Publisher
 }
 
-func NewOutboxDeliveryEventHandler(ctx context.Context, dbPool pool.Pool, workMan workerpool.Manager, deliveryTopic queue.Publisher) *OutboxDeliveryEventHandler {
-
+func NewOutboxDeliveryEventHandler(
+	ctx context.Context,
+	dbPool pool.Pool,
+	workMan workerpool.Manager,
+	deliveryTopic queue.Publisher,
+) *OutboxDeliveryEventHandler {
 	return &OutboxDeliveryEventHandler{
 		deliveryTopic: deliveryTopic,
 		eventRepo:     repository.NewRoomEventRepository(ctx, dbPool, workMan),
@@ -50,7 +54,7 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 		return errors.New("invalid payload type, expected eventsv1.EventBroadcast{}")
 	}
 
-	EventLink := broadcast.Event
+	EventLink := broadcast.GetEvent()
 
 	logger := util.Log(ctx).WithFields(map[string]any{
 		"room_id": EventLink.GetRoomId(),
@@ -69,7 +73,7 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 		return err
 	}
 
-	for _, target := range broadcast.Targets {
+	for _, target := range broadcast.GetTargets() {
 		EventDelivery := &eventsv1.EventDelivery{
 			Event:        EventLink,
 			Target:       target,

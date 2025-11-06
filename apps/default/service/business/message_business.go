@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
@@ -150,7 +150,9 @@ func (mb *messageBusiness) SendEvents(
 
 		// Check if bulk save failed
 		if bulkCreateErr != nil {
-			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to save event: %v", bulkCreateErr)})
+			errorD, _ := structpb.NewStruct(
+				map[string]any{"error": fmt.Sprintf("failed to save event: %v", bulkCreateErr)},
+			)
 			responses[responseIdx] = &chatv1.StreamAck{
 				EventId:  event.GetID(),
 				AckAt:    timestamppb.Now(),

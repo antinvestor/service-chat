@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	chatv1 "github.com/antinvestor/apis/go/chat/v1"
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
@@ -30,9 +30,8 @@ func TestOutboxEventTestSuite(t *testing.T) {
 func (s *OutboxEventTestSuite) setupBusinessLayer(
 	ctx context.Context, svc *frame.Service,
 ) (business.RoomBusiness, business.MessageBusiness) {
-
 	workMan := svc.WorkManager()
-	evtsMan := svc.EventsManager(ctx)
+	evtsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
@@ -49,7 +48,7 @@ func (s *OutboxEventTestSuite) setupBusinessLayer(
 
 func (s *OutboxEventTestSuite) createQueue(ctx context.Context, svc *frame.Service) *events.RoomOutboxLoggingQueue {
 	workMan := svc.WorkManager()
-	eventsMan := svc.EventsManager(ctx)
+	eventsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 	return events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan)
 }
@@ -211,7 +210,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 
 		// Initial unread count should be 0
 		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
-		s.Equal(0, len(evts))
+		s.Empty(evts)
 
 		// Send a message
 		payload, _ := structpb.NewStruct(map[string]interface{}{
@@ -250,7 +249,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 		evts, err = outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
 		require.NoError(t, err)
 
-		s.Equal(1, len(evts))
+		s.Len(evts, 1)
 	})
 }
 
@@ -320,7 +319,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 
 		evts, err := outboxRepo.GetPendingBySubscription(ctx, senderSub.GetID(), 10000)
 		require.NoError(t, err)
-		s.Equal(0, len(evts))
+		s.Empty(evts)
 	})
 }
 
@@ -384,7 +383,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 		require.NoError(t, err)
 
 		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
-		s.Equal(5, len(evts))
+		s.Len(evts, 5)
 	})
 }
 
@@ -560,7 +559,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 		require.NoError(t, err)
 
 		evts, err := outboxRepo.GetPendingBySubscription(ctx, memberSub.GetID(), 10000)
-		s.Equal(messageCount, len(evts))
+		s.Len(evts, messageCount)
 	})
 }
 

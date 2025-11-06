@@ -12,6 +12,6 @@ type ChatConfig struct {
 
 	SystemAccessID string `envDefault:"c8cf0ldstmdlinc3eva0" env:"STATIC_SYSTEM_ACCESS_ID"`
 
-	QueueUserEventDeliveryName string `envDefault:"user.event.delivery"               env:"QUEUE_USER_EVENT_DELIVERY_NAME"`
+	QueueUserEventDeliveryName string `envDefault:"user.event.delivery"       env:"QUEUE_USER_EVENT_DELIVERY_NAME"`
 	QueueUserEventDeliveryURI  string `envDefault:"mem://user.event.delivery" env:"QUEUE_USER_EVENT_DELIVERY_URI"`
 }
