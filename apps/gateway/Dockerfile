@@ -33,7 +33,7 @@ FROM cgr.dev/chainguard/static:latest
 COPY --from=builder /gateway /gateway
 
 # Use non-root user
-USER nonroot:nonroot
+USER 65532:65532
 
 # Expose your app ports
 EXPOSE 80 50051
