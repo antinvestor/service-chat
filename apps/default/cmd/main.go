@@ -44,16 +44,13 @@ func main() {
 	}
 
 	// Create service
-	ctx, svc := frame.NewServiceWithContext(ctx, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client())
+	ctx, svc := frame.NewServiceWithContext(ctx, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client(), frame.WithDatastore())
 	defer svc.Stop(ctx)
 	log := svc.Log(ctx)
 
-	// Handle database migration if requested
-	if handleDatabaseMigration(ctx, svc, cfg, log) {
-		return
-	}
-
 	sm := svc.SecurityManager()
+
+	dbManager := svc.DatastoreManager()
 
 	// Setup clients and services
 	deviceCli, err := setupDeviceClient(ctx, sm, cfg)
@@ -71,12 +68,17 @@ func main() {
 		log.WithError(err).Fatal("main -- Could not setup profile client")
 	}
 
+	// Handle database migration if requested
+	if handleDatabaseMigration(ctx, dbManager, cfg) {
+		return
+	}
+
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli)
 
 	// Setup HTTP handlers
 	// Start with datastore option
-	serviceOptions := []frame.Option{frame.WithDatastore(), frame.WithHTTPHandler(connectHandler)}
+	serviceOptions := []frame.Option{frame.WithHTTPHandler(connectHandler)}
 
 	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueUserEventDeliveryName,
@@ -119,20 +121,16 @@ func main() {
 // handleDatabaseMigration performs database migration if configured to do so.
 func handleDatabaseMigration(
 	ctx context.Context,
-	svc *frame.Service,
+	dbManager datastore.Manager,
 	cfg aconfig.ChatConfig,
 	log *util.LogEntry,
 ) bool {
-	serviceOptions := []frame.Option{frame.WithDatastore(pool.WithPreparedStatements(false))}
 
 	if !cfg.DoDatabaseMigrate() {
 		return false
 	}
-	svc.Init(ctx, serviceOptions...)
 
-	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-	err := repository.Migrate(ctx, dbPool, cfg.GetDatabaseMigrationPath())
+	err := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath())
 	if err != nil {
 		log.WithError(err).Fatal("main -- Could not migrate successfully")
 	}

@@ -92,15 +92,7 @@ func (bs *BaseTestSuite) CreateService(
 	// Get pool and migrate
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
 
-	migrationPool := pool.NewPool(ctx)
-	err = migrationPool.AddConnection(
-		ctx,
-		pool.WithConnection(testDS.String(), false),
-		pool.WithPreparedStatements(false),
-	)
-	require.NoError(t, err)
-
-	err = repository.Migrate(ctx, migrationPool, "../../migrations/0001")
+	err = repository.Migrate(ctx, svc.DatastoreManager(), "../../migrations/0001")
 	require.NoError(t, err)
 
 	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
