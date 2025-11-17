@@ -22,7 +22,6 @@ import (
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/datastore/pool"
 	"github.com/pitabwire/frame/security"
 	securityconnect "github.com/pitabwire/frame/security/interceptors/connect"
 	"github.com/pitabwire/frame/security/openid"
@@ -44,7 +43,12 @@ func main() {
 	}
 
 	// Create service
-	ctx, svc := frame.NewServiceWithContext(ctx, frame.WithConfig(&cfg), frame.WithRegisterServerOauth2Client(), frame.WithDatastore())
+	ctx, svc := frame.NewServiceWithContext(
+		ctx,
+		frame.WithConfig(&cfg),
+		frame.WithRegisterServerOauth2Client(),
+		frame.WithDatastore(),
+	)
 	defer svc.Stop(ctx)
 	log := svc.Log(ctx)
 
@@ -123,16 +127,14 @@ func handleDatabaseMigration(
 	ctx context.Context,
 	dbManager datastore.Manager,
 	cfg aconfig.ChatConfig,
-	log *util.LogEntry,
 ) bool {
-
 	if !cfg.DoDatabaseMigrate() {
 		return false
 	}
 
 	err := repository.Migrate(ctx, dbManager, cfg.GetDatabaseMigrationPath())
 	if err != nil {
-		log.WithError(err).Fatal("main -- Could not migrate successfully")
+		util.Log(ctx).WithError(err).Fatal("main -- Could not migrate successfully")
 	}
 	return true
 }
