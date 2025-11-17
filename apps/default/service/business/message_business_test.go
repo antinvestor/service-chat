@@ -70,7 +70,7 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -97,7 +97,7 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 				{
 					RoomId:   util.IDString(), // Non-existent room
 					SenderId: util.IDString(),
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -136,7 +136,7 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 			messages = append(messages, &chatv1.RoomEvent{
 				RoomId:   room.GetId(),
 				SenderId: creatorID,
-				Type:     chatv1.RoomEventType_TEXT,
+				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 				Payload:  payload,
 			})
 		}
@@ -181,7 +181,7 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_TEXT,
+						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -227,7 +227,7 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -289,7 +289,7 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 					Id:       util.IDString(),
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -341,7 +341,7 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -374,8 +374,8 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 
 		// Test different message types
 		messageTypes := []chatv1.RoomEventType{
-			chatv1.RoomEventType_TEXT,
-			chatv1.RoomEventType_EVENT,
+			chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
+			chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
 		}
 
 		for _, msgType := range messageTypes {

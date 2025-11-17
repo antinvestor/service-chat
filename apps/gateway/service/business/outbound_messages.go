@@ -20,10 +20,10 @@ func (cm *connectionManager) handleOutboundRequests(
 	evt := req.GetEvent()
 	target := req.GetTarget()
 
-	payload := &chatv1.ServerEvent{
+	payload := &chatv1.ConnectResponse{
 		Id:        target.GetTargetId(),
 		Timestamp: timestamppb.Now(),
-		Payload: &chatv1.ServerEvent_Message{
+		Payload: &chatv1.ConnectResponse_Message{
 			Message: &chatv1.RoomEvent{
 				Id:       evt.GetEventId(),
 				Type:     chatv1.RoomEventType(req.GetEvent().GetEventType().Number()),

@@ -147,7 +147,7 @@ func (s *ChatServerTestSuite) TestSendEvent() {
 				{
 					RoomId:   roomID,
 					SenderId: profileID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -189,7 +189,7 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 					{
 						RoomId:   roomID,
 						SenderId: profileID,
-						Type:     chatv1.RoomEventType_TEXT,
+						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 						Payload:  payload,
 					},
 				},

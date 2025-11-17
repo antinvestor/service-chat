@@ -816,11 +816,11 @@ func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream Devic
 		"timestamp":  time.Now().Unix(),
 	}
 
-	ack := &chatv1.ServerEvent{
-		Payload: &chatv1.ServerEvent_Message{
+	ack := &chatv1.ConnectResponse{
+		Payload: &chatv1.ConnectResponse_Message{
 			Message: &chatv1.RoomEvent{
 				Id:       util.IDString(),
-				Type:     chatv1.RoomEventType_SYSTEM,
+				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_UNSPECIFIED,
 				Payload:  payload.ToProtoStruct(),
 				SentAt:   timestamppb.Now(),
 				Edited:   false,

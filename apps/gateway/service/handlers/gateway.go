@@ -40,7 +40,7 @@ func NewGatewayServer(
 // This is the primary method for maintaining real-time connections.
 func (gs *GatewayServer) Connect(
 	ctx context.Context,
-	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent],
+	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ConnectResponse],
 ) error {
 	// Extract profile ID from context
 	authClaims := security.ClaimsFromContext(ctx)
@@ -77,13 +77,13 @@ func (gs *GatewayServer) Connect(
 
 // deviceStreamImpl wraps connect.BidiStream to implement business.DeviceStream.
 type deviceStreamImpl struct {
-	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent]
+	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ConnectResponse]
 }
 
 func (w *deviceStreamImpl) Receive() (*chatv1.ConnectRequest, error) {
 	return w.stream.Receive()
 }
 
-func (w *deviceStreamImpl) Send(event *chatv1.ServerEvent) error {
+func (w *deviceStreamImpl) Send(event *chatv1.ConnectResponse) error {
 	return w.stream.Send(event)
 }

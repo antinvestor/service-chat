@@ -34,7 +34,7 @@ type Connection struct {
 // DeviceStream abstracts the bidirectional stream for edge devices.
 type DeviceStream interface {
 	Receive() (*chatv1.ConnectRequest, error)
-	Send(*chatv1.ServerEvent) error
+	Send(response *chatv1.ConnectResponse) error
 }
 
 type ConnectionManager interface {

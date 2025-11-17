@@ -131,7 +131,7 @@ func (ps *ChatServer) withTimeout(ctx context.Context, timeout time.Duration) (c
 
 func (ps *ChatServer) Connect(
 	ctx context.Context,
-	_ *connect.BidiStream[chatv1.ConnectRequest, chatv1.ServerEvent],
+	_ *connect.BidiStream[chatv1.ConnectRequest, chatv1.ConnectResponse],
 ) error {
 	// Validate authentication
 	profileID, err := ps.validateAuthentication(ctx)
@@ -273,11 +273,11 @@ func (ps *ChatServer) GetHistory(
 	}
 
 	// Convert to ServerEvent format with pre-allocated slice for efficiency
-	serverEvents := make([]*chatv1.ServerEvent, 0, len(events))
+	serverEvents := make([]*chatv1.ConnectResponse, 0, len(events))
 	for _, event := range events {
 		if event != nil { // Defensive check
-			serverEvents = append(serverEvents, &chatv1.ServerEvent{
-				Payload: &chatv1.ServerEvent_Message{
+			serverEvents = append(serverEvents, &chatv1.ConnectResponse{
+				Payload: &chatv1.ConnectResponse_Message{
 					Message: event,
 				},
 			})

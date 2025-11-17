@@ -517,7 +517,7 @@ func (rb *roomBusiness) sendRoomEvent(
 			{
 				RoomId:   roomID,
 				SenderId: senderID,
-				Type:     chatv1.RoomEventType_EVENT,
+				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
 				Payload:  payload,
 			},
 		},

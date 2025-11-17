@@ -85,7 +85,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_TEXT,
+						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -197,7 +197,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 						{
 							RoomId:   room.GetId(),
 							SenderId: userID,
-							Type:     chatv1.RoomEventType_TEXT,
+							Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 							Payload:  payload,
 						},
 					},

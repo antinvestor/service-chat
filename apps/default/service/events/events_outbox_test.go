@@ -141,7 +141,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueExecuteCreatesOutboxEntries
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -223,7 +223,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueUpdatesUnreadCount() {
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -289,7 +289,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueSkipsSender() {
 				{
 					RoomId:   room.GetId(),
 					SenderId: senderID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -358,7 +358,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueMultipleMessages() {
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_TEXT,
+						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -428,7 +428,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueWithInactiveSubscription() 
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
@@ -532,7 +532,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueConcurrency() {
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_TEXT,
+						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 						Payload:  payload,
 					},
 				},
@@ -599,7 +599,7 @@ func (s *OutboxEventTestSuite) TestOutboxLoggingQueueIdempotency() {
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
-					Type:     chatv1.RoomEventType_TEXT,
+					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
 					Payload:  payload,
 				},
 			},
