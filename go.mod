@@ -19,7 +19,7 @@ require (
 	github.com/antinvestor/apis/go/notification v1.48.14
 	github.com/antinvestor/apis/go/profile v1.48.14
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/pitabwire/frame v1.66.6
+	github.com/pitabwire/frame v1.67.0
 	github.com/pitabwire/util v0.3.5
 	github.com/stretchr/testify v1.11.1
 	gocloud.dev v0.43.0
