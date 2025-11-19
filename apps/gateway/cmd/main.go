@@ -142,10 +142,7 @@ func setupGatewayServer(
 		util.Log(ctx).WithError(err).Fatal("could not configure open telemetry")
 	}
 
-	validateInterceptor, err := securityconnect.NewValidationInterceptor()
-	if err != nil {
-		util.Log(ctx).WithError(err).Fatal("could not configure validation interceptor")
-	}
+	validateInterceptor := securityconnect.NewValidationInterceptor()
 
 	authInterceptor := securityconnect.NewAuthInterceptor(securityMan.GetAuthenticator(ctx))
 
