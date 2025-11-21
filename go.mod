@@ -19,7 +19,7 @@ require (
 	github.com/antinvestor/apis/go/notification v1.48.16
 	github.com/antinvestor/apis/go/profile v1.48.16
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/pitabwire/frame v1.67.2
+	github.com/pitabwire/frame v1.67.10
 	github.com/pitabwire/util v0.3.5
 	github.com/stretchr/testify v1.11.1
 	gocloud.dev v0.43.0
@@ -143,7 +143,7 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/crypto v0.44.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
