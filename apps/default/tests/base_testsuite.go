@@ -64,6 +64,7 @@ func (bs *BaseTestSuite) CreateService(
 	require.NoError(t, err)
 
 	cfg.LogLevel = "debug"
+	cfg.DatabaseMigrate = true
 	cfg.RunServiceSecurely = false
 	cfg.ServerPort = ""
 
@@ -82,17 +83,16 @@ func (bs *BaseTestSuite) CreateService(
 	ctx, svc := frame.NewServiceWithContext(t.Context(),
 		frame.WithName("chat tests"),
 		frame.WithConfig(&cfg),
-		frametests.WithNoopDriver())
+		frametests.WithNoopDriver(),
+		frame.WithDatastore())
 
-	// Initialize service with datastore : pool.WithTraceConfig(&cfg)
-	svc.Init(ctx, frame.WithDatastore())
+	dbManager := svc.DatastoreManager()
+	workMan := svc.WorkManager()
+	eventsMan := svc.EventsManager()
 
-	var serviceOptions []frame.Option
+	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 
-	// Get pool and migrate
-	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-	err = repository.Migrate(ctx, svc.DatastoreManager(), "../../migrations/0001")
+	err = repository.Migrate(ctx, dbManager, "../../migrations/0001")
 	require.NoError(t, err)
 
 	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
@@ -108,16 +108,15 @@ func (bs *BaseTestSuite) CreateService(
 
 	// Get publisher for event handlers
 	deliveryPublisher, _ := svc.QueueManager().GetPublisher(cfg.QueueUserEventDeliveryName)
-	workMan := svc.WorkManager()
-	eventsMan := svc.EventsManager()
 
 	// Register queue handlers and event handlers
-	serviceOptions = append(serviceOptions,
-		eventDeliveryQueuePublisher, eventDeliveryQueueSubscriber,
+	serviceOptions := []frame.Option{
+		eventDeliveryQueuePublisher,
+		eventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
 			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),
-		))
+		)}
 
 	// Initialize the service with all options
 	svc.Init(ctx, serviceOptions...)
