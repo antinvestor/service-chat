@@ -22,8 +22,9 @@ type GatewayConfig struct {
 	// Cache configuration (Redis or similar)
 	// Connection metadata is stored in cache to enable horizontal scaling
 	// and allow multiple gateway instances to coordinate
-	CacheName string `envDefault:"defaultCache"           env:"CACHE_NAME"`
-	CacheURI  string `envDefault:"redis://localhost:6379" env:"CACHE_URI"`
+	CacheName            string `envDefault:"defaultCache"           env:"CACHE_NAME"`
+	CacheURI             string `envDefault:"redis://localhost:6379" env:"CACHE_URI"`
+	CacheCredentialsFile string `envDefault:""                       env:"CACHE_CREDENTIALS_FILE"`
 
 	// Queue for receiving user-targeted deliveries from default service
 	QueueUserEventDeliveryName string `envDefault:"user.event.delivery"       env:"QUEUE_USER_EVENT_DELIVERY_NAME"`

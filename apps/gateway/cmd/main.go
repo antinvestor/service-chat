@@ -16,7 +16,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/gateway/service/handlers"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/cache"
-	"github.com/pitabwire/frame/cache/valkey"
+	"github.com/pitabwire/frame/cache/jetstreamkv"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/security"
@@ -56,8 +56,16 @@ func main() {
 		log.WithError(err).Fatal("main -- Could not setup device service client")
 	}
 
+	cacheOptions := []cache.Option{
+		cache.WithDSN(data.DSN(cfg.CacheURI)),
+	}
+
+	if cfg.CacheCredentialsFile != "" {
+		cacheOptions = append(cacheOptions, cache.WithCredsFile(cfg.CacheCredentialsFile))
+	}
+
 	// Setup cache for connection metadata
-	defaultCache, err := valkey.New(cache.WithDSN(data.DSN(cfg.CacheURI)))
+	defaultCache, err := jetstreamkv.New(cacheOptions...)
 	if err != nil {
 		log.WithError(err).Fatal("main -- Could not setup default cache")
 	}
