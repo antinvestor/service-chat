@@ -1,3 +1,6 @@
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # ---------- Builder ----------
 FROM golang:1.25 AS builder
 
@@ -7,8 +10,6 @@ WORKDIR /app
 ARG VERSION=dev
 ARG REVISION=none
 ARG BUILDTIME
-ARG TARGETOS
-ARG TARGETARCH
 
 # Cache dependencies first
 COPY go.mod go.sum ./
@@ -20,10 +21,11 @@ COPY ./proto ./proto
 
 # Build static binary for target platform
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w \
-        -X main.version=${VERSION} \
-        -X main.commit=${REVISION} \
-        -X main.date=${BUILDTIME}" \
+    go build -trimpath \
+     -ldflags="-s -w \
+         -X github.com/pitabwire/frame.Version=${VERSION} \
+         -X github.com/pitabwire/frame.Commit=${REVISION} \
+         -X github.com/pitabwire/frame.Date=${BUILDTIME}" \
     -o /gateway ./apps/gateway/cmd/main.go
 
 # ---------- Final ----------
@@ -36,7 +38,7 @@ COPY --from=builder /gateway /gateway
 USER 65532:65532
 
 # Expose your app ports
-EXPOSE 80 50051
+EXPOSE 80
 
 # Add OCI metadata labels
 ARG VERSION
