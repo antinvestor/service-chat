@@ -7,6 +7,7 @@ FROM golang:1.25 AS builder
 WORKDIR /app
 
 # Inject version info from build args
+ARG REPOSITORY
 ARG VERSION=dev
 ARG REVISION=none
 ARG BUILDTIME
@@ -30,9 +31,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 # ---------- Final ----------
 FROM cgr.dev/chainguard/static:latest
-
-# Copy binary from builder
-COPY --from=builder /gateway /gateway
+# Add Maintainer Info
+LABEL maintainer="Bwire Peter <bwire517@gmail.com>"
 
 # Use non-root user
 USER 65532:65532
@@ -41,6 +41,7 @@ USER 65532:65532
 EXPOSE 80
 
 # Add OCI metadata labels
+ARG REPOSITORY
 ARG VERSION
 ARG REVISION
 ARG BUILDTIME
@@ -48,7 +49,11 @@ LABEL org.opencontainers.image.title="Gateway Service"
 LABEL org.opencontainers.image.version=$VERSION
 LABEL org.opencontainers.image.revision=$REVISION
 LABEL org.opencontainers.image.created=$BUILDTIME
-LABEL org.opencontainers.image.source="https://github.com/antinvestor/service-chat"
+LABEL org.opencontainers.image.source=$REPOSITORY
+
+WORKDIR /
+# Copy binary from builder
+COPY --from=builder /gateway /gateway
 
 # Set entrypoint
 ENTRYPOINT ["/gateway"]
