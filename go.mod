@@ -13,13 +13,13 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.10-20250912141014-52f32327d4b0.1
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.8.0
-	github.com/antinvestor/apis/go/chat v1.48.16
-	github.com/antinvestor/apis/go/common v1.48.17
-	github.com/antinvestor/apis/go/device v1.48.16
-	github.com/antinvestor/apis/go/notification v1.48.16
-	github.com/antinvestor/apis/go/profile v1.48.16
+	github.com/antinvestor/apis/go/chat v1.49.0
+	github.com/antinvestor/apis/go/common v1.48.24
+	github.com/antinvestor/apis/go/device v1.49.0
+	github.com/antinvestor/apis/go/notification v1.49.0
+	github.com/antinvestor/apis/go/profile v1.49.0
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/pitabwire/frame v1.68.4
+	github.com/pitabwire/frame v1.68.13
 	github.com/pitabwire/util v0.3.6
 	github.com/stretchr/testify v1.11.1
 	gocloud.dev v0.44.0
@@ -149,9 +149,9 @@ require (
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.256.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20251124214823-79d6a2a48846 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846 // indirect
+	google.golang.org/api v0.257.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/postgres v1.6.0 // indirect
 )
