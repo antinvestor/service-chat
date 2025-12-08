@@ -4,7 +4,7 @@ go 1.25.2
 
 require (
 	buf.build/gen/go/antinvestor/chat/connectrpc/go v1.19.1-20251119161636-a379cd055409.2
-	buf.build/gen/go/antinvestor/chat/protocolbuffers/go v1.36.10-20251119161636-a379cd055409.1
+	buf.build/gen/go/antinvestor/chat/protocolbuffers/go v1.36.10-20251205175649-a1f02d34587b.1
 	buf.build/gen/go/antinvestor/device/connectrpc/go v1.19.1-20251119161652-dfdcd18d6df0.2
 	buf.build/gen/go/antinvestor/device/protocolbuffers/go v1.36.10-20251119161652-dfdcd18d6df0.1
 	buf.build/gen/go/antinvestor/notification/connectrpc/go v1.19.1-20251119161822-0f712795b762.2
