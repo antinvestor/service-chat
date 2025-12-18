@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
@@ -77,11 +76,8 @@ func main() {
 		cfg.HeartbeatIntervalSec,
 	)
 
-	gatewayQueueName := fmt.Sprintf(cfg.QueueGatewayEventDeliveryName, cfg.ShardID)
-	gatewayQueueURI := fmt.Sprintf(cfg.QueueGatewayEventDeliveryURI, cfg.ShardID)
-
 	gatewayEventQueueSubscriber := frame.WithRegisterSubscriber(
-		gatewayQueueName, gatewayQueueURI,
+		cfg.QueueGatewayEventDeliveryName, cfg.QueueGatewayEventDeliveryURI,
 		queues.NewGatewayEventsQueueHandler(connectionManager),
 	)
 

@@ -106,7 +106,7 @@ func main() {
 
 	for i := range cfg.ShardCount {
 		gatewayQueueName := fmt.Sprintf(cfg.QueueGatewayEventDeliveryName, i)
-		gatewayQueueURI := fmt.Sprintf(cfg.QueueGatewayEventDeliveryURI, i)
+		gatewayQueueURI := cfg.QueueGatewayEventDeliveryURI[i]
 
 		gatewayQueuePublisher := frame.WithRegisterPublisher(
 			gatewayQueueName,
