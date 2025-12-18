@@ -3,6 +3,7 @@ package models
 import (
 	"strings"
 	"time"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/pitabwire/frame/data"
 	"google.golang.org/protobuf/types/known/structpb"

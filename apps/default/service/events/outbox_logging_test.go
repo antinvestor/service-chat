@@ -3,6 +3,7 @@ package events_test
 import (
 	"context"
 	"testing"
+
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame"

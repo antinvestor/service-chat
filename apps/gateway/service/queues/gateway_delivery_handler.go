@@ -3,6 +3,7 @@ package queues
 import (
 	"context"
 	"errors"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/antinvestor/service-chat/internal"

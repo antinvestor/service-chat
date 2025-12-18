@@ -3,6 +3,7 @@ package events_test
 import (
 	"context"
 	"testing"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/events"

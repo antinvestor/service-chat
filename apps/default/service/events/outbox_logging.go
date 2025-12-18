@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"time"
+
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
@@ -63,6 +64,7 @@ func (c *roomSubscriberCache) set(roomID string, subscribers []*models.RoomSubsc
 }
 
 // invalidate removes a room from cache (call when membership changes).
+//
 //nolint:unused // Method available for future cache invalidation on membership changes
 func (c *roomSubscriberCache) invalidate(roomID string) {
 	c.mu.Lock()

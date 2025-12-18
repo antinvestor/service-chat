@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"testing"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
