@@ -7,7 +7,6 @@ import (
 	"io"
 	"strconv"
 	"time"
-
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
 	"connectrpc.com/connect"
@@ -40,7 +39,6 @@ func NewEventDeliveryQueueHandler(
 	workMan workerpool.Manager,
 	deviceCli devicev1connect.DeviceServiceClient,
 ) queue.SubscribeWorker {
-
 	return &EventDeliveryQueueHandler{
 		cfg:       cfg,
 		qMan:      qMan,
@@ -50,8 +48,15 @@ func NewEventDeliveryQueueHandler(
 }
 
 func (dq *EventDeliveryQueueHandler) getTopic(profileID, deviceID string) (queue.Publisher, int, error) {
-
 	shardString := internal.MetadataKey(profileID, deviceID)
+	
+	// Ensure ShardCount fits within uint32 to prevent overflow
+	if dq.cfg.ShardCount < 0 || dq.cfg.ShardCount > int(^uint32(0)) {
+		util.Log(ctx).WithField("shard_count", dq.cfg.ShardCount).
+			Error("Invalid shard count, must be non-negative and fit within uint32")
+		return fmt.Errorf("invalid shard count: %d", dq.cfg.ShardCount)
+	}
+	
 	shardID := internal.ShardForKey(shardString, uint32(dq.cfg.ShardCount))
 
 	shardDeliveryQueueName := fmt.Sprintf(dq.cfg.QueueDeviceEventDeliveryName, shardID)
@@ -83,7 +88,6 @@ func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]st
 	}
 
 	for response.Receive() {
-
 		deviceErr := response.Err()
 		if deviceErr != nil {
 			if !errors.Is(deviceErr, io.EOF) {
@@ -105,8 +109,7 @@ func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
 ) {
 	// Process devices concurrently for faster delivery
 	for _, dev := range devices {
-
-		job := workerpool.NewJob[any](func(ctx context.Context, res workerpool.JobResultPipe[any]) error {
+		job := workerpool.NewJob[any](func(ctx context.Context, _ workerpool.JobResultPipe[any]) error {
 			dq.deliverToSingleDevice(ctx, msg, dev)
 			return nil
 		})
@@ -116,7 +119,6 @@ func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
 			util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
 				Error("failed to submit job")
 		}
-
 	}
 }
 
@@ -150,7 +152,6 @@ func (dq *EventDeliveryQueueHandler) publishToDevice(
 	dev *devicev1.DeviceObject,
 	msg *eventsv1.EventDelivery,
 ) error {
-
 	profileID := msg.GetTarget().GetRecepientId()
 	deviceID := dev.GetId()
 

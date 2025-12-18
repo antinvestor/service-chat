@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
@@ -104,8 +103,7 @@ func main() {
 	)
 	serviceOptions = append(serviceOptions, eventDeliveryQueueSubscriber)
 
-	for i := 0; i < cfg.ShardCount; i++ {
-
+	for i := range cfg.ShardCount {
 		gatewayQueueName := fmt.Sprintf(cfg.QueueGatewayEventDeliveryName, i)
 		gatewayQueueURI := fmt.Sprintf(cfg.QueueGatewayEventDeliveryURI, i)
 

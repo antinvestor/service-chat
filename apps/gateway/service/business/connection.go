@@ -5,7 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 )
 
@@ -103,7 +102,6 @@ func (c *connection) Unlock() {
 }
 
 func NewConnection(stream DeviceStream, metadata *Metadata) Connection {
-
 	return &connection{
 		metadata:     metadata,
 		stream:       stream,

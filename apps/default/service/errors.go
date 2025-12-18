@@ -2,7 +2,6 @@ package service
 
 import (
 	"errors"
-
 	"connectrpc.com/connect"
 )
 

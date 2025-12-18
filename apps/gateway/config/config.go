@@ -27,7 +27,7 @@ type GatewayConfig struct {
 	CacheCredentialsFile string `envDefault:""                       env:"CACHE_CREDENTIALS_FILE"`
 
 	// Queue for receiving user-targeted deliveries from default service
-	QueueGatewayEventDeliveryName string `envDefault:"gateway.event.delivery.%d" env:"QUEUE_GATEWAY_EVENT_DELIVERY_NAME"`
+	QueueGatewayEventDeliveryName string `envDefault:"gateway.event.delivery.%d"       env:"QUEUE_GATEWAY_EVENT_DELIVERY_NAME"`
 	QueueGatewayEventDeliveryURI  string `envDefault:"mem://gateway.event.delivery.%d" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`
 
 	ShardID int `envDefault:"0" env:"SHARD_ID"`

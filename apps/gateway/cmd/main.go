@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	"connectrpc.com/connect"
@@ -109,12 +108,13 @@ func setupCache(_ context.Context, cfg gtwconfig.GatewayConfig) (cache.RawCache,
 		cacheOptions = append(cacheOptions, cache.WithCredsFile(cfg.CacheCredentialsFile))
 	}
 
-	if cacheDSN.IsNats() {
+	switch {
+	case cacheDSN.IsNats():
 		// Setup cache for connection metadata
 		return jetstreamkv.New(cacheOptions...)
-	} else if cacheDSN.IsRedis() {
+	case cacheDSN.IsRedis():
 		return valkey.New(cacheOptions...)
-	} else {
+	default:
 		return cache.NewInMemoryCache(), nil
 	}
 }

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"connectrpc.com/connect"

@@ -99,7 +99,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -556,7 +555,6 @@ func (cm *connectionManager) GetConnection(
 	profileID string,
 	deviceID string,
 ) (Connection, bool) {
-
 	metadataKey := internal.MetadataKey(profileID, deviceID)
 	return cm.connPool.get(metadataKey)
 }
@@ -689,7 +687,10 @@ func (cm *connectionManager) handleOutboundStream(
 			// Send to device
 			err := conn.Stream().Send(finalMsg)
 			if err != nil {
-				util.Log(ctx).WithError(err).WithField("error_type", "outbound.send.error").Error("Outbound send failed")
+				util.Log(ctx).
+					WithError(err).
+					WithField("error_type", "outbound.send.error").
+					Error("Outbound send failed")
 				// Don't ack on send failure - will retry
 				select {
 				case errChan <- err:

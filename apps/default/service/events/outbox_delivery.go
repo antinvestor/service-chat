@@ -3,7 +3,6 @@ package events
 import (
 	"context"
 	"errors"
-
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"

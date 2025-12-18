@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore"

@@ -3,7 +3,6 @@ package business
 import (
 	"context"
 	"fmt"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/models"

@@ -2,7 +2,6 @@ package business
 
 import (
 	"context"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/internal"
 )

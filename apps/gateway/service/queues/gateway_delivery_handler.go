@@ -3,7 +3,6 @@ package queues
 import (
 	"context"
 	"errors"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/antinvestor/service-chat/internal"
@@ -25,7 +24,6 @@ type GatewayEventsQueueHandler struct {
 func NewGatewayEventsQueueHandler(
 	cm business.ConnectionManager,
 ) queue.SubscribeWorker {
-
 	return &GatewayEventsQueueHandler{
 		connectionManager: cm,
 	}
@@ -62,8 +60,10 @@ func (dq *GatewayEventsQueueHandler) Handle(ctx context.Context, headers map[str
 	return nil
 }
 
-func (dq *GatewayEventsQueueHandler) toStreamData(ctx context.Context, payload []byte) (*chatv1.ConnectResponse, error) {
-
+func (dq *GatewayEventsQueueHandler) toStreamData(
+	ctx context.Context,
+	payload []byte,
+) (*chatv1.ConnectResponse, error) {
 	eventDelivery := &eventsv1.EventDelivery{}
 	err := proto.Unmarshal(payload, eventDelivery)
 	if err != nil {

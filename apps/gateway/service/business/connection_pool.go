@@ -47,12 +47,13 @@ func newConnectionPool(maxSize int32) *connectionPool {
 	}
 
 	// Pre-allocate each shard with proportional capacity
+	const minShardCapacity = 64
 	shardCapacity := int(maxSize) / poolShardCount
-	if shardCapacity < 64 {
-		shardCapacity = 64
+	if shardCapacity < minShardCapacity {
+		shardCapacity = minShardCapacity
 	}
 
-	for i := 0; i < poolShardCount; i++ {
+	for i := range poolShardCount {
 		pool.shards[i] = &poolShard{
 			connections: make(map[string]Connection, shardCapacity),
 		}
@@ -129,7 +130,7 @@ func (p *connectionPool) forEach(fn func(Connection)) {
 	// Collect all connections from all shards
 	var allConns []Connection
 
-	for i := 0; i < poolShardCount; i++ {
+	for i := range poolShardCount {
 		shard := p.shards[i]
 		shard.mu.RLock()
 		for _, conn := range shard.connections {
