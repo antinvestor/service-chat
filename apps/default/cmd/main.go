@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
@@ -54,7 +55,13 @@ func main() {
 
 	sm := svc.SecurityManager()
 
+	// Get publisher for event handlers
+	workMan := svc.WorkManager()
+	eventsMan := svc.EventsManager()
+	queueMan := svc.QueueManager()
+
 	dbManager := svc.DatastoreManager()
+	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 
 	// Setup clients and services
 	deviceCli, err := setupDeviceClient(ctx, sm, cfg)
@@ -85,27 +92,35 @@ func main() {
 	serviceOptions := []frame.Option{frame.WithHTTPHandler(connectHandler)}
 
 	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
-		cfg.QueueUserEventDeliveryName,
-		cfg.QueueUserEventDeliveryURI,
+		cfg.QueueDeviceEventDeliveryName,
+		cfg.QueueDeviceEventDeliveryURI,
 	)
-	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
-		cfg.QueueUserEventDeliveryName,
-		cfg.QueueUserEventDeliveryURI,
-		queues.NewEventDeliveryQueueHandler(svc, deviceCli),
-	)
+	serviceOptions = append(serviceOptions, eventDeliveryQueuePublisher)
 
-	// Get publisher for event handlers
-	deliveryPublisher, _ := svc.QueueManager().GetPublisher(cfg.QueueUserEventDeliveryName)
-	workMan := svc.WorkManager()
-	eventsMan := svc.EventsManager()
-	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
+		cfg.QueueDeviceEventDeliveryName,
+		cfg.QueueDeviceEventDeliveryURI,
+		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, deviceCli),
+	)
+	serviceOptions = append(serviceOptions, eventDeliveryQueueSubscriber)
+
+	for i := 0; i < cfg.ShardCount; i++ {
+
+		gatewayQueueName := fmt.Sprintf(cfg.QueueGatewayEventDeliveryName, i)
+		gatewayQueueURI := fmt.Sprintf(cfg.QueueGatewayEventDeliveryURI, i)
+
+		gatewayQueuePublisher := frame.WithRegisterPublisher(
+			gatewayQueueName,
+			gatewayQueueURI,
+		)
+		serviceOptions = append(serviceOptions, gatewayQueuePublisher)
+	}
 
 	// Register queue handlers and event handlers
 	serviceOptions = append(serviceOptions,
-		eventDeliveryQueuePublisher, eventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
-			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),
+			events.NewOutboxDeliveryEventHandler(ctx, &cfg, dbPool, workMan, queueMan),
 		))
 
 	// Initialize the service with all options

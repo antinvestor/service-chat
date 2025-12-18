@@ -20,11 +20,11 @@ const (
 // This is the main entry point for all client-originated messages.
 func (cm *connectionManager) handleInboundRequests(
 	ctx context.Context,
-	conn *Connection,
+	conn Connection,
 	req *chatv1.ConnectRequest,
 ) error {
 	// Update last active timestamp for all inbound requests
-	defer cm.updateLastActive(ctx, conn.metadata.Key())
+	defer cm.updateLastActive(ctx, conn.Metadata().Key())
 
 	switch cmd := req.GetPayload().(type) {
 	case *chatv1.ConnectRequest_StateUpdate:
@@ -42,7 +42,7 @@ func (cm *connectionManager) handleInboundRequests(
 // This enables read receipts and delivery status tracking.
 func (cm *connectionManager) processAcknowledgement(
 	ctx context.Context,
-	conn *Connection,
+	conn Connection,
 	ack *chatv1.StreamAck,
 ) error {
 	if ack == nil {
@@ -55,7 +55,7 @@ func (cm *connectionManager) processAcknowledgement(
 			"event_id":   ack.GetEventId(),
 			"error_code": ack.GetError().GetCode(),
 			"error_msg":  ack.GetError().GetMessage(),
-			"device_id":  conn.metadata.DeviceID,
+			"device_id":  conn.Metadata().DeviceID,
 		}).Warn("Client reported error processing event")
 		return nil
 	}
@@ -63,7 +63,7 @@ func (cm *connectionManager) processAcknowledgement(
 	return cm.processStateUpdate(ctx, conn, &chatv1.ClientState{
 		State: &chatv1.ClientState_Receipt{
 			Receipt: &chatv1.ReceiptEvent{
-				ProfileId: conn.metadata.ProfileID,
+				ProfileId: conn.Metadata().ProfileID,
 				RoomId:    ack.GetRoomId(),
 				EventId:   []string{ack.GetEventId()},
 			},
@@ -77,14 +77,14 @@ func (cm *connectionManager) processAcknowledgement(
 //nolint:gocognit,funlen // Comprehensive validation for all client state types prevents spoofing attacks
 func (cm *connectionManager) processStateUpdate(
 	ctx context.Context,
-	conn *Connection,
+	conn Connection,
 	clientState *chatv1.ClientState,
 ) error {
 	if clientState == nil {
 		return nil
 	}
 
-	profileID := conn.metadata.ProfileID
+	profileID := conn.Metadata().ProfileID
 	roomID := ""
 
 	// Validate that the profile_id in ClientState matches the authenticated user
@@ -92,8 +92,8 @@ func (cm *connectionManager) processStateUpdate(
 
 	// Log the command for debugging
 	util.Log(ctx).WithFields(map[string]any{
-		"profile_id": conn.metadata.ProfileID,
-		"device_id":  conn.metadata.DeviceID,
+		"profile_id": conn.Metadata().ProfileID,
+		"device_id":  conn.Metadata().DeviceID,
 		"state":      fmt.Sprintf("%T", clientState.GetState()),
 	}).Debug("Received client state update")
 
@@ -106,12 +106,12 @@ func (cm *connectionManager) processStateUpdate(
 			if st.Receipt.GetProfileId() != "" && st.Receipt.GetProfileId() != profileID {
 				util.Log(ctx).WithFields(map[string]any{
 					"claimed_profile": st.Receipt.GetProfileId(),
-					"actual_profile":  conn.metadata.ProfileID,
+					"actual_profile":  conn.Metadata().ProfileID,
 					"room_id":         st.Receipt.GetRoomId(),
 					"event_ids":       st.Receipt.GetEventId(),
 				}).Warn("Profile ID mismatch in receipt - potential spoofing attempt")
 				return fmt.Errorf("receipt profile_id mismatch: claimed %s, actual %s",
-					st.Receipt.GetProfileId(), conn.metadata.ProfileID)
+					st.Receipt.GetProfileId(), conn.Metadata().ProfileID)
 			}
 			// Always override profile_id with authenticated profile ID for security
 			st.Receipt.ProfileId = profileID
@@ -208,7 +208,7 @@ func (cm *connectionManager) processStateUpdate(
 		// Handle unknown state types - log for monitoring
 		util.Log(ctx).WithFields(map[string]any{
 			"profile_id": profileID,
-			"device_id":  conn.metadata.DeviceID,
+			"device_id":  conn.Metadata().DeviceID,
 			"state_type": fmt.Sprintf("%T", st),
 		}).Warn("Received unknown client state type")
 		return fmt.Errorf("unsupported client state type: %T", st)
@@ -253,12 +253,12 @@ func (cm *connectionManager) processStateUpdate(
 func (cm *connectionManager) updateLastActive(ctx context.Context, connKey string) {
 	// Get connection from pool and update its last active time
 	if conn, exists := cm.connPool.get(connKey); exists {
-		conn.mu.Lock()
+		conn.Lock()
 		now := time.Now().Unix()
 		// Update the connection's metadata (thread-safe with mutex)
-		conn.metadata.LastActive = now
-		conn.metadata.LastHeartbeat = now
-		conn.mu.Unlock()
+		conn.Metadata().LastActive = now
+		conn.Metadata().LastHeartbeat = now
+		conn.Unlock()
 
 		util.Log(ctx).WithField("conn_key", connKey).
 			Debug("Updated last active timestamp")

@@ -89,6 +89,7 @@ func (bs *BaseTestSuite) CreateService(
 	dbManager := svc.DatastoreManager()
 	workMan := svc.WorkManager()
 	eventsMan := svc.EventsManager()
+	queueMan := svc.QueueManager()
 
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 
@@ -96,18 +97,15 @@ func (bs *BaseTestSuite) CreateService(
 	require.NoError(t, err)
 
 	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
-		cfg.QueueUserEventDeliveryName,
-		cfg.QueueUserEventDeliveryURI,
+		cfg.QueueDeviceEventDeliveryName,
+		cfg.QueueDeviceEventDeliveryURI,
 	)
 
 	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
-		cfg.QueueUserEventDeliveryName,
-		cfg.QueueUserEventDeliveryURI,
-		queues.NewEventDeliveryQueueHandler(svc, bs.GetDevice(t)),
+		cfg.QueueDeviceEventDeliveryName,
+		cfg.QueueDeviceEventDeliveryURI,
+		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, bs.GetDevice(t)),
 	)
-
-	// Get publisher for event handlers
-	deliveryPublisher, _ := svc.QueueManager().GetPublisher(cfg.QueueUserEventDeliveryName)
 
 	// Register queue handlers and event handlers
 	serviceOptions := []frame.Option{
@@ -115,7 +113,7 @@ func (bs *BaseTestSuite) CreateService(
 		eventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
-			events.NewOutboxDeliveryEventHandler(ctx, dbPool, workMan, deliveryPublisher),
+			events.NewOutboxDeliveryEventHandler(ctx, &cfg, dbPool, workMan, queueMan),
 		)}
 
 	// Initialize the service with all options

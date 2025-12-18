@@ -2,11 +2,9 @@ package business
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
-	"github.com/pitabwire/frame/queue"
+	"github.com/antinvestor/service-chat/internal"
 )
 
 // Metadata represents the cached connection metadata.
@@ -20,15 +18,16 @@ type Metadata struct {
 }
 
 func (cm *Metadata) Key() string {
-	return fmt.Sprintf("%s:%s", cm.ProfileID, cm.DeviceID)
+	return internal.MetadataKey(cm.ProfileID, cm.DeviceID)
 }
 
-// Connection represents an active edge device connection.
-type Connection struct {
-	metadata   *Metadata
-	subscriber queue.Subscriber
-	stream     DeviceStream
-	mu         sync.RWMutex
+type Connection interface {
+	Lock()
+	Unlock()
+	Metadata() *Metadata
+	Dispatch(*chatv1.ConnectResponse)
+	ConsumeDispatch(ctx context.Context) *chatv1.ConnectResponse
+	Stream() DeviceStream
 }
 
 // DeviceStream abstracts the bidirectional stream for edge devices.
@@ -44,4 +43,9 @@ type ConnectionManager interface {
 		deviceID string,
 		stream DeviceStream,
 	) error
+	GetConnection(
+		ctx context.Context,
+		profileID string,
+		deviceID string,
+	) (Connection, bool)
 }

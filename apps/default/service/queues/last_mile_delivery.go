@@ -3,13 +3,17 @@ package queues
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"strconv"
+	"time"
 
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
 	"connectrpc.com/connect"
+	"github.com/antinvestor/service-chat/apps/default/config"
+	"github.com/antinvestor/service-chat/internal"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
-	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/proto"
@@ -17,27 +21,43 @@ import (
 )
 
 const (
-	HeaderPriority  = "priority"
-	HeaderProfileID = "profile_id"
-	HeaderDeviceID  = "device_id"
 	// DeviceSearchPageSize defines the number of devices to fetch per page when searching.
-	DeviceSearchPageSize = 100
+	DeviceSearchPageSize        = 100
+	DeliveryRequestReplyTimeout = 10 * time.Second
 )
 
 type EventDeliveryQueueHandler struct {
-	service   *frame.Service
+	qMan      queue.Manager
+	cfg       *config.ChatConfig
 	deviceCli devicev1connect.DeviceServiceClient
-
-	userDeviceTopic queue.Publisher
 }
 
 func NewEventDeliveryQueueHandler(
-	svc *frame.Service, deviceCli devicev1connect.DeviceServiceClient,
+	cfg *config.ChatConfig,
+	qMan queue.Manager,
+	deviceCli devicev1connect.DeviceServiceClient,
 ) queue.SubscribeWorker {
+
 	return &EventDeliveryQueueHandler{
-		service:   svc,
+		cfg:       cfg,
+		qMan:      qMan,
 		deviceCli: deviceCli,
 	}
+}
+
+func (dq *EventDeliveryQueueHandler) getTopic(profileID, deviceID string) (queue.Publisher, int, error) {
+
+	shardString := internal.MetadataKey(profileID, deviceID)
+	shardID := internal.ShardForKey(shardString, uint32(dq.cfg.ShardCount))
+
+	shardDeliveryQueueName := fmt.Sprintf(dq.cfg.QueueDeviceEventDeliveryName, shardID)
+
+	deviceTopic, err := dq.qMan.GetPublisher(shardDeliveryQueueName)
+	if err != nil {
+		return nil, shardID, err
+	}
+
+	return deviceTopic, shardID, nil
 }
 
 func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
@@ -59,14 +79,16 @@ func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]st
 	}
 
 	for response.Receive() {
+
+		deviceErr := response.Err()
+		if deviceErr != nil {
+			if !errors.Is(deviceErr, io.EOF) {
+				util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
+			}
+		}
+
 		resp := response.Msg()
 		dq.deliverMessageToDevice(ctx, eventDelivery, resp.GetData())
-	}
-
-	if deviceErr := response.Err(); deviceErr != nil {
-		if !errors.Is(deviceErr, io.EOF) {
-			util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
-		}
 	}
 
 	return nil
@@ -83,12 +105,12 @@ func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
 			if err == nil {
 				continue
 			}
-			util.Log(ctx).WithError(err).Error("failed to directly deliver message")
+			util.Log(ctx).WithError(err).Error("directly delivery of message failed")
 		}
 
 		err := dq.publishToFCM(ctx, dev, msg)
 		if err != nil {
-			util.Log(ctx).WithError(err).Error("failed to deliver message via FCM")
+			util.Log(ctx).WithError(err).Error("deliver of message via FCM failed")
 		}
 	}
 }
@@ -102,12 +124,22 @@ func (dq *EventDeliveryQueueHandler) publishToDevice(
 	dev *devicev1.DeviceObject,
 	msg *eventsv1.EventDelivery,
 ) error {
-	deviceHeader := map[string]string{
-		HeaderProfileID: msg.GetTarget().GetRecepientId(),
-		HeaderDeviceID:  dev.GetId(),
+
+	profileID := msg.GetTarget().GetRecepientId()
+	deviceID := dev.GetId()
+
+	deliveryTopic, shardID, err := dq.getTopic(profileID, deviceID)
+	if err != nil {
+		return err
 	}
 
-	return dq.userDeviceTopic.Publish(ctx, msg, deviceHeader)
+	deviceHeader := map[string]string{
+		internal.HeaderProfileID: profileID,
+		internal.HeaderDeviceID:  deviceID,
+		internal.HeaderShardID:   strconv.Itoa(shardID),
+	}
+
+	return deliveryTopic.Publish(ctx, msg, deviceHeader)
 }
 
 func (dq *EventDeliveryQueueHandler) publishToFCM(

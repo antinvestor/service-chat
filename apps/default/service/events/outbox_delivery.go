@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame/data"
@@ -16,20 +17,37 @@ import (
 const RoomOutboxDeliveryEventName = "outbox.delivery.event"
 
 type OutboxDeliveryEventHandler struct {
+	cfg           *config.ChatConfig
 	eventRepo     repository.RoomEventRepository
+	queueMan      queue.Manager
 	deliveryTopic queue.Publisher
 }
 
 func NewOutboxDeliveryEventHandler(
 	ctx context.Context,
+	cfg *config.ChatConfig,
 	dbPool pool.Pool,
 	workMan workerpool.Manager,
-	deliveryTopic queue.Publisher,
+	queueMan queue.Manager,
 ) *OutboxDeliveryEventHandler {
 	return &OutboxDeliveryEventHandler{
-		deliveryTopic: deliveryTopic,
-		eventRepo:     repository.NewRoomEventRepository(ctx, dbPool, workMan),
+		cfg:       cfg,
+		queueMan:  queueMan,
+		eventRepo: repository.NewRoomEventRepository(ctx, dbPool, workMan),
 	}
+}
+
+func (dlrEH *OutboxDeliveryEventHandler) getTopic() (queue.Publisher, error) {
+	if dlrEH.deliveryTopic != nil {
+		return dlrEH.deliveryTopic, nil
+	}
+
+	var err error
+	dlrEH.deliveryTopic, err = dlrEH.queueMan.GetPublisher(dlrEH.cfg.QueueDeviceEventDeliveryName)
+	if err != nil {
+		return nil, err
+	}
+	return dlrEH.deliveryTopic, nil
 }
 
 func (dlrEH *OutboxDeliveryEventHandler) Name() string {
@@ -73,6 +91,12 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 		return err
 	}
 
+	deliveryTopic, err := dlrEH.getTopic()
+	if err != nil {
+		logger.WithError(err).Error("failed to get topic")
+		return err
+	}
+
 	for _, target := range broadcast.GetTargets() {
 		eventDelivery := &eventsv1.EventDelivery{
 			Event:        eventLink,
@@ -82,7 +106,7 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 			RetryCount:   0,
 		}
 
-		err = dlrEH.deliveryTopic.Publish(ctx, eventDelivery)
+		err = deliveryTopic.Publish(ctx, eventDelivery)
 		if err != nil {
 			logger.WithError(err).Error("failed to deliver event to user")
 			return err

@@ -68,7 +68,7 @@ func (gs *GatewayServer) Connect(
 	// Handle the connection through the connection manager
 	err := gs.cm.HandleConnection(ctx, profileID, deviceID, streamWrapper)
 	if err != nil {
-		gs.svc.Log(ctx).WithError(err).Error("Connection ended with error")
+		gs.svc.Log(ctx).WithError(err).Error("connection ended with error")
 		return err
 	}
 

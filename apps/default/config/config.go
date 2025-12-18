@@ -12,6 +12,11 @@ type ChatConfig struct {
 
 	SystemAccessID string `envDefault:"c8cf0ldstmdlinc3eva0" env:"STATIC_SYSTEM_ACCESS_ID"`
 
-	QueueUserEventDeliveryName string `envDefault:"user.event.delivery"       env:"QUEUE_USER_EVENT_DELIVERY_NAME"`
-	QueueUserEventDeliveryURI  string `envDefault:"mem://user.event.delivery" env:"QUEUE_USER_EVENT_DELIVERY_URI"`
+	QueueDeviceEventDeliveryName string `envDefault:"device.event.delivery" env:"QUEUE_DEVICE_EVENT_DELIVERY_NAME"`
+	QueueDeviceEventDeliveryURI  string `envDefault:"mem://device.event.delivery" env:"QUEUE_DEVICE_EVENT_DELIVERY_URI"`
+
+	QueueGatewayEventDeliveryName string `envDefault:"gateway.event.delivery.%d" env:"QUEUE_GATEWAY_EVENT_DELIVERY_NAME"`
+	QueueGatewayEventDeliveryURI  string `envDefault:"mem://gateway.event.delivery.%d" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`
+
+	ShardCount int `envDefault:"1" env:"SHARD_COUNT"`
 }

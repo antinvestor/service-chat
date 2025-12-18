@@ -17,8 +17,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the actual source
-COPY ./apps/gateway ./apps/gateway
+COPY ./internal ./internal
 COPY ./proto ./proto
+COPY ./apps/gateway ./apps/gateway
 
 # Build static binary for target platform
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
