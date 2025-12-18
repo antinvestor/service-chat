@@ -27,6 +27,17 @@ func NewGatewayEventsQueueHandler(
 }
 
 func (dq *GatewayEventsQueueHandler) Handle(ctx context.Context, headers map[string]string, payload []byte) error {
+	profileID := headers[internal.HeaderProfileID]
+	deviceID := headers[internal.HeaderDeviceID]
+
+	connection, ok := dq.connectionManager.GetConnection(ctx, profileID, deviceID)
+	if !ok {
+		util.Log(ctx).WithFields(map[string]any{
+			"profile_id": profileID,
+			"device_id":  deviceID,
+		}).Debug("connection not found: device may have disconnected")
+		return nil
+	}
 
 	data, err := dq.toStreamData(ctx, payload)
 	if err != nil {
@@ -34,16 +45,12 @@ func (dq *GatewayEventsQueueHandler) Handle(ctx context.Context, headers map[str
 		return nil
 	}
 
-	profileID := headers[internal.HeaderProfileID]
-	deviceID := headers[internal.HeaderDeviceID]
-
-	connection, ok := dq.connectionManager.GetConnection(ctx, profileID, deviceID)
-	if !ok {
-		util.Log(ctx).Error("connection not found: probably subscribed elsewhere")
-		return nil
+	if !connection.Dispatch(data) {
+		util.Log(ctx).WithFields(map[string]any{
+			"profile_id": profileID,
+			"device_id":  deviceID,
+		}).Warn("dispatch channel full: slow consumer detected")
 	}
-
-	connection.Dispatch(data)
 
 	return nil
 }

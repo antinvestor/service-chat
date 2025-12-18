@@ -25,7 +25,7 @@ type Connection interface {
 	Lock()
 	Unlock()
 	Metadata() *Metadata
-	Dispatch(*chatv1.ConnectResponse)
+	Dispatch(*chatv1.ConnectResponse) bool // Returns false if channel is full
 	ConsumeDispatch(ctx context.Context) *chatv1.ConnectResponse
 	Stream() DeviceStream
 }

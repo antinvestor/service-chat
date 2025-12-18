@@ -1,44 +1,75 @@
 package business
 
 import (
+	"hash/fnv"
 	"sync"
 	"sync/atomic"
 )
 
-// connectionPool manages active connections with atomic operations for high performance.
-//
-// Design Rationale:
-// - Uses atomic operations for size tracking to enable lock-free reads
-// - RWMutex allows concurrent reads while protecting writes
-// - Pre-allocated map capacity reduces resizing overhead
-// - forEach creates snapshot to avoid holding lock during iteration
-//
-// Performance:
-// - add(): O(1) with atomic check before lock acquisition
-// - get(): O(1) with read lock only
-// - remove(): O(1) with write lock
-// - size(): O(1) lock-free atomic read
-// - forEach(): O(n) with snapshot to release lock early.
-type connectionPool struct {
-	mu          sync.RWMutex          // Protects connections map
-	connections map[string]Connection // Key: "profileID:deviceID"
-	maxSize     int32                 // Maximum pool capacity
-	currentSize int32                 // Current size (atomic access)
+const (
+	// poolShardCount is the number of shards for the connection pool.
+	// Must be a power of 2 for efficient modulo operation.
+	poolShardCount = 32
+)
+
+// poolShard represents a single shard of the connection pool.
+type poolShard struct {
+	mu          sync.RWMutex
+	connections map[string]Connection
 }
 
-// newConnectionPool creates a connection pool with the specified capacity.
-// The map is pre-allocated to maxSize to avoid resizing during operation.
+// connectionPool manages active connections with sharding for high concurrency.
+//
+// Design Rationale:
+// - Sharding reduces lock contention by distributing connections across 32 shards
+// - Each shard has its own RWMutex, allowing parallel operations on different shards
+// - Uses atomic operations for global size tracking (lock-free reads)
+// - FNV-1a hash for fast, well-distributed shard selection
+//
+// Performance:
+// - add(): O(1) with 1/32 lock contention probability
+// - get(): O(1) with read lock on single shard
+// - remove(): O(1) with write lock on single shard
+// - size(): O(1) lock-free atomic read
+// - forEach(): O(n) with per-shard snapshots.
+type connectionPool struct {
+	shards      [poolShardCount]*poolShard
+	maxSize     int32
+	currentSize int32 // Atomic access
+}
+
+// newConnectionPool creates a sharded connection pool with the specified capacity.
 func newConnectionPool(maxSize int32) *connectionPool {
-	return &connectionPool{
-		connections: make(map[string]Connection, maxSize),
-		maxSize:     maxSize,
+	pool := &connectionPool{
+		maxSize: maxSize,
 	}
+
+	// Pre-allocate each shard with proportional capacity
+	shardCapacity := int(maxSize) / poolShardCount
+	if shardCapacity < 64 {
+		shardCapacity = 64
+	}
+
+	for i := 0; i < poolShardCount; i++ {
+		pool.shards[i] = &poolShard{
+			connections: make(map[string]Connection, shardCapacity),
+		}
+	}
+
+	return pool
+}
+
+// getShard returns the shard for a given key using FNV-1a hash.
+func (p *connectionPool) getShard(key string) *poolShard {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return p.shards[h.Sum32()&(poolShardCount-1)]
 }
 
 // add inserts a connection into the pool.
 // Returns ErrConnectionPoolFull if the pool is at capacity.
 // If a connection with the same key exists, it is not replaced.
-// Thread-safe: Uses atomic load before acquiring write lock.
+// Thread-safe: Uses atomic load before acquiring shard write lock.
 func (p *connectionPool) add(conn Connection) error {
 	// Fast-path check without lock
 	if atomic.LoadInt32(&p.currentSize) >= p.maxSize {
@@ -46,35 +77,41 @@ func (p *connectionPool) add(conn Connection) error {
 	}
 
 	key := conn.Metadata().Key()
-	p.mu.Lock()
-	if _, exists := p.connections[key]; !exists {
-		p.connections[key] = conn
+	shard := p.getShard(key)
+
+	shard.mu.Lock()
+	if _, exists := shard.connections[key]; !exists {
+		shard.connections[key] = conn
 		atomic.AddInt32(&p.currentSize, 1)
 	}
-	p.mu.Unlock()
+	shard.mu.Unlock()
 	return nil
 }
 
 // get retrieves a connection from the pool.
 // Returns the connection and true if found, nil and false otherwise.
-// Thread-safe: Uses read lock for concurrent access.
+// Thread-safe: Uses read lock on single shard only.
 func (p *connectionPool) get(key string) (Connection, bool) {
-	p.mu.RLock()
-	conn, exists := p.connections[key]
-	p.mu.RUnlock()
+	shard := p.getShard(key)
+
+	shard.mu.RLock()
+	conn, exists := shard.connections[key]
+	shard.mu.RUnlock()
 	return conn, exists
 }
 
 // remove deletes a connection from the pool.
 // No-op if the connection doesn't exist.
-// Thread-safe: Uses write lock.
+// Thread-safe: Uses write lock on single shard only.
 func (p *connectionPool) remove(key string) {
-	p.mu.Lock()
-	if _, exists := p.connections[key]; exists {
-		delete(p.connections, key)
+	shard := p.getShard(key)
+
+	shard.mu.Lock()
+	if _, exists := shard.connections[key]; exists {
+		delete(shard.connections, key)
 		atomic.AddInt32(&p.currentSize, -1)
 	}
-	p.mu.Unlock()
+	shard.mu.Unlock()
 }
 
 // size returns the current number of connections in the pool.
@@ -84,20 +121,23 @@ func (p *connectionPool) size() int32 {
 }
 
 // forEach iterates over all connections in the pool, calling fn for each.
-// Creates a snapshot of connections before iteration to avoid holding the lock.
-// This prevents deadlocks if fn performs operations that acquire locks.
-// Thread-safe: Releases read lock before calling fn.
+// Creates snapshots per shard to minimize lock contention.
+// Thread-safe: Releases each shard's read lock before calling fn.
 func (p *connectionPool) forEach(fn func(Connection)) {
-	// Create snapshot under read lock
-	p.mu.RLock()
-	conns := make([]Connection, 0, len(p.connections))
-	for _, conn := range p.connections {
-		conns = append(conns, conn)
-	}
-	p.mu.RUnlock()
+	// Collect all connections from all shards
+	var allConns []Connection
 
-	// Iterate without holding lock
-	for _, conn := range conns {
+	for i := 0; i < poolShardCount; i++ {
+		shard := p.shards[i]
+		shard.mu.RLock()
+		for _, conn := range shard.connections {
+			allConns = append(allConns, conn)
+		}
+		shard.mu.RUnlock()
+	}
+
+	// Iterate without holding any locks
+	for _, conn := range allConns {
 		fn(conn)
 	}
 }

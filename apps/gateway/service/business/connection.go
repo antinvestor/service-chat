@@ -45,8 +45,14 @@ func (c *connection) Metadata() *Metadata {
 	return c.metadata
 }
 
-func (c *connection) Dispatch(evt *chatv1.ConnectResponse) {
-	c.dispatchChan <- evt
+func (c *connection) Dispatch(evt *chatv1.ConnectResponse) bool {
+	select {
+	case c.dispatchChan <- evt:
+		return true
+	default:
+		// Channel full - connection is slow or stalled
+		return false
+	}
 }
 
 func (c *connection) Stream() DeviceStream {

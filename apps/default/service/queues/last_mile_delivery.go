@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"sync"
 	"time"
 
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -99,19 +100,36 @@ func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
 	msg *eventsv1.EventDelivery,
 	devices []*devicev1.DeviceObject,
 ) {
+	// Process devices concurrently for faster delivery
+	var wg sync.WaitGroup
 	for _, dev := range devices {
-		if dq.deviceIsOnline(ctx, dev) {
-			err := dq.publishToDevice(ctx, dev, msg)
-			if err == nil {
-				continue
-			}
-			util.Log(ctx).WithError(err).Error("directly delivery of message failed")
-		}
+		wg.Add(1)
+		go func(device *devicev1.DeviceObject) {
+			defer wg.Done()
+			dq.deliverToSingleDevice(ctx, msg, device)
+		}(dev)
+	}
+	wg.Wait()
+}
 
-		err := dq.publishToFCM(ctx, dev, msg)
-		if err != nil {
-			util.Log(ctx).WithError(err).Error("deliver of message via FCM failed")
+func (dq *EventDeliveryQueueHandler) deliverToSingleDevice(
+	ctx context.Context,
+	msg *eventsv1.EventDelivery,
+	dev *devicev1.DeviceObject,
+) {
+	if dq.deviceIsOnline(ctx, dev) {
+		err := dq.publishToDevice(ctx, dev, msg)
+		if err == nil {
+			return
 		}
+		util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
+			Debug("direct delivery failed, falling back to FCM")
+	}
+
+	err := dq.publishToFCM(ctx, dev, msg)
+	if err != nil {
+		util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
+			Error("FCM delivery failed")
 	}
 }
 

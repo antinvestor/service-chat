@@ -73,12 +73,17 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 	}
 
 	eventLink := broadcast.GetEvent()
+	targets := broadcast.GetTargets()
+
+	// Early exit if no targets
+	if len(targets) == 0 {
+		return nil
+	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
-		"room_id": eventLink.GetRoomId(),
-		"type":    dlrEH.Name(),
+		"room_id":      eventLink.GetRoomId(),
+		"target_count": len(targets),
 	})
-	logger.Debug("handling outbox delivery map")
 
 	// Create outbox entries for each subscriber
 	eventLinkData, err := dlrEH.eventRepo.GetByID(ctx, eventLink.GetEventId())
@@ -97,22 +102,30 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 		return err
 	}
 
-	for _, target := range broadcast.GetTargets() {
+	// Pre-compute payload once for all targets
+	payloadStruct := eventLinkData.Content.ToProtoStruct()
+
+	// Publish all deliveries - continue on individual failures
+	var failCount int
+	for _, target := range targets {
 		eventDelivery := &eventsv1.EventDelivery{
 			Event:        eventLink,
 			Target:       target,
-			Payload:      eventLinkData.Content.ToProtoStruct(),
+			Payload:      payloadStruct,
 			IsCompressed: false,
 			RetryCount:   0,
 		}
 
-		err = deliveryTopic.Publish(ctx, eventDelivery)
-		if err != nil {
-			logger.WithError(err).Error("failed to deliver event to user")
-			return err
+		if pubErr := deliveryTopic.Publish(ctx, eventDelivery); pubErr != nil {
+			failCount++
+			logger.WithError(pubErr).WithField("recipient_id", target.GetRecepientId()).
+				Warn("failed to publish delivery for target")
 		}
 	}
 
-	logger.Debug("Successfully created queued message to user")
+	if failCount > 0 {
+		logger.WithField("fail_count", failCount).Warn("some deliveries failed")
+	}
+
 	return nil
 }
