@@ -486,7 +486,7 @@ func (cm *connectionManager) HandleConnection(
 		cm.updatePresence(ctx, profileID, deviceID, devicev1.PresenceStatus_OFFLINE, "")
 
 		// Remove from pool
-		cm.connPool.remove(metadata.Key())
+		c := cm.connPool.remove(metadata.Key())
 
 		atomic.AddUint64(&cm.disconnectedConns, 1)
 		connectionsDisconnectedCounter.Add(ctx, 1)
@@ -496,6 +496,10 @@ func (cm *connectionManager) HandleConnection(
 			"device_id":  deviceID,
 			"duration":   time.Since(now).String(),
 		}).Debug("Device disconnected from gateway")
+
+		if c != nil {
+			c.Close()
+		}
 	}()
 
 	// Use pooled error channel for efficiency

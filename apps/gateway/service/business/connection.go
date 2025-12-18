@@ -176,3 +176,7 @@ func (c *connection) ChannelUtilization() float64 {
 func (c *connection) Stream() DeviceStream {
 	return c.stream
 }
+
+func (c *connection) Close() {
+	close(c.dispatchChan)
+}

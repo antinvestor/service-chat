@@ -106,15 +106,17 @@ func (p *connectionPool) get(key string) (Connection, bool) {
 // remove deletes a connection from the pool.
 // No-op if the connection doesn't exist.
 // Thread-safe: Uses write lock on single shard only.
-func (p *connectionPool) remove(key string) {
+func (p *connectionPool) remove(key string) Connection {
 	shard := p.getShard(key)
 
 	shard.mu.Lock()
-	if _, exists := shard.connections[key]; exists {
+	c, exists := shard.connections[key]
+	if exists {
 		delete(shard.connections, key)
 		atomic.AddInt32(&p.currentSize, -1)
 	}
 	shard.mu.Unlock()
+	return c
 }
 
 // size returns the current number of connections in the pool.

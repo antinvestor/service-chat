@@ -29,6 +29,7 @@ type Connection interface {
 	ConsumeDispatch(ctx context.Context) *chatv1.ConnectResponse
 	Stream() DeviceStream
 	AllowInbound() bool // Rate limiting check for inbound requests
+	Close()
 }
 
 // DeviceStream abstracts the bidirectional stream for edge devices.
