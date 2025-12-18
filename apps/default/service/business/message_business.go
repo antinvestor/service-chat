@@ -84,6 +84,25 @@ func (mb *messageBusiness) SendEvents(
 		}
 	}
 
+	// Collect all event IDs for deduplication check
+	eventIDsToCheck := make([]string, 0, len(requestEvents))
+	for _, reqEvt := range requestEvents {
+		if reqEvt.GetId() != "" {
+			eventIDsToCheck = append(eventIDsToCheck, reqEvt.GetId())
+		}
+	}
+
+	// Check for existing events (idempotency/deduplication)
+	existingEvents := make(map[string]bool)
+	if len(eventIDsToCheck) > 0 {
+		var err error
+		existingEvents, err = mb.eventRepo.ExistsByIDs(ctx, eventIDsToCheck)
+		if err != nil {
+			util.Log(ctx).WithError(err).Warn("Failed to check for existing events, proceeding without deduplication")
+			// Continue without deduplication rather than failing the entire request
+		}
+	}
+
 	// Phase 1: Validate all events and prepare valid ones for bulk save
 	for i, reqEvt := range requestEvents {
 		// Assign ID if not provided
@@ -95,6 +114,21 @@ func (mb *messageBusiness) SendEvents(
 		eventToIndex[reqEvt.GetId()] = i
 
 		roomID := reqEvt.GetRoomId()
+
+		// Check for duplicate event (idempotency)
+		if existingEvents[reqEvt.GetId()] {
+			// Event already exists - return success (idempotent response)
+			success, _ := structpb.NewStruct(map[string]any{
+				"status":     "ok",
+				"idempotent": true,
+			})
+			responses[i] = &chatv1.StreamAck{
+				EventId:  reqEvt.GetId(),
+				AckAt:    timestamppb.Now(),
+				Metadata: success,
+			}
+			continue
+		}
 
 		// Check if there was an error checking access for this room
 		if accessErr, hasError := roomAccessErrors[roomID]; hasError {

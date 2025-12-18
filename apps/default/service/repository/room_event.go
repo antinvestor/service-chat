@@ -101,3 +101,37 @@ func (rer *roomEventRepository) CountByRoomID(ctx context.Context, roomID string
 		Count(&count).Error
 	return count, err
 }
+
+// ExistsByIDs checks if any of the given event IDs already exist.
+// Returns a map of eventID -> exists for efficient deduplication.
+// This is used to implement idempotency - preventing duplicate message inserts.
+func (rer *roomEventRepository) ExistsByIDs(ctx context.Context, eventIDs []string) (map[string]bool, error) {
+	result := make(map[string]bool, len(eventIDs))
+
+	// Initialize all as not existing
+	for _, id := range eventIDs {
+		result[id] = false
+	}
+
+	if len(eventIDs) == 0 {
+		return result, nil
+	}
+
+	// Query for existing IDs
+	var existingIDs []string
+	err := rer.Pool().DB(ctx, true).
+		Model(&models.RoomEvent{}).
+		Unscoped().
+		Where("id IN ? AND deleted_at IS NULL", eventIDs).
+		Pluck("id", &existingIDs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Mark existing IDs
+	for _, id := range existingIDs {
+		result[id] = true
+	}
+
+	return result, nil
+}

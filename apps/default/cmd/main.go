@@ -100,7 +100,7 @@ func main() {
 	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueDeviceEventDeliveryName,
 		cfg.QueueDeviceEventDeliveryURI,
-		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, deviceCli),
+		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli),
 	)
 	serviceOptions = append(serviceOptions, eventDeliveryQueueSubscriber)
 

@@ -104,7 +104,7 @@ func (bs *BaseTestSuite) CreateService(
 	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueDeviceEventDeliveryName,
 		cfg.QueueDeviceEventDeliveryURI,
-		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, bs.GetDevice(t)),
+		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, workMan, bs.GetDevice(t)),
 	)
 
 	// Register queue handlers and event handlers

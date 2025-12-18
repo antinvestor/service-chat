@@ -1,7 +1,7 @@
 package business
 
 import (
-	"hash/fnv"
+	"hash/maphash"
 	"sync"
 	"sync/atomic"
 )
@@ -24,7 +24,7 @@ type poolShard struct {
 // - Sharding reduces lock contention by distributing connections across 32 shards
 // - Each shard has its own RWMutex, allowing parallel operations on different shards
 // - Uses atomic operations for global size tracking (lock-free reads)
-// - FNV-1a hash for fast, well-distributed shard selection
+// - maphash for zero-allocation shard selection (pre-seeded)
 //
 // Performance:
 // - add(): O(1) with 1/32 lock contention probability
@@ -34,6 +34,7 @@ type poolShard struct {
 // - forEach(): O(n) with per-shard snapshots.
 type connectionPool struct {
 	shards      [poolShardCount]*poolShard
+	hashSeed    maphash.Seed // Pre-seeded hasher for zero-allocation hashing
 	maxSize     int32
 	currentSize int32 // Atomic access
 }
@@ -41,7 +42,8 @@ type connectionPool struct {
 // newConnectionPool creates a sharded connection pool with the specified capacity.
 func newConnectionPool(maxSize int32) *connectionPool {
 	pool := &connectionPool{
-		maxSize: maxSize,
+		maxSize:  maxSize,
+		hashSeed: maphash.MakeSeed(), // Initialize seed once at pool creation
 	}
 
 	// Pre-allocate each shard with proportional capacity
@@ -59,11 +61,11 @@ func newConnectionPool(maxSize int32) *connectionPool {
 	return pool
 }
 
-// getShard returns the shard for a given key using FNV-1a hash.
+// getShard returns the shard for a given key using maphash (zero-allocation).
 func (p *connectionPool) getShard(key string) *poolShard {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(key))
-	return p.shards[h.Sum32()&(poolShardCount-1)]
+	// maphash.String is inlined by the compiler and performs no allocations
+	h := maphash.String(p.hashSeed, key)
+	return p.shards[h&(poolShardCount-1)]
 }
 
 // add inserts a connection into the pool.

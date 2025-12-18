@@ -2,6 +2,7 @@ package queues
 
 import (
 	"context"
+	"errors"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
@@ -12,6 +13,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// ErrDispatchChannelFull is returned when the connection's dispatch channel is full.
+// This triggers message redelivery via the queue system.
+var ErrDispatchChannelFull = errors.New("dispatch channel full: slow consumer")
 
 type GatewayEventsQueueHandler struct {
 	connectionManager business.ConnectionManager
@@ -50,6 +55,8 @@ func (dq *GatewayEventsQueueHandler) Handle(ctx context.Context, headers map[str
 			"profile_id": profileID,
 			"device_id":  deviceID,
 		}).Warn("dispatch channel full: slow consumer detected")
+		// Return error to trigger message redelivery via queue system
+		return ErrDispatchChannelFull
 	}
 
 	return nil

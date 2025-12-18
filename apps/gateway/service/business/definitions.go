@@ -28,6 +28,7 @@ type Connection interface {
 	Dispatch(*chatv1.ConnectResponse) bool // Returns false if channel is full
 	ConsumeDispatch(ctx context.Context) *chatv1.ConnectResponse
 	Stream() DeviceStream
+	AllowInbound() bool // Rate limiting check for inbound requests
 }
 
 // DeviceStream abstracts the bidirectional stream for edge devices.

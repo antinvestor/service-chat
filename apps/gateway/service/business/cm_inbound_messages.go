@@ -2,6 +2,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,6 +17,9 @@ const (
 	clientStateTimeout = 5 * time.Second
 )
 
+// ErrRateLimited is returned when a connection exceeds its rate limit.
+var ErrRateLimited = errors.New("rate limit exceeded")
+
 // handleInboundRequests processes commands from edge devices.
 // This is the main entry point for all client-originated messages.
 func (cm *connectionManager) handleInboundRequests(
@@ -23,6 +27,15 @@ func (cm *connectionManager) handleInboundRequests(
 	conn Connection,
 	req *chatv1.ConnectRequest,
 ) error {
+	// Check rate limit before processing
+	if !conn.AllowInbound() {
+		util.Log(ctx).WithFields(map[string]any{
+			"profile_id": conn.Metadata().ProfileID,
+			"device_id":  conn.Metadata().DeviceID,
+		}).Warn("Request rate limited")
+		return ErrRateLimited
+	}
+
 	// Update last active timestamp for all inbound requests
 	defer cm.updateLastActive(ctx, conn.Metadata().Key())
 

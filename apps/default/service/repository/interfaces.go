@@ -27,6 +27,9 @@ type RoomEventRepository interface {
 	) ([]*models.RoomEvent, error)
 	GetByEventID(ctx context.Context, roomID, eventID string) (*models.RoomEvent, error)
 	CountByRoomID(ctx context.Context, roomID string) (int64, error)
+	// ExistsByIDs checks if any of the given event IDs already exist.
+	// Returns a map of eventID -> exists for deduplication.
+	ExistsByIDs(ctx context.Context, eventIDs []string) (map[string]bool, error)
 }
 
 // RoomOutboxRepository defines the interface for room outbox data access operations.

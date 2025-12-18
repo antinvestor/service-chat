@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"sync"
 	"time"
 
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -16,6 +15,7 @@ import (
 	"github.com/antinvestor/service-chat/internal"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame/queue"
+	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -29,6 +29,7 @@ const (
 
 type EventDeliveryQueueHandler struct {
 	qMan      queue.Manager
+	workMan   workerpool.Manager
 	cfg       *config.ChatConfig
 	deviceCli devicev1connect.DeviceServiceClient
 }
@@ -36,12 +37,14 @@ type EventDeliveryQueueHandler struct {
 func NewEventDeliveryQueueHandler(
 	cfg *config.ChatConfig,
 	qMan queue.Manager,
+	workMan workerpool.Manager,
 	deviceCli devicev1connect.DeviceServiceClient,
 ) queue.SubscribeWorker {
 
 	return &EventDeliveryQueueHandler{
 		cfg:       cfg,
 		qMan:      qMan,
+		workMan:   workMan,
 		deviceCli: deviceCli,
 	}
 }
@@ -101,15 +104,20 @@ func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
 	devices []*devicev1.DeviceObject,
 ) {
 	// Process devices concurrently for faster delivery
-	var wg sync.WaitGroup
 	for _, dev := range devices {
-		wg.Add(1)
-		go func(device *devicev1.DeviceObject) {
-			defer wg.Done()
-			dq.deliverToSingleDevice(ctx, msg, device)
-		}(dev)
+
+		job := workerpool.NewJob[any](func(ctx context.Context, res workerpool.JobResultPipe[any]) error {
+			dq.deliverToSingleDevice(ctx, msg, dev)
+			return nil
+		})
+
+		err := workerpool.SubmitJob(ctx, dq.workMan, job)
+		if err != nil {
+			util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
+				Error("failed to submit job")
+		}
+
 	}
-	wg.Wait()
 }
 
 func (dq *EventDeliveryQueueHandler) deliverToSingleDevice(
