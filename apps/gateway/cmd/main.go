@@ -52,6 +52,8 @@ func main() {
 	defer svc.Stop(ctx)
 	log := svc.Log(ctx)
 
+	qManager := svc.QueueManager()
+
 	// Setup chat service client
 	chatServiceClient, err := setupChatServiceClient(ctx, svc.SecurityManager(), cfg)
 	if err != nil {
@@ -76,16 +78,21 @@ func main() {
 		cfg.HeartbeatIntervalSec,
 	)
 
+	offlineDeliveryQueuePublisher := frame.WithRegisterPublisher(
+		cfg.QueueOfflineEventDeliveryName,
+		cfg.QueueOfflineEventDeliveryURI,
+	)
+
 	gatewayEventQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueGatewayEventDeliveryName, cfg.QueueGatewayEventDeliveryURI,
-		queues.NewGatewayEventsQueueHandler(connectionManager),
+		queues.NewGatewayEventsQueueHandler(&cfg, qManager, connectionManager),
 	)
 
 	// Setup gateway server
 	gatewayHandler := setupGatewayServer(ctx, svc, chatServiceClient, connectionManager)
 
 	// Initialize the service with all options
-	svc.Init(ctx, gatewayEventQueueSubscriber, frame.WithHTTPHandler(gatewayHandler))
+	svc.Init(ctx, gatewayEventQueueSubscriber, offlineDeliveryQueuePublisher, frame.WithHTTPHandler(gatewayHandler))
 
 	// Start the service
 	err = svc.Run(ctx, "")

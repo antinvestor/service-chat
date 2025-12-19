@@ -104,7 +104,7 @@ func (bs *BaseTestSuite) CreateService(
 	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueDeviceEventDeliveryName,
 		cfg.QueueDeviceEventDeliveryURI,
-		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, workMan, bs.GetDevice(t)),
+		queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, bs.GetDevice(t)),
 	)
 
 	// Register queue handlers and event handlers
@@ -113,7 +113,7 @@ func (bs *BaseTestSuite) CreateService(
 		eventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
-			events.NewOutboxDeliveryEventHandler(ctx, &cfg, dbPool, workMan, queueMan),
+			events.NewFanoutEventHandler(ctx, &cfg, dbPool, workMan, queueMan),
 		)}
 
 	// Initialize the service with all options

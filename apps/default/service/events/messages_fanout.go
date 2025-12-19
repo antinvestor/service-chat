@@ -14,51 +14,51 @@ import (
 	"github.com/pitabwire/util"
 )
 
-const RoomOutboxDeliveryEventName = "outbox.delivery.event"
+const RoomFanoutEventName = "room.message.fanout.event"
 
-type OutboxDeliveryEventHandler struct {
+type FanoutEventHandler struct {
 	cfg           *config.ChatConfig
 	eventRepo     repository.RoomEventRepository
 	queueMan      queue.Manager
 	deliveryTopic queue.Publisher
 }
 
-func NewOutboxDeliveryEventHandler(
+func NewFanoutEventHandler(
 	ctx context.Context,
 	cfg *config.ChatConfig,
 	dbPool pool.Pool,
 	workMan workerpool.Manager,
 	queueMan queue.Manager,
-) *OutboxDeliveryEventHandler {
-	return &OutboxDeliveryEventHandler{
+) *FanoutEventHandler {
+	return &FanoutEventHandler{
 		cfg:       cfg,
 		queueMan:  queueMan,
 		eventRepo: repository.NewRoomEventRepository(ctx, dbPool, workMan),
 	}
 }
 
-func (dlrEH *OutboxDeliveryEventHandler) getTopic() (queue.Publisher, error) {
-	if dlrEH.deliveryTopic != nil {
-		return dlrEH.deliveryTopic, nil
+func (feh *FanoutEventHandler) getTopic() (queue.Publisher, error) {
+	if feh.deliveryTopic != nil {
+		return feh.deliveryTopic, nil
 	}
 
 	var err error
-	dlrEH.deliveryTopic, err = dlrEH.queueMan.GetPublisher(dlrEH.cfg.QueueDeviceEventDeliveryName)
+	feh.deliveryTopic, err = feh.queueMan.GetPublisher(feh.cfg.QueueDeviceEventDeliveryName)
 	if err != nil {
 		return nil, err
 	}
-	return dlrEH.deliveryTopic, nil
+	return feh.deliveryTopic, nil
 }
 
-func (dlrEH *OutboxDeliveryEventHandler) Name() string {
-	return RoomOutboxDeliveryEventName
+func (feh *FanoutEventHandler) Name() string {
+	return RoomFanoutEventName
 }
 
-func (dlrEH *OutboxDeliveryEventHandler) PayloadType() any {
+func (feh *FanoutEventHandler) PayloadType() any {
 	return &eventsv1.EventBroadcast{}
 }
 
-func (dlrEH *OutboxDeliveryEventHandler) Validate(_ context.Context, payload any) error {
+func (feh *FanoutEventHandler) Validate(_ context.Context, payload any) error {
 	_, ok := payload.(*eventsv1.EventBroadcast)
 	if !ok {
 		return errors.New("invalid payload type, expected eventsv1.EventBroadcast")
@@ -66,27 +66,27 @@ func (dlrEH *OutboxDeliveryEventHandler) Validate(_ context.Context, payload any
 	return nil
 }
 
-func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload any) error {
+func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 	broadcast, ok := payload.(*eventsv1.EventBroadcast)
 	if !ok {
 		return errors.New("invalid payload type, expected eventsv1.EventBroadcast{}")
 	}
 
 	eventLink := broadcast.GetEvent()
-	targets := broadcast.GetTargets()
+	recepientIDs := broadcast.GetRecepientIds()
 
-	// Early exit if no targets
-	if len(targets) == 0 {
+	// Early exit if no recepientIDs
+	if len(recepientIDs) == 0 {
 		return nil
 	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
 		"room_id":      eventLink.GetRoomId(),
-		"target_count": len(targets),
+		"target_count": len(recepientIDs),
 	})
 
 	// Create outbox entries for each subscriber
-	eventLinkData, err := dlrEH.eventRepo.GetByID(ctx, eventLink.GetEventId())
+	eventLinkData, err := feh.eventRepo.GetByID(ctx, eventLink.GetEventId())
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			logger.WithError(err).Error("no such chat event exists")
@@ -96,21 +96,21 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 		return err
 	}
 
-	deliveryTopic, err := dlrEH.getTopic()
+	deliveryTopic, err := feh.getTopic()
 	if err != nil {
 		logger.WithError(err).Error("failed to get topic")
 		return err
 	}
 
-	// Pre-compute payload once for all targets
+	// Pre-compute payload once for all recepientIDs
 	payloadStruct := eventLinkData.Content.ToProtoStruct()
 
 	// Publish all deliveries - continue on individual failures
 	var failCount int
-	for _, target := range targets {
+	for _, recepientID := range recepientIDs {
 		eventDelivery := &eventsv1.EventDelivery{
 			Event:        eventLink,
-			Target:       target,
+			RecepientId:  recepientID,
 			Payload:      payloadStruct,
 			IsCompressed: false,
 			RetryCount:   0,
@@ -118,8 +118,8 @@ func (dlrEH *OutboxDeliveryEventHandler) Execute(ctx context.Context, payload an
 
 		if pubErr := deliveryTopic.Publish(ctx, eventDelivery); pubErr != nil {
 			failCount++
-			logger.WithError(pubErr).WithField("recipient_id", target.GetRecepientId()).
-				Warn("failed to publish delivery for target")
+			logger.WithError(pubErr).WithField("recipient_id", recepientID).
+				Warn("failed to publish delivery for recepientID")
 		}
 	}
 

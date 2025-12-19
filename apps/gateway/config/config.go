@@ -26,6 +26,9 @@ type GatewayConfig struct {
 	CacheURI             string `envDefault:"redis://localhost:6379" env:"CACHE_URI"`
 	CacheCredentialsFile string `envDefault:""                       env:"CACHE_CREDENTIALS_FILE"`
 
+	QueueOfflineEventDeliveryName string `envDefault:"offline.event.delivery"              env:"QUEUE_OFFLINE_EVENT_DELIVERY_NAME"`
+	QueueOfflineEventDeliveryURI  string `envDefault:"mem://offline.device.event.delivery" env:"QUEUE_OFFLINE_EVENT_DELIVERY_URI"`
+
 	// Queue for receiving user-targeted deliveries from default service
 	QueueGatewayEventDeliveryName string `envDefault:"gateway.event.delivery"       env:"QUEUE_GATEWAY_EVENT_DELIVERY_NAME"`
 	QueueGatewayEventDeliveryURI  string `envDefault:"mem://gateway.event.delivery" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`

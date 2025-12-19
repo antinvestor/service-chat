@@ -18,7 +18,6 @@ import (
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -27,20 +26,20 @@ const (
 	DeliveryRequestReplyTimeout = 10 * time.Second
 )
 
-type EventDeliveryQueueHandler struct {
+type hotPathDeliveryQueueHandler struct {
 	qMan      queue.Manager
 	workMan   workerpool.Manager
 	cfg       *config.ChatConfig
 	deviceCli devicev1connect.DeviceServiceClient
 }
 
-func NewEventDeliveryQueueHandler(
+func NewHotPathDeliveryQueueHandler(
 	cfg *config.ChatConfig,
 	qMan queue.Manager,
 	workMan workerpool.Manager,
 	deviceCli devicev1connect.DeviceServiceClient,
 ) queue.SubscribeWorker {
-	return &EventDeliveryQueueHandler{
+	return &hotPathDeliveryQueueHandler{
 		cfg:       cfg,
 		qMan:      qMan,
 		workMan:   workMan,
@@ -48,7 +47,16 @@ func NewEventDeliveryQueueHandler(
 	}
 }
 
-func (dq *EventDeliveryQueueHandler) getTopic(
+func (dq *hotPathDeliveryQueueHandler) getOfflineDeliveryTopic() (queue.Publisher, error) {
+	deviceTopic, err := dq.qMan.GetPublisher(dq.cfg.QueueOfflineEventDeliveryName)
+	if err != nil {
+		return nil, err
+	}
+
+	return deviceTopic, nil
+}
+
+func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 	ctx context.Context,
 	profileID, deviceID string,
 ) (queue.Publisher, int, error) {
@@ -73,7 +81,7 @@ func (dq *EventDeliveryQueueHandler) getTopic(
 	return deviceTopic, shardID, nil
 }
 
-func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
+func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
 	eventDelivery := &eventsv1.EventDelivery{}
 	err := proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
@@ -82,7 +90,7 @@ func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]st
 	}
 
 	response, err := dq.deviceCli.Search(ctx, connect.NewRequest(&devicev1.SearchRequest{
-		Query: eventDelivery.GetTarget().GetRecepientId(),
+		Query: eventDelivery.GetRecepientId(),
 		Page:  0,
 		Count: DeviceSearchPageSize,
 	}))
@@ -100,66 +108,72 @@ func (dq *EventDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]st
 		}
 
 		resp := response.Msg()
-		dq.deliverMessageToDevice(ctx, eventDelivery, resp.GetData())
+
+		// Process devices concurrently for faster delivery
+		for _, dev := range resp.GetData() {
+			job := workerpool.NewJob[any](func(ctx context.Context, resultPipe workerpool.JobResultPipe[any]) error {
+				eventCopy := eventDelivery
+				eventCopy.DeviceId = dev.GetId()
+
+				deliveryErr := dq.deliver(ctx, eventCopy, dev)
+				if deliveryErr != nil {
+					util.Log(ctx).WithError(deliveryErr).WithField("device_id", dev.GetId()).
+						Error("failed to deliver event")
+					return resultPipe.WriteError(ctx, deliveryErr)
+				}
+				return nil
+			})
+
+			err = workerpool.SubmitJob(ctx, dq.workMan, job)
+			if err != nil {
+				util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
+					Error("failed to submit job")
+			}
+		}
 	}
 
 	return nil
 }
 
-func (dq *EventDeliveryQueueHandler) deliverMessageToDevice(
-	ctx context.Context,
-	msg *eventsv1.EventDelivery,
-	devices []*devicev1.DeviceObject,
-) {
-	// Process devices concurrently for faster delivery
-	for _, dev := range devices {
-		job := workerpool.NewJob[any](func(ctx context.Context, _ workerpool.JobResultPipe[any]) error {
-			dq.deliverToSingleDevice(ctx, msg, dev)
-			return nil
-		})
-
-		err := workerpool.SubmitJob(ctx, dq.workMan, job)
-		if err != nil {
-			util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
-				Error("failed to submit job")
-		}
-	}
-}
-
-func (dq *EventDeliveryQueueHandler) deliverToSingleDevice(
+func (dq *hotPathDeliveryQueueHandler) deliver(
 	ctx context.Context,
 	msg *eventsv1.EventDelivery,
 	dev *devicev1.DeviceObject,
-) {
+) error {
 	if dq.deviceIsOnline(ctx, dev) {
-		err := dq.publishToDevice(ctx, dev, msg)
+		err := dq.publishToOnlineDevice(ctx, dev, msg)
 		if err == nil {
-			return
+			return nil
 		}
 		util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
-			Debug("direct delivery failed, falling back to FCM")
+			Debug("direct delivery failed, falling back to offline delivery")
 	}
 
-	err := dq.publishToFCM(ctx, dev, msg)
+	offlineDeliveryTopic, err := dq.getOfflineDeliveryTopic()
 	if err != nil {
-		util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).
-			Error("FCM delivery failed")
+		return err
 	}
+
+	deviceHeader := map[string]string{
+		internal.HeaderDeviceID: dev.GetId(),
+	}
+
+	return offlineDeliveryTopic.Publish(ctx, msg, deviceHeader)
 }
 
-func (dq *EventDeliveryQueueHandler) deviceIsOnline(_ context.Context, dev *devicev1.DeviceObject) bool {
+func (dq *hotPathDeliveryQueueHandler) deviceIsOnline(_ context.Context, dev *devicev1.DeviceObject) bool {
 	return dev.GetPresence() != devicev1.PresenceStatus_OFFLINE
 }
 
-func (dq *EventDeliveryQueueHandler) publishToDevice(
+func (dq *hotPathDeliveryQueueHandler) publishToOnlineDevice(
 	ctx context.Context,
 	dev *devicev1.DeviceObject,
 	msg *eventsv1.EventDelivery,
 ) error {
-	profileID := msg.GetTarget().GetRecepientId()
+	profileID := msg.GetRecepientId()
 	deviceID := dev.GetId()
 
-	deliveryTopic, shardID, err := dq.getTopic(ctx, profileID, deviceID)
+	deliveryTopic, shardID, err := dq.getOnlineDeliveryTopic(ctx, profileID, deviceID)
 	if err != nil {
 		return err
 	}
@@ -171,57 +185,4 @@ func (dq *EventDeliveryQueueHandler) publishToDevice(
 	}
 
 	return deliveryTopic.Publish(ctx, msg, deviceHeader)
-}
-
-func (dq *EventDeliveryQueueHandler) publishToFCM(
-	ctx context.Context,
-	dev *devicev1.DeviceObject,
-	msgList ...*eventsv1.EventDelivery,
-) error {
-	var messages []*devicev1.NotifyMessage
-
-	for _, msg := range msgList {
-		fields := msg.GetPayload().GetFields()
-
-		messageTitle := "Stawi message"
-		title, ok := fields["title"]
-		if ok {
-			messageTitle = title.String()
-		}
-		messageBody := ""
-		body, ok := fields["content"]
-		if ok && msg.GetEvent().GetEventType() == eventsv1.EventLink_TEXT {
-			messageBody = body.String()
-		}
-
-		extraData, err := structpb.NewStruct(map[string]any{
-			"event":  msg.GetEvent(),
-			"target": msg.GetTarget(),
-		})
-
-		if err != nil {
-			return err
-		}
-
-		messages = append(messages, &devicev1.NotifyMessage{
-			Title:  messageTitle,
-			Body:   messageBody,
-			Data:   msg.GetPayload(),
-			Extras: extraData,
-		})
-	}
-
-	notification := &devicev1.NotifyRequest{
-		DeviceId:      dev.GetId(),
-		KeyType:       devicev1.KeyType_FCM_TOKEN,
-		Notifications: messages,
-	}
-	resp, err := dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
-	if err != nil {
-		return err
-	}
-
-	util.Log(ctx).WithField("resp", resp).Debug("fcm notification response successful")
-
-	return nil
 }

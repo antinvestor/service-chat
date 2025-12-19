@@ -100,9 +100,22 @@ func main() {
 	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueDeviceEventDeliveryName,
 		cfg.QueueDeviceEventDeliveryURI,
-		queues.NewEventDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli),
+		queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli),
 	)
 	serviceOptions = append(serviceOptions, eventDeliveryQueueSubscriber)
+
+	offlineDeliveryQueuePublisher := frame.WithRegisterPublisher(
+		cfg.QueueOfflineEventDeliveryName,
+		cfg.QueueOfflineEventDeliveryURI,
+	)
+	serviceOptions = append(serviceOptions, offlineDeliveryQueuePublisher)
+
+	offlineDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
+		cfg.QueueOfflineEventDeliveryName,
+		cfg.QueueOfflineEventDeliveryURI,
+		queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli),
+	)
+	serviceOptions = append(serviceOptions, offlineDeliveryQueueSubscriber)
 
 	for i := range cfg.ShardCount {
 		gatewayQueueName := fmt.Sprintf(cfg.QueueGatewayEventDeliveryName, i)
@@ -119,7 +132,7 @@ func main() {
 	serviceOptions = append(serviceOptions,
 		frame.WithRegisterEvents(
 			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
-			events.NewOutboxDeliveryEventHandler(ctx, &cfg, dbPool, workMan, queueMan),
+			events.NewFanoutEventHandler(ctx, &cfg, dbPool, workMan, queueMan),
 		))
 
 	// Initialize the service with all options

@@ -7,7 +7,6 @@ import (
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
-	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame"
@@ -22,7 +21,6 @@ type connectBusiness struct {
 	service         *frame.Service
 	subRepo         repository.RoomSubscriptionRepository
 	eventRepo       repository.RoomEventRepository
-	outboxRepo      repository.RoomOutboxRepository
 	subscriptionSvc SubscriptionService
 
 	presenceCache cache.Cache[string, *chatv1.PresenceEvent]
@@ -124,11 +122,6 @@ func (cb *connectBusiness) UpdateReadReceipt(
 		return service.ErrRoomAccessDenied
 	}
 
-	err = cb.outboxRepo.UpdateState(ctx, roomID, eventID, models.RoomOutboxStateRead)
-	if err != nil {
-		return fmt.Errorf("failed to update state: %w", err)
-	}
-
 	// Update the subscription's last read event ID
 	sub, err := cb.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
@@ -185,11 +178,6 @@ func (cb *connectBusiness) UpdateReadMarker(
 		return service.ErrRoomAccessDenied
 	}
 
-	updatedEvents, err := cb.outboxRepo.UpdateUpToState(ctx, roomID, upToEventID, models.RoomOutboxStateRead)
-	if err != nil {
-		return fmt.Errorf("failed to update state: %w", err)
-	}
-
 	// Update the subscription's last read event ID
 	sub, err := cb.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
 	if err != nil {
@@ -199,10 +187,8 @@ func (cb *connectBusiness) UpdateReadMarker(
 	subLastReadEventID := sub.LastReadEventID
 	// Update to the new event ID
 	// UnreadCount is now a generated column and will be automatically calculated
-	for _, eventID := range updatedEvents {
-		if subLastReadEventID < eventID {
-			subLastReadEventID = eventID
-		}
+	if subLastReadEventID < upToEventID {
+		subLastReadEventID = upToEventID
 	}
 
 	if subLastReadEventID != sub.LastReadEventID {
@@ -213,20 +199,20 @@ func (cb *connectBusiness) UpdateReadMarker(
 	}
 
 	var receiptEvents []*eventsv1.EventDelivery
-	for _, eventID := range updatedEvents {
-		// Broadcast read receipt to other room members
-		receiptEvents = append(receiptEvents, &eventsv1.EventDelivery{
-			Event: &eventsv1.EventLink{
-				EventId:   eventID,
-				RoomId:    roomID,
-				SenderId:  &profileID,
-				EventType: eventsv1.EventLink_STATE_READ,
-				CreatedAt: timestamppb.Now(),
-			},
-			IsCompressed: false,
-			RetryCount:   0,
-		})
-	}
+
+	// Broadcast read receipt to other room members
+	receiptEvents = append(receiptEvents, &eventsv1.EventDelivery{
+		Event: &eventsv1.EventLink{
+			EventId:   upToEventID,
+			RoomId:    roomID,
+			SenderId:  &profileID,
+			EventType: eventsv1.EventLink_STATE_READ,
+			CreatedAt: timestamppb.Now(),
+		},
+		IsCompressed: false,
+		RetryCount:   0,
+	})
+
 	return cb.broadCast(ctx, roomID, receiptEvents...)
 }
 
@@ -239,10 +225,7 @@ func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayl
 
 	for _, sub := range subs {
 		for _, pl := range dlrPayloads {
-			pl.Target = &eventsv1.EventReceipt{
-				RecepientId: sub.ProfileID,
-				TargetId:    util.IDString(),
-			}
+			pl.RecepientId = sub.ProfileID
 
 			err = cb.deliveryTopic.Publish(ctx, pl)
 			if err != nil {

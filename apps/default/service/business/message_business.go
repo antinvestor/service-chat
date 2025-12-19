@@ -20,7 +20,6 @@ import (
 
 type messageBusiness struct {
 	eventRepo       repository.RoomEventRepository
-	outboxRepo      repository.RoomOutboxRepository
 	subRepo         repository.RoomSubscriptionRepository
 	subscriptionSvc SubscriptionService
 	evtsManager     frevents.Manager
@@ -30,7 +29,6 @@ type messageBusiness struct {
 func NewMessageBusiness(
 	evtsManager frevents.Manager,
 	eventRepo repository.RoomEventRepository,
-	outboxRepo repository.RoomOutboxRepository,
 	subRepo repository.RoomSubscriptionRepository,
 	subscriptionSvc SubscriptionService,
 ) MessageBusiness {
@@ -38,7 +36,6 @@ func NewMessageBusiness(
 
 		evtsManager:     evtsManager,
 		eventRepo:       eventRepo,
-		outboxRepo:      outboxRepo,
 		subRepo:         subRepo,
 		subscriptionSvc: subscriptionSvc,
 	}

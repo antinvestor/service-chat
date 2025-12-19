@@ -2,9 +2,9 @@ package queues
 
 import (
 	"context"
-	"errors"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	"github.com/antinvestor/service-chat/apps/gateway/config"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/antinvestor/service-chat/internal"
 	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
@@ -14,18 +14,21 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// ErrDispatchChannelFull is returned when the connection's dispatch channel is full.
-// This triggers message redelivery via the queue system.
-var ErrDispatchChannelFull = errors.New("dispatch channel full: slow consumer")
-
 type GatewayEventsQueueHandler struct {
+	cfg      *config.GatewayConfig
+	qManager queue.Manager
+
 	connectionManager business.ConnectionManager
 }
 
 func NewGatewayEventsQueueHandler(
+	cfg *config.GatewayConfig,
+	qManager queue.Manager,
 	cm business.ConnectionManager,
 ) queue.SubscribeWorker {
 	return &GatewayEventsQueueHandler{
+		cfg:               cfg,
+		qManager:          qManager,
 		connectionManager: cm,
 	}
 }
@@ -43,28 +46,30 @@ func (dq *GatewayEventsQueueHandler) Handle(ctx context.Context, headers map[str
 		return nil
 	}
 
-	data, err := dq.toStreamData(ctx, payload)
+	evt, err := dq.toPayloadToEventData(ctx, payload)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("Failed to parse user delivery message")
 		return nil
 	}
 
+	data := dq.toStreamData(evt)
+
 	if !connection.Dispatch(data) {
 		util.Log(ctx).WithFields(map[string]any{
 			"profile_id": profileID,
 			"device_id":  deviceID,
-		}).Warn("dispatch channel full: slow consumer detected")
-		// Return error to trigger message redelivery via queue system
-		return ErrDispatchChannelFull
+		}).Debug("dispatch channel full: slow consumer detected")
+
+		return dq.publishToOfflineDevice(ctx, headers, evt)
 	}
 
 	return nil
 }
 
-func (dq *GatewayEventsQueueHandler) toStreamData(
+func (dq *GatewayEventsQueueHandler) toPayloadToEventData(
 	ctx context.Context,
 	payload []byte,
-) (*chatv1.ConnectResponse, error) {
+) (*eventsv1.EventDelivery, error) {
 	eventDelivery := &eventsv1.EventDelivery{}
 	err := proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
@@ -72,15 +77,23 @@ func (dq *GatewayEventsQueueHandler) toStreamData(
 		return nil, err
 	}
 
+	return eventDelivery, nil
+}
+
+func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventDelivery) *chatv1.ConnectResponse {
 	evt := eventDelivery.GetEvent()
-	target := eventDelivery.GetTarget()
+
+	parentID := evt.GetParentId()
 
 	data := &chatv1.ConnectResponse{
-		Id:        target.GetTargetId(),
+		Id:        evt.GetEventId(),
 		Timestamp: timestamppb.Now(),
 		Payload: &chatv1.ConnectResponse_Message{
 			Message: &chatv1.RoomEvent{
 				Id:       evt.GetEventId(),
+				ParentId: &parentID,
+				RoomId:   evt.GetRoomId(),
+				SenderId: evt.GetSenderId(),
 				Type:     chatv1.RoomEventType(eventDelivery.GetEvent().GetEventType().Number()),
 				Payload:  eventDelivery.GetPayload(),
 				SentAt:   evt.GetCreatedAt(),
@@ -89,5 +102,27 @@ func (dq *GatewayEventsQueueHandler) toStreamData(
 			},
 		},
 	}
-	return data, nil
+	return data
+}
+
+func (dq *GatewayEventsQueueHandler) getOfflineDeliveryTopic() (queue.Publisher, error) {
+	deviceTopic, err := dq.qManager.GetPublisher(dq.cfg.QueueOfflineEventDeliveryName)
+	if err != nil {
+		return nil, err
+	}
+
+	return deviceTopic, nil
+}
+
+func (dq *GatewayEventsQueueHandler) publishToOfflineDevice(
+	ctx context.Context,
+	headers map[string]string,
+	msg *eventsv1.EventDelivery,
+) error {
+	offlineDeliveryTopic, err := dq.getOfflineDeliveryTopic()
+	if err != nil {
+		return err
+	}
+
+	return offlineDeliveryTopic.Publish(ctx, msg, headers)
 }

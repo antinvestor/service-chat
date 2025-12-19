@@ -58,11 +58,10 @@ func NewChatServer(
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
 	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
-	outboxRepo := repository.NewRoomOutboxRepository(ctx, dbPool, workMan)
 
 	// Initialize business layers
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
-	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, outboxRepo, subRepo, subscriptionSvc)
+	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
 	connectBusiness := business.NewConnectBusiness(service, subRepo, eventRepo, subscriptionSvc)
 	roomBusiness := business.NewRoomBusiness(service, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
 

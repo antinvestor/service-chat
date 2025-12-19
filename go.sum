@@ -53,6 +53,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/antinvestor/apis/go/chat v1.49.8 h1:mmu02CCTEWH9knoHF39osZAE7rmrsJGPD2IX9erfRvY=
 github.com/antinvestor/apis/go/chat v1.49.8/go.mod h1:rDkrtxRVelqEzOE1lLvwEc54djGhPB5JKJqIKnqXVhY=
+github.com/antinvestor/apis/go/chat v1.49.10 h1:KkWXQtcPn4bgcrytFsDXuRJ+pI7pD7Qv8va6FvpBzWo=
+github.com/antinvestor/apis/go/chat v1.49.10/go.mod h1:aNEIIsaQCoWn0CDeu9vI1+KPWNEMNNq8eWdJZWgxWow=
 github.com/antinvestor/apis/go/common v1.49.9 h1:GaeDSNYgv44F5eVxlSczHwsbQpAsmuAWPfccmSWQ8PY=
 github.com/antinvestor/apis/go/common v1.49.9/go.mod h1:pG44pJtqTdla2Izqz7//LZtpAy3QjDjmoMp2xTXkAhM=
 github.com/antinvestor/apis/go/device v1.49.10 h1:w1G5Nq5Ct16/C1fYSo+0yIxnmvD58RMzGbLHTDiyjbE=
