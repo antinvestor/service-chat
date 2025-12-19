@@ -13,14 +13,14 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.8.0
-	github.com/antinvestor/apis/go/chat v1.49.4
-	github.com/antinvestor/apis/go/common v1.49.5
-	github.com/antinvestor/apis/go/device v1.49.4
-	github.com/antinvestor/apis/go/notification v1.49.4
-	github.com/antinvestor/apis/go/profile v1.49.4
+	github.com/antinvestor/apis/go/chat v1.49.8
+	github.com/antinvestor/apis/go/common v1.49.9
+	github.com/antinvestor/apis/go/device v1.49.10
+	github.com/antinvestor/apis/go/notification v1.49.10
+	github.com/antinvestor/apis/go/profile v1.49.10
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/pitabwire/frame v1.69.5
-	github.com/pitabwire/util v0.3.6
+	github.com/pitabwire/frame v1.69.10
+	github.com/pitabwire/util v0.3.8
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.11
@@ -35,7 +35,7 @@ require (
 	cel.dev/expr v0.25.1 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/BurntSushi/toml v1.5.0 // indirect
+	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -150,7 +150,7 @@ require (
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/api v0.257.0 // indirect
+	google.golang.org/api v0.258.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251213004720-97cd9d5aeac2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251213004720-97cd9d5aeac2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
