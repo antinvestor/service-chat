@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"time"
 
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
@@ -22,8 +21,7 @@ import (
 
 const (
 	// DeviceSearchPageSize defines the number of devices to fetch per page when searching.
-	DeviceSearchPageSize        = 100
-	DeliveryRequestReplyTimeout = 10 * time.Second
+	DeviceSearchPageSize = 100
 )
 
 type hotPathDeliveryQueueHandler struct {
@@ -111,18 +109,7 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 
 		// Process devices concurrently for faster delivery
 		for _, dev := range resp.GetData() {
-			job := workerpool.NewJob[any](func(ctx context.Context, resultPipe workerpool.JobResultPipe[any]) error {
-				eventCopy := eventDelivery
-				eventCopy.DeviceId = dev.GetId()
-
-				deliveryErr := dq.deliver(ctx, eventCopy, dev)
-				if deliveryErr != nil {
-					util.Log(ctx).WithError(deliveryErr).WithField("device_id", dev.GetId()).
-						Error("failed to deliver event")
-					return resultPipe.WriteError(ctx, deliveryErr)
-				}
-				return nil
-			})
+			job := dq.createDeviceJob(ctx, dev, eventDelivery)
 
 			err = workerpool.SubmitJob(ctx, dq.workMan, job)
 			if err != nil {
@@ -133,6 +120,28 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	}
 
 	return nil
+}
+
+func (dq *hotPathDeliveryQueueHandler) createDeviceJob(
+	_ context.Context,
+	dev *devicev1.DeviceObject,
+	eventDelivery *eventsv1.EventDelivery,
+) workerpool.Job[any] {
+	return workerpool.NewJob[any](func(ctx context.Context, resultPipe workerpool.JobResultPipe[any]) error {
+		eventCopy, ok := proto.Clone(eventDelivery).(*eventsv1.EventDelivery)
+		if !ok {
+			return resultPipe.WriteError(ctx, errors.New("failed to clone event delivery"))
+		}
+		eventCopy.DeviceId = dev.GetId()
+
+		deliveryErr := dq.deliver(ctx, eventCopy, dev)
+		if deliveryErr != nil {
+			util.Log(ctx).WithError(deliveryErr).WithField("device_id", dev.GetId()).
+				Error("failed to deliver event")
+			return resultPipe.WriteError(ctx, deliveryErr)
+		}
+		return nil
+	})
 }
 
 func (dq *hotPathDeliveryQueueHandler) deliver(

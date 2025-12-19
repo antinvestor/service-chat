@@ -80,8 +80,7 @@ func (rsr *roomSubscriptionRepository) GetByRoomIDAndProfiles(
 ) ([]*models.RoomSubscription, error) {
 	var subscriptionSlice []*models.RoomSubscription
 	err := rsr.Pool().DB(ctx, true).
-		Select("*"). // Explicitly select all columns including read-only unread_count
-		Where("room_id = ? AND profile_id = ?", roomID, profileID).
+		Where("room_id = ? AND profile_id IN ?", roomID, profileID).
 		Find(&subscriptionSlice).Error
 	return subscriptionSlice, err
 }

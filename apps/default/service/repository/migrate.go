@@ -15,5 +15,5 @@ func Migrate(ctx context.Context, dbManager datastore.Manager, migrationPath str
 	}
 
 	return dbManager.Migrate(ctx, pool, migrationPath,
-		&models.Room{}, &models.RoomSubscription{}, &models.RoomEvent{}, &models.RoomOutbox{}, &models.RoomCall{})
+		&models.Room{}, &models.RoomSubscription{}, &models.RoomEvent{}, &models.RoomCall{})
 }

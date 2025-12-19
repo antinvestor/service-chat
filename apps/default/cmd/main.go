@@ -29,14 +29,13 @@ import (
 	"github.com/pitabwire/util"
 )
 
-func main() {
-	ctx := context.Background()
-
+// runService initializes and starts the chat service with all dependencies.
+func runService(ctx context.Context) error {
 	// Initialize configuration
 	cfg, err := config.LoadWithOIDC[aconfig.ChatConfig](ctx)
 	if err != nil {
 		util.Log(ctx).With("err", err).Error("could not process configs")
-		return
+		return err
 	}
 
 	if cfg.Name() == "" {
@@ -81,7 +80,7 @@ func main() {
 
 	// Handle database migration if requested
 	if handleDatabaseMigration(ctx, dbManager, cfg) {
-		return
+		return nil
 	}
 
 	// Setup Connect server
@@ -139,9 +138,13 @@ func main() {
 	svc.Init(ctx, serviceOptions...)
 
 	// Start the service
-	err = svc.Run(ctx, "")
-	if err != nil {
-		log.WithError(err).Fatal("could not run Server")
+	return svc.Run(ctx, "")
+}
+
+func main() {
+	ctx := context.Background()
+	if err := runService(ctx); err != nil {
+		util.Log(ctx).WithError(err).Fatal("could not run service")
 	}
 }
 

@@ -32,23 +32,6 @@ type RoomEventRepository interface {
 	ExistsByIDs(ctx context.Context, eventIDs []string) (map[string]bool, error)
 }
 
-// RoomOutboxRepository defines the interface for room outbox data access operations.
-type RoomOutboxRepository interface {
-	datastore.BaseRepository[*models.RoomOutbox]
-	GetByEventID(ctx context.Context, eventID string) (*models.RoomOutbox, error)
-	GetPendingEntries(ctx context.Context, limit int) ([]*models.RoomOutbox, error)
-	GetFailedEntries(ctx context.Context, maxRetries, limit int) ([]*models.RoomOutbox, error)
-	UpdateState(ctx context.Context, roomID, eventID string, state models.RoomOutboxState) error
-	UpdateUpToState(ctx context.Context, roomID, eventID string, state models.RoomOutboxState) ([]string, error)
-	UpdateStatusWithError(ctx context.Context, id string, state models.RoomOutboxState, errorMsg string) error
-	IncrementRetryCount(ctx context.Context, id string) error
-	GetByRoomID(ctx context.Context, roomID string, limit int) ([]*models.RoomOutbox, error)
-	GetBacklogCount(ctx context.Context) (int64, error)
-	CleanupOldEntries(ctx context.Context, olderThan time.Duration) (int64, error)
-	GetByStatus(ctx context.Context, state models.RoomOutboxState, limit int) ([]*models.RoomOutbox, error)
-	GetPendingBySubscription(ctx context.Context, subscriptionID string, limit int) ([]*models.RoomOutbox, error)
-}
-
 // RoomSubscriptionRepository defines the interface for room subscription data access operations.
 type RoomSubscriptionRepository interface {
 	datastore.BaseRepository[*models.RoomSubscription]

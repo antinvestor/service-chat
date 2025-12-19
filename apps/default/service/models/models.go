@@ -91,28 +91,6 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 	}
 }
 
-type RoomOutboxState int
-
-const (
-	RoomOutboxStateLogged RoomOutboxState = iota
-	RoomOutboxStateQueued
-	RoomOutboxStateFailed
-	RoomOutboxStateSent
-	RoomOutboxStateDelivered
-	RoomOutboxStateRead
-)
-
-// RoomOutbox represents an outbox entry for message delivery tracking.
-type RoomOutbox struct {
-	data.BaseModel
-	RoomID         string          `gorm:"type:varchar(50)"`
-	SubscriptionID string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
-	EventID        string          `gorm:"type:varchar(50);index:idx_subscription_event_state"`
-	OutboxState    RoomOutboxState `gorm:"index:idx_subscription_event_outbox_state"           json:"outboxstate"`
-	RetryCount     int             `                                                           json:"retry_count"`
-	ErrorMessage   string          `                                                           json:"error_message"`
-}
-
 type RoomSubscriptionState int
 
 const (
@@ -124,11 +102,11 @@ const (
 // RoomSubscription represents a user's subscription to a room.
 type RoomSubscription struct {
 	data.BaseModel
-	RoomID              string `gorm:"type:varchar(50)"`
+	RoomID              string `gorm:"type:varchar(50);index:idx_roomsubscription_room_id_subscription_state"`
 	ProfileID           string `gorm:"type:varchar(50)"`
 	Role                string
-	SubscriptionState   RoomSubscriptionState
-	LastReadEventID     string `gorm:"type:varchar(50)"` // ID of the last read event (naturally time-sorted)
+	SubscriptionState   RoomSubscriptionState `gorm:"index:idx_roomsubscription_room_id_subscription_state"`
+	LastReadEventID     string                `gorm:"type:varchar(50)"` // ID of the last read event (naturally time-sorted)
 	LastReadAt          int64
 	DisableNotification bool
 	Properties          data.JSONMap
