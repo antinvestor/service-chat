@@ -19,7 +19,7 @@ require (
 	github.com/antinvestor/apis/go/notification v1.49.10
 	github.com/antinvestor/apis/go/profile v1.49.10
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/pitabwire/frame v1.69.10
+	github.com/pitabwire/frame v1.69.11
 	github.com/pitabwire/util v0.3.8
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.77.0
