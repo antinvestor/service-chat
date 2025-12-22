@@ -19,7 +19,7 @@ require (
 	github.com/antinvestor/apis/go/notification v1.49.10
 	github.com/antinvestor/apis/go/profile v1.49.10
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/pitabwire/frame v1.69.11
+	github.com/pitabwire/frame v1.69.12
 	github.com/pitabwire/util v0.3.8
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.77.0
@@ -75,7 +75,7 @@ require (
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/go-archive v0.1.0 // indirect
+	github.com/moby/go-archive v0.2.0 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
 	github.com/moby/sys/sequential v0.6.0 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
