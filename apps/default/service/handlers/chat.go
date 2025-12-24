@@ -125,46 +125,6 @@ func (ps *ChatServer) withTimeout(ctx context.Context, timeout time.Duration) (c
 	return context.WithTimeout(ctx, timeout)
 }
 
-// These methods are for profile service - not needed for chat service
-// Removed GetById and ListRelationships
-
-func (ps *ChatServer) Connect(
-	ctx context.Context,
-	_ *connect.BidiStream[chatv1.ConnectRequest, chatv1.ConnectResponse],
-) error {
-	// Validate authentication
-	profileID, err := ps.validateAuthentication(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Extract device ID from context (optional)
-	authClaims := security.ClaimsFromContext(ctx)
-	deviceID := authClaims.GetDeviceID()
-	if deviceID == "" {
-		deviceID = "default"
-	}
-
-	// Log connection attempt
-	util.Log(ctx).WithFields(map[string]any{
-		"profile_id": profileID,
-		"device_id":  deviceID,
-	}).Info("New connection attempt")
-
-	// Note: Real-time connections are handled by the gateway service
-	// This method is here for compatibility with the ChatService interface
-	// but should not be called directly
-	util.Log(ctx).WithFields(map[string]any{
-		"profile_id": profileID,
-		"device_id":  deviceID,
-	}).Warn("Connect method called on default service - should use gateway service instead")
-
-	return connect.NewError(
-		connect.CodeUnimplemented,
-		errors.New("real-time connections should be established through the gateway service"),
-	)
-}
-
 func (ps *ChatServer) SendEvent(
 	ctx context.Context,
 	req *connect.Request[chatv1.SendEventRequest],
@@ -272,11 +232,11 @@ func (ps *ChatServer) GetHistory(
 	}
 
 	// Convert to ServerEvent format with pre-allocated slice for efficiency
-	serverEvents := make([]*chatv1.ConnectResponse, 0, len(events))
+	serverEvents := make([]*chatv1.StreamResponse, 0, len(events))
 	for _, event := range events {
 		if event != nil { // Defensive check
-			serverEvents = append(serverEvents, &chatv1.ConnectResponse{
-				Payload: &chatv1.ConnectResponse_Message{
+			serverEvents = append(serverEvents, &chatv1.StreamResponse{
+				Payload: &chatv1.StreamResponse_Message{
 					Message: event,
 				},
 			})

@@ -36,11 +36,11 @@ func NewGatewayServer(
 	}
 }
 
-// Connect handles bidirectional streaming connections from edge devices.
+// Stream handles bidirectional streaming connections from edge devices.
 // This is the primary method for maintaining real-time connections.
-func (gs *GatewayServer) Connect(
+func (gs *GatewayServer) Stream(
 	ctx context.Context,
-	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ConnectResponse],
+	stream *connect.BidiStream[chatv1.StreamRequest, chatv1.StreamResponse],
 ) error {
 	// Extract profile ID from context
 	authClaims := security.ClaimsFromContext(ctx)
@@ -77,13 +77,13 @@ func (gs *GatewayServer) Connect(
 
 // deviceStreamImpl wraps connect.BidiStream to implement business.DeviceStream.
 type deviceStreamImpl struct {
-	stream *connect.BidiStream[chatv1.ConnectRequest, chatv1.ConnectResponse]
+	stream *connect.BidiStream[chatv1.StreamRequest, chatv1.StreamResponse]
 }
 
-func (w *deviceStreamImpl) Receive() (*chatv1.ConnectRequest, error) {
+func (w *deviceStreamImpl) Receive() (*chatv1.StreamRequest, error) {
 	return w.stream.Receive()
 }
 
-func (w *deviceStreamImpl) Send(event *chatv1.ConnectResponse) error {
+func (w *deviceStreamImpl) Send(event *chatv1.StreamResponse) error {
 	return w.stream.Send(event)
 }

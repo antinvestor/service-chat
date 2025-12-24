@@ -25,7 +25,7 @@ var ErrRateLimited = errors.New("rate limit exceeded")
 func (cm *connectionManager) handleInboundRequests(
 	ctx context.Context,
 	conn Connection,
-	req *chatv1.ConnectRequest,
+	req *chatv1.StreamRequest,
 ) error {
 	// Check rate limit before processing
 	if !conn.AllowInbound() {
@@ -40,9 +40,9 @@ func (cm *connectionManager) handleInboundRequests(
 	defer cm.updateLastActive(ctx, conn.Metadata().Key())
 
 	switch cmd := req.GetPayload().(type) {
-	case *chatv1.ConnectRequest_StateUpdate:
+	case *chatv1.StreamRequest_StateUpdate:
 		return cm.processStateUpdate(ctx, conn, cmd.StateUpdate)
-	case *chatv1.ConnectRequest_Ack:
+	case *chatv1.StreamRequest_Ack:
 		return cm.processAcknowledgement(ctx, conn, cmd.Ack)
 	default:
 		util.Log(ctx).WithField("payload_type", fmt.Sprintf("%T", req.GetPayload())).

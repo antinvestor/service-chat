@@ -25,8 +25,8 @@ type Connection interface {
 	Lock()
 	Unlock()
 	Metadata() *Metadata
-	Dispatch(*chatv1.ConnectResponse) bool // Returns false if channel is full
-	ConsumeDispatch(ctx context.Context) *chatv1.ConnectResponse
+	Dispatch(*chatv1.StreamResponse) bool // Returns false if channel is full
+	ConsumeDispatch(ctx context.Context) *chatv1.StreamResponse
 	Stream() DeviceStream
 	AllowInbound() bool // Rate limiting check for inbound requests
 	Close()
@@ -34,8 +34,8 @@ type Connection interface {
 
 // DeviceStream abstracts the bidirectional stream for edge devices.
 type DeviceStream interface {
-	Receive() (*chatv1.ConnectRequest, error)
-	Send(response *chatv1.ConnectResponse) error
+	Receive() (*chatv1.StreamRequest, error)
+	Send(response *chatv1.StreamResponse) error
 }
 
 type ConnectionManager interface {

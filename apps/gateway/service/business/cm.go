@@ -715,8 +715,8 @@ func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream Devic
 		"timestamp":  time.Now().Unix(),
 	}
 
-	ack := &chatv1.ConnectResponse{
-		Payload: &chatv1.ConnectResponse_Message{
+	ack := &chatv1.StreamResponse{
+		Payload: &chatv1.StreamResponse_Message{
 			Message: &chatv1.RoomEvent{
 				Id:       util.IDString(),
 				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_UNSPECIFIED,

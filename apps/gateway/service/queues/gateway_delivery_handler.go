@@ -80,15 +80,15 @@ func (dq *GatewayEventsQueueHandler) toPayloadToEventData(
 	return eventDelivery, nil
 }
 
-func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventDelivery) *chatv1.ConnectResponse {
+func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventDelivery) *chatv1.StreamResponse {
 	evt := eventDelivery.GetEvent()
 
 	parentID := evt.GetParentId()
 
-	data := &chatv1.ConnectResponse{
+	data := &chatv1.StreamResponse{
 		Id:        evt.GetEventId(),
 		Timestamp: timestamppb.Now(),
-		Payload: &chatv1.ConnectResponse_Message{
+		Payload: &chatv1.StreamResponse_Message{
 			Message: &chatv1.RoomEvent{
 				Id:       evt.GetEventId(),
 				ParentId: &parentID,

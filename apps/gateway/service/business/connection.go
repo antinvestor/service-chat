@@ -72,7 +72,7 @@ func (tb *tokenBucket) Allow() bool {
 // connection represents an active edge device connection.
 type connection struct {
 	metadata     *Metadata
-	dispatchChan chan *chatv1.ConnectResponse
+	dispatchChan chan *chatv1.StreamResponse
 	stream       DeviceStream
 	mu           sync.RWMutex
 
@@ -85,7 +85,7 @@ type connection struct {
 	dispatchedMs atomic.Uint64 // Total messages successfully dispatched
 }
 
-func (c *connection) ConsumeDispatch(ctx context.Context) *chatv1.ConnectResponse {
+func (c *connection) ConsumeDispatch(ctx context.Context) *chatv1.StreamResponse {
 	select {
 	case <-ctx.Done():
 		return nil
@@ -106,7 +106,7 @@ func NewConnection(stream DeviceStream, metadata *Metadata) Connection {
 	return &connection{
 		metadata:     metadata,
 		stream:       stream,
-		dispatchChan: make(chan *chatv1.ConnectResponse, dispatchChannelSize),
+		dispatchChan: make(chan *chatv1.StreamResponse, dispatchChannelSize),
 		rateLimiter:  newTokenBucket(defaultRateLimit, rateLimitBurst),
 	}
 }
@@ -133,7 +133,7 @@ func (c *connection) Metadata() *Metadata {
 	return c.metadata
 }
 
-func (c *connection) Dispatch(evt *chatv1.ConnectResponse) bool {
+func (c *connection) Dispatch(evt *chatv1.StreamResponse) bool {
 	// First try non-blocking send
 	select {
 	case c.dispatchChan <- evt:

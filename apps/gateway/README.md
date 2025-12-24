@@ -184,7 +184,7 @@ spec:
 The gateway implements the `ChatService` gRPC/Connect API with a focus on:
 
 ### Primary Method
-- `Connect(stream ConnectRequest) returns (stream ServerEvent)`: Bidirectional streaming for real-time communication
+- `Connect(stream StreamRequest) returns (stream ServerEvent)`: Bidirectional streaming for real-time communication
 
 ### Forwarded Methods
 All other methods are forwarded to the core chat service:
