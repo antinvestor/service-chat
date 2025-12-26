@@ -121,7 +121,7 @@ const (
 
 	// Timeouts and intervals.
 	staleCheckInterval    = 30 * time.Second
-	metricsReportInterval = 10 * time.Second
+	metricsReportInterval = 600 * time.Second
 	healthCheckInterval   = 60 * time.Second
 	connectionAckTimeout  = 30 * time.Second
 	presenceUpdateTimeout = 3 * time.Second
