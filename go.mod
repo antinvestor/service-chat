@@ -9,7 +9,7 @@ require (
 	buf.build/gen/go/antinvestor/device/protocolbuffers/go v1.36.11-20251223175454-e698295a3dc7.1
 	buf.build/gen/go/antinvestor/notification/connectrpc/go v1.19.1-20251223175610-ae615b4be923.2
 	buf.build/gen/go/antinvestor/profile/connectrpc/go v1.19.1-20251223175732-871950e3974b.2
-	buf.build/gen/go/antinvestor/profile/protocolbuffers/go v1.36.11-20251223175732-871950e3974b.1
+	buf.build/gen/go/antinvestor/profile/protocolbuffers/go v1.36.11-20251226160839-4d56a3006d66.1
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.8.0
