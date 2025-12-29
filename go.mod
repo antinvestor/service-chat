@@ -17,10 +17,10 @@ require (
 	github.com/antinvestor/apis/go/common v1.51.0
 	github.com/antinvestor/apis/go/device v1.51.3
 	github.com/antinvestor/apis/go/notification v1.51.3
-	github.com/antinvestor/apis/go/profile v1.51.3
+	github.com/antinvestor/apis/go/profile v1.51.9
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/pitabwire/frame v1.69.12
-	github.com/pitabwire/util v0.3.8
+	github.com/pitabwire/frame v1.69.13
+	github.com/pitabwire/util v0.3.9
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
@@ -63,10 +63,10 @@ require (
 	github.com/google/cel-go v0.26.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.16.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.4 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.7.6 // indirect
+	github.com/jackc/pgx/v5 v5.8.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
@@ -89,7 +89,7 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.6.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/panjf2000/ants/v2 v2.11.3 // indirect
+	github.com/panjf2000/ants/v2 v2.11.4 // indirect
 	github.com/pitabwire/natspubsub v0.7.11 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -143,7 +143,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	gocloud.dev v0.44.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 // indirect
+	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
