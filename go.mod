@@ -5,6 +5,7 @@ go 1.25.2
 require (
 	buf.build/gen/go/antinvestor/chat/connectrpc/go v1.19.1-20260102123205-6514fa038971.2
 	buf.build/gen/go/antinvestor/chat/protocolbuffers/go v1.36.11-20260102123205-6514fa038971.1
+	buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.11-20260102104630-5c57561a771f.1
 	buf.build/gen/go/antinvestor/device/connectrpc/go v1.19.1-20251223175454-e698295a3dc7.2
 	buf.build/gen/go/antinvestor/device/protocolbuffers/go v1.36.11-20251223175454-e698295a3dc7.1
 	buf.build/gen/go/antinvestor/notification/connectrpc/go v1.19.1-20260102123330-d6847f42a19a.2
@@ -13,11 +14,11 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1
 	connectrpc.com/connect v1.19.1
 	connectrpc.com/otelconnect v0.8.0
-	github.com/antinvestor/apis/go/chat v1.52.1
+	github.com/antinvestor/apis/go/chat v1.52.4
 	github.com/antinvestor/apis/go/common v1.51.10
 	github.com/antinvestor/apis/go/device v1.51.11
-	github.com/antinvestor/apis/go/notification v1.51.11
-	github.com/antinvestor/apis/go/profile v1.51.11
+	github.com/antinvestor/apis/go/notification v1.52.4
+	github.com/antinvestor/apis/go/profile v1.52.4
 	github.com/gojuno/minimock/v3 v3.4.7
 	github.com/pitabwire/frame v1.69.13
 	github.com/pitabwire/util v0.3.9
@@ -28,7 +29,6 @@ require (
 )
 
 require (
-	buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.11-20260102104630-5c57561a771f.1 // indirect
 	buf.build/gen/go/antinvestor/notification/protocolbuffers/go v1.36.11-20260102123330-d6847f42a19a.1 // indirect
 	buf.build/gen/go/gnostic/gnostic/protocolbuffers/go v1.36.11-20230414000709-087bc8072ce4.1 // indirect
 	buf.build/go/protovalidate v1.1.0 // indirect
