@@ -113,8 +113,8 @@ func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventD
 					},
 				}
 			}
-		// For other event types, we don't set a payload for now
-		// TODO: Handle ATTACHMENT, REACTION, ENCRYPTED, CALL types when needed
+			// For other event types, we don't set a payload for now
+			// TODO: Handle ATTACHMENT, REACTION, ENCRYPTED, CALL types when needed
 		}
 	}
 
