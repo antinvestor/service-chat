@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -55,10 +56,10 @@ func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []string{memberID},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Creator should have access
@@ -90,10 +91,10 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []string{memberID},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Creator should have owner role
@@ -128,7 +129,7 @@ func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 				IsPrivate: false,
 			}
 
-			_, err := roomBusiness.CreateRoom(ctx, roomReq, userID)
+			_, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: userID})
 			require.NoError(t, err)
 		}
 
@@ -152,10 +153,10 @@ func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []string{memberID},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Check membership via HasAccess
@@ -185,10 +186,10 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []string{memberID},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Verify member has access

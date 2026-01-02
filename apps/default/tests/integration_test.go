@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -14,7 +15,6 @@ import (
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type IntegrationTestSuite struct {
@@ -57,10 +57,10 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			Name:        "Integration Test Room",
 			Description: "Testing complete workflow",
 			IsPrivate:   false,
-			Members:     []string{member1ID, member2ID},
+			Members:     []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: member1ID}, &commonv1.ContactLink{ProfileId: member2ID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, createReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, createReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 		s.NotNil(room)
 
@@ -75,17 +75,13 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 
 		// 3. Send messages
 		for range 5 {
-			payload, _ := structpb.NewStruct(map[string]interface{}{
-				"text": util.RandomString(20),
-			})
-
 			msgReq := &chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-						Payload:  payload,
+						Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 					},
 				},
 			}
@@ -98,7 +94,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		// 4. Get history
 		historyReq := &chatv1.GetHistoryRequest{
 			RoomId: room.GetId(),
-			Limit:  10,
+			Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
 		}
 
 		events, err := messageBusiness.GetHistory(ctx, historyReq, member1ID)
@@ -122,8 +118,8 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			RoomId: room.GetId(),
 			Members: []*chatv1.RoomSubscription{
 				{
-					ProfileId: newMemberID,
-					Roles:     []string{"member"},
+					Member: &commonv1.ContactLink{ProfileId: newMemberID},
+					Roles:  []string{"member"},
 				},
 			},
 		}
@@ -179,7 +175,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 				IsPrivate: false,
 			}
 
-			room, err := roomBusiness.CreateRoom(ctx, createReq, userID)
+			room, err := roomBusiness.CreateRoom(ctx, createReq, &commonv1.ContactLink{ProfileId: userID})
 			require.NoError(t, err)
 			rooms = append(rooms, room)
 		}
@@ -187,17 +183,13 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 		// Send messages to each room
 		for _, room := range rooms {
 			for range 3 {
-				payload, _ := structpb.NewStruct(map[string]interface{}{
-					"text": util.RandomString(15),
-				})
-
 				msgReq := &chatv1.SendEventRequest{
 					Event: []*chatv1.RoomEvent{
 						{
 							RoomId:   room.GetId(),
 							SenderId: userID,
 							Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-							Payload:  payload,
+							Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 						},
 					},
 				}
@@ -211,7 +203,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 		for _, room := range rooms {
 			historyReq := &chatv1.GetHistoryRequest{
 				RoomId: room.GetId(),
-				Limit:  10,
+				Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
 			}
 
 			events, err := messageBusiness.GetHistory(ctx, historyReq, userID)
@@ -239,17 +231,17 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		createReq := &chatv1.CreateRoomRequest{
 			Name:      "Permission Test Room",
 			IsPrivate: false,
-			Members:   []string{adminID, memberID},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: adminID}, &commonv1.ContactLink{ProfileId: memberID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, createReq, ownerID)
+		room, err := roomBusiness.CreateRoom(ctx, createReq, &commonv1.ContactLink{ProfileId: ownerID})
 		require.NoError(t, err)
 
 		// Promote one member to admin
 		updateRoleReq := &chatv1.UpdateSubscriptionRoleRequest{
-			RoomId:    room.GetId(),
-			ProfileId: adminID,
-			Roles:     []string{"admin"},
+			RoomId: room.GetId(),
+			Member: &commonv1.ContactLink{ProfileId: adminID},
+			Roles:  []string{"admin"},
 		}
 
 		err = roomBusiness.UpdateSubscriptionRole(ctx, updateRoleReq, ownerID)
