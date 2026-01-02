@@ -59,7 +59,8 @@ type RoomCall struct {
 type RoomEvent struct {
 	data.BaseModel
 	RoomID     string `gorm:"type:varchar(50);index:idx_room_id"`
-	SenderID   string `gorm:"type:varchar(50)"`
+	SenderID   string `gorm:"type:varchar(50)"` // Profile ID - will transition to ContactLink.ProfileId
+	ContactID  string `gorm:"type:varchar(50)"` // Contact ID from ContactLink
 	ParentID   string `gorm:"type:varchar(50)"`
 	EventType  int32
 	Content    data.JSONMap
@@ -170,4 +171,13 @@ func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 
 func (rs *RoomSubscription) IsActive() bool {
 	return RoomSubscriptionStateActive == rs.SubscriptionState
+}
+
+// ExtractContactInfo extracts profile_id and contact_id from ContactLink.
+// Returns profileID and contactID. ProfileID takes precedence.
+func ExtractContactInfo(link *commonv1.ContactLink) (profileID string, contactID string) {
+	if link == nil {
+		return "", ""
+	}
+	return link.GetProfileId(), link.GetContactId()
 }
