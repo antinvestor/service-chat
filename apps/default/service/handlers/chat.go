@@ -8,6 +8,7 @@ import (
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"connectrpc.com/connect"
@@ -209,13 +210,13 @@ func (ps *ChatServer) GetHistory(
 	}
 
 	// Validate pagination parameters
-	limit := req.Msg.GetLimit()
-	if limit <= 0 {
-		limit = 50 // Default limit
-	} else if limit > MaxBatchSize {
-		limit = MaxBatchSize // Cap at max batch size
+	limit := int32(50) // Default limit
+	if req.Msg.GetCursor() != nil && req.Msg.GetCursor().GetLimit() > 0 {
+		limit = req.Msg.GetCursor().GetLimit()
+		if limit > MaxBatchSize {
+			limit = MaxBatchSize // Cap at max batch size
+		}
 	}
-	req.Msg.Limit = limit
 
 	// Create timeout context for the operation
 	timeoutCtx, cancel := ps.withTimeout(ctx, updateStateTimeout)
@@ -269,7 +270,13 @@ func (ps *ChatServer) CreateRoom(
 
 	profileID, _ := authClaims.GetSubject()
 
-	room, err := ps.RoomBusiness.CreateRoom(ctx, req.Msg, profileID)
+	// Create ContactLink for the creator
+	creatorLink := &commonv1.ContactLink{
+		ProfileId: profileID,
+		// ContactId can be set if available from profile service
+	}
+
+	room, err := ps.RoomBusiness.CreateRoom(ctx, req.Msg, creatorLink)
 	if err != nil {
 		return nil, err
 	}
@@ -516,28 +523,22 @@ func (ps *ChatServer) UpdateClientState(
 // processClientState handles individual client state processing with comprehensive validation.
 func (ps *ChatServer) processClientState(
 	ctx context.Context,
-	clientState *chatv1.ClientState,
+	clientCommand *chatv1.ClientCommand,
 	profileID string,
 	roomID string,
 ) error {
 	// Process different state types
-	switch state := clientState.GetState().(type) {
-	case *chatv1.ClientState_Receipt:
-		return ps.processReceiptState(ctx, state.Receipt, profileID, roomID)
-	case *chatv1.ClientState_ReadMarker:
+	switch state := clientCommand.GetState().(type) {
+	case *chatv1.ClientCommand_ReadMarker:
 		return ps.processReadMarkerState(ctx, state.ReadMarker, profileID, roomID)
-	case *chatv1.ClientState_Typing:
-		return ps.processTypingState(ctx, state.Typing, profileID, roomID)
-	case *chatv1.ClientState_Presence:
-		return ps.processPresenceState(ctx, state.Presence, profileID, roomID)
-	case *chatv1.ClientState_RoomEvent:
-		return ps.processRoomEventState(ctx, state.RoomEvent, profileID)
+	case *chatv1.ClientCommand_Event:
+		return ps.processRoomEventState(ctx, state.Event, profileID)
 	default:
 		util.Log(ctx).WithFields(map[string]any{
 			"profile_id": profileID,
 			"state_type": fmt.Sprintf("%T", state),
-		}).Warn("Unknown client state type received")
-		return fmt.Errorf("unsupported client state type: %T", state)
+		}).Warn("Unknown client command type received")
+		return fmt.Errorf("unsupported client command type: %T", state)
 	}
 }
 

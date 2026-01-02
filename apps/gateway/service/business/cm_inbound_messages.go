@@ -7,7 +7,6 @@ import (
 	"time"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -35,9 +34,6 @@ func (cm *connectionManager) handleInboundRequests(
 		}).Warn("Request rate limited")
 		return ErrRateLimited
 	}
-
-	// Update last active timestamp for all inbound requests
-	defer cm.updateLastActive(ctx, conn.Metadata().Key())
 
 	switch cmd := req.GetPayload().(type) {
 	case *chatv1.StreamRequest_SignalUpdate:

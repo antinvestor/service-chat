@@ -106,7 +106,6 @@ import (
 	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/internal"
-	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/telemetry"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -709,18 +708,13 @@ func (cm *connectionManager) handleOutboundStream(
 
 // sendConnectionAck sends initial connection acknowledgment to device.
 func (cm *connectionManager) sendConnectionAck(ctx context.Context, stream DeviceStream) error {
-	payload := data.JSONMap{
-		"status":     "connected",
-		"gateway_id": cm.gatewayID,
-		"timestamp":  time.Now().Unix(),
-	}
-
+	// Connection acknowledgment as a system event (no payload needed)
 	ack := &chatv1.StreamResponse{
 		Payload: &chatv1.StreamResponse_Message{
 			Message: &chatv1.RoomEvent{
 				Id:       util.IDString(),
-				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_UNSPECIFIED,
-				Payload:  payload.ToProtoStruct(),
+				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
+				// No payload for system events
 				SentAt:   timestamppb.Now(),
 				Edited:   false,
 				Redacted: false,

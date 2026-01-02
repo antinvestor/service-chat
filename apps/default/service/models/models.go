@@ -136,6 +136,7 @@ type RoomSubscription struct {
 	data.BaseModel
 	RoomID              string `gorm:"type:varchar(50);index:idx_roomsubscription_room_id_subscription_state"`
 	ProfileID           string `gorm:"type:varchar(50)"`
+	ContactID           string `gorm:"type:varchar(50)"`
 	Role                string
 	SubscriptionState   RoomSubscriptionState `gorm:"index:idx_roomsubscription_room_id_subscription_state"`
 	LastReadEventID     string                `gorm:"type:varchar(50)"` // ID of the last read event (naturally time-sorted)
@@ -157,11 +158,9 @@ func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 
 	return &chatv1.RoomSubscription{
 		RoomId: rs.RoomID,
-		// Use ContactLink with profileId
-		// TODO: Update database schema to store profile_name, profile_type, etc.
 		Member: &commonv1.ContactLink{
 			ProfileId: rs.ProfileID,
-			// TODO: Add profile_name, profile_type from database when available
+			ContactId: rs.ContactID,
 		},
 		Roles:      strings.Split(rs.Role, ","),
 		JoinedAt:   timestamppb.New(rs.CreatedAt),
