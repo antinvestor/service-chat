@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -138,17 +139,13 @@ func (s *ChatServerTestSuite) TestSendEvent() {
 		roomID := createResp.Msg.GetRoom().GetId()
 
 		// Send message
-		payload, _ := structpb.NewStruct(map[string]interface{}{
-			"text": "Hello World",
-		})
-
 		msgReq := connect.NewRequest(&chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   roomID,
 					SenderId: profileID,
 					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-					Payload:  payload,
+					Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 				},
 			},
 		})
@@ -180,17 +177,13 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 
 		// Send messages
 		for range 5 {
-			payload, _ := structpb.NewStruct(map[string]interface{}{
-				"text": "Message",
-			})
-
 			msgReq := connect.NewRequest(&chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   roomID,
 						SenderId: profileID,
 						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-						Payload:  payload,
+						Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 					},
 				},
 			})
@@ -202,7 +195,7 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 		// Get history
 		historyReq := connect.NewRequest(&chatv1.GetHistoryRequest{
 			RoomId: roomID,
-			Limit:  10,
+			Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
 		})
 
 		historyResp, err := chatServer.GetHistory(ctx, historyReq)
@@ -235,8 +228,8 @@ func (s *ChatServerTestSuite) TestAddRoomSubscriptions() {
 			RoomId: roomID,
 			Members: []*chatv1.RoomSubscription{
 				{
-					ProfileId: memberID,
-					Roles:     []string{"member"},
+					Member: &commonv1.ContactLink{ProfileId: memberID},
+					Roles:  []string{"member"},
 				},
 			},
 		})
@@ -270,8 +263,8 @@ func (s *ChatServerTestSuite) TestRemoveRoomSubscriptions() {
 			RoomId: roomID,
 			Members: []*chatv1.RoomSubscription{
 				{
-					ProfileId: memberID,
-					Roles:     []string{"member"},
+					Member: &commonv1.ContactLink{ProfileId: memberID},
+					Roles:  []string{"member"},
 				},
 			},
 		})
@@ -314,8 +307,8 @@ func (s *ChatServerTestSuite) TestUpdateSubscriptionRole() {
 			RoomId: roomID,
 			Members: []*chatv1.RoomSubscription{
 				{
-					ProfileId: memberID,
-					Roles:     []string{"member"},
+					Member: &commonv1.ContactLink{ProfileId: memberID},
+					Roles:  []string{"member"},
 				},
 			},
 		})
@@ -364,43 +357,7 @@ func (s *ChatServerTestSuite) TestSearchRoomSubscriptions() {
 	})
 }
 
-func (s *ChatServerTestSuite) TestUpdateClientState() {
-	s.T().Skip("Requires ProfileCli mock - skipping for now")
-	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
-
-		profileID := util.IDString()
-		ctx = s.WithAuthClaims(ctx, profileID)
-
-		// Create room
-		createReq := connect.NewRequest(&chatv1.CreateRoomRequest{
-			Name:      "Client OutboxState Room",
-			IsPrivate: false,
-		})
-
-		createResp, err := chatServer.CreateRoom(ctx, createReq)
-		require.NoError(t, err)
-		roomID := createResp.Msg.GetRoom().GetId()
-
-		// Update typing state
-		stateReq := connect.NewRequest(&chatv1.UpdateClientStateRequest{
-			RoomId:    roomID,
-			ProfileId: profileID,
-			ClientStates: []*chatv1.ClientState{
-				{
-					State: &chatv1.ClientState_Typing{
-						Typing: &chatv1.TypingEvent{
-							RoomId:    roomID,
-							ProfileId: profileID,
-							Typing:    true,
-						},
-					},
-				},
-			},
-		})
-
-		_, err = chatServer.UpdateClientState(ctx, stateReq)
-		require.NoError(t, err)
-	})
+func (s *ChatServerTestSuite) TestUpdateClientCommand() {
+	s.T().Skip("Requires ProfileCli mock and API updates - skipping for now")
+	// TODO: Update this test when UpdateClientCommand API is finalized
 }

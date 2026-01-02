@@ -153,12 +153,36 @@ func (mb *messageBusiness) SendEvents(
 		}
 
 		// Create the message event
+		// Extract payload content based on type
+		var content data.JSONMap
+		if reqEvt.Payload != nil {
+			switch p := reqEvt.Payload.(type) {
+			case *chatv1.RoomEvent_Text:
+				content = data.JSONMap{
+					"body":   p.Text.GetBody(),
+					"format": p.Text.GetFormat(),
+				}
+			case *chatv1.RoomEvent_Attachment:
+				// TODO: Extract attachment fields when needed
+				content = data.JSONMap{}
+			case *chatv1.RoomEvent_Reaction:
+				// TODO: Extract reaction fields when needed
+				content = data.JSONMap{}
+			case *chatv1.RoomEvent_Encrypted:
+				// TODO: Extract encrypted fields when needed
+				content = data.JSONMap{}
+			case *chatv1.RoomEvent_Call:
+				// TODO: Extract call fields when needed
+				content = data.JSONMap{}
+			}
+		}
+
 		event := &models.RoomEvent{
 			RoomID:    reqEvt.GetRoomId(),
 			SenderID:  senderID,
 			ParentID:  reqEvt.GetParentId(),
 			EventType: int32(reqEvt.GetType().Number()),
-			Content:   data.JSONMap(reqEvt.GetPayload().AsMap()),
+			Content:   content,
 		}
 
 		event.GenID(ctx)
@@ -277,9 +301,13 @@ func (mb *messageBusiness) GetHistory(
 	}
 
 	// Build the query - use cursor for pagination
-	limit := int(req.GetLimit())
-	if limit == 0 {
-		limit = 50 // default limit
+	var limit int = 50 // default limit
+	var cursor string
+	if req.GetCursor() != nil {
+		if req.GetCursor().GetLimit() > 0 {
+			limit = int(req.GetCursor().GetLimit())
+		}
+		cursor = req.GetCursor().GetPage()
 	}
 
 	// Get messages
@@ -295,7 +323,7 @@ func (mb *messageBusiness) GetHistory(
 	}
 
 	// Update last read sequence for the user if we have evts
-	if len(evts) > 0 && req.GetCursor() == "" {
+	if len(evts) > 0 && cursor == "" {
 		_ = mb.MarkMessagesAsRead(ctx, req.GetRoomId(), evts[0].GetID(), profileID)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -15,7 +16,6 @@ import (
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type MessageBusinessTestSuite struct {
@@ -56,21 +56,17 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Send message
-		payload, _ := structpb.NewStruct(map[string]interface{}{
-			"text": "Hello World",
-		})
-
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-					Payload:  payload,
+					Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 				},
 			},
 		}
@@ -87,17 +83,13 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 		ctx, svc := s.CreateService(t, dep)
 		messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
-		payload, _ := structpb.NewStruct(map[string]interface{}{
-			"text": "Hello",
-		})
-
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   util.IDString(), // Non-existent room
 					SenderId: util.IDString(),
 					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-					Payload:  payload,
+					Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 				},
 			},
 		}
@@ -122,21 +114,17 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Send multiple messages
 		var messages []*chatv1.RoomEvent
 		for range 5 {
-			payload, _ := structpb.NewStruct(map[string]interface{}{
-				"text": util.RandomString(10),
-			})
-
 			messages = append(messages, &chatv1.RoomEvent{
 				RoomId:   room.GetId(),
 				SenderId: creatorID,
 				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-				Payload:  payload,
+				Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 			})
 		}
 
@@ -166,22 +154,18 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Send 10 messages
 		for range 10 {
-			payload, _ := structpb.NewStruct(map[string]interface{}{
-				"text": util.RandomString(10),
-			})
-
 			msgReq := &chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-						Payload:  payload,
+						Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 					},
 				},
 			}
@@ -193,7 +177,7 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 		// Get history
 		historyReq := &chatv1.GetHistoryRequest{
 			RoomId: room.GetId(),
-			Limit:  5,
+			Cursor: &commonv1.PageCursor{Limit: 5, Page: ""},
 		}
 
 		events, err := messageBusiness.GetHistory(ctx, historyReq, creatorID)
@@ -214,12 +198,8 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
-
-		payload, _ := structpb.NewStruct(map[string]interface{}{
-			"text": "Test Message",
-		})
 
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
@@ -227,7 +207,7 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-					Payload:  payload,
+					Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 				},
 			},
 		}
@@ -239,7 +219,7 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 		// Get the message via history
 		historyReq := &chatv1.GetHistoryRequest{
 			RoomId: room.GetId(),
-			Limit:  10,
+			Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
 		}
 
 		events, err := messageBusiness.GetHistory(ctx, historyReq, creatorID)
@@ -275,12 +255,8 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
-
-		payload, _ := structpb.NewStruct(map[string]interface{}{
-			"text": "Message to Delete",
-		})
 
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
@@ -289,7 +265,7 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-					Payload:  payload,
+					Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 				},
 			},
 		}
@@ -324,24 +300,20 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []string{memberID},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Send message
-		payload, _ := structpb.NewStruct(map[string]interface{}{
-			"text": "Test Message",
-		})
-
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId:   room.GetId(),
 					SenderId: creatorID,
 					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-					Payload:  payload,
+					Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 				},
 			},
 		}
@@ -368,7 +340,7 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
+		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
 		// Test different message types
@@ -378,17 +350,13 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 		}
 
 		for _, msgType := range messageTypes {
-			payload, _ := structpb.NewStruct(map[string]interface{}{
-				"data": "test",
-			})
-
 			msgReq := &chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId:   room.GetId(),
 						SenderId: creatorID,
 						Type:     msgType,
-						Payload:  payload,
+						Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
 					},
 				},
 			}

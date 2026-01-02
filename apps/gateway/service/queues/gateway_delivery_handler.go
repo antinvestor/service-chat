@@ -85,21 +85,44 @@ func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventD
 
 	parentID := evt.GetParentId()
 
+	// Convert event type
+	eventType := chatv1.RoomEventType(eventDelivery.GetEvent().GetEventType().Number())
+
+	// Create RoomEvent with appropriate payload based on type
+	roomEvent := &chatv1.RoomEvent{
+		Id:       evt.GetEventId(),
+		ParentId: &parentID,
+		RoomId:   evt.GetRoomId(),
+		SenderId: evt.GetSenderId(),
+		Type:     eventType,
+		SentAt:   evt.GetCreatedAt(),
+		Edited:   false,
+		Redacted: false,
+	}
+
+	// Convert generic payload to typed payload based on event type
+	payload := eventDelivery.GetPayload()
+	if payload != nil {
+		switch eventType {
+		case chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT:
+			// Extract text content from generic payload
+			if body, ok := payload.Fields["body"]; ok && body.GetStringValue() != "" {
+				roomEvent.Payload = &chatv1.RoomEvent_Text{
+					Text: &chatv1.TextContent{
+						Body: body.GetStringValue(),
+					},
+				}
+			}
+			// For other event types, we don't set a payload for now
+			// TODO: Handle ATTACHMENT, REACTION, ENCRYPTED, CALL types when needed
+		}
+	}
+
 	data := &chatv1.StreamResponse{
 		Id:        evt.GetEventId(),
 		Timestamp: timestamppb.Now(),
 		Payload: &chatv1.StreamResponse_Message{
-			Message: &chatv1.RoomEvent{
-				Id:       evt.GetEventId(),
-				ParentId: &parentID,
-				RoomId:   evt.GetRoomId(),
-				SenderId: evt.GetSenderId(),
-				Type:     chatv1.RoomEventType(eventDelivery.GetEvent().GetEventType().Number()),
-				Payload:  eventDelivery.GetPayload(),
-				SentAt:   evt.GetCreatedAt(),
-				Edited:   false,
-				Redacted: false,
-			},
+			Message: roomEvent,
 		},
 	}
 	return data

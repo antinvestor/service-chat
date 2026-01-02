@@ -3,15 +3,16 @@ package business
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/util"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type roomBusiness struct {
@@ -45,7 +46,7 @@ func NewRoomBusiness(
 func (rb *roomBusiness) CreateRoom(
 	ctx context.Context,
 	req *chatv1.CreateRoomRequest,
-	createdBy string,
+	createdBy *commonv1.ContactLink,
 ) (*chatv1.Room, error) {
 	// Validate request
 	if req.GetName() == "" {
@@ -71,24 +72,28 @@ func (rb *roomBusiness) CreateRoom(
 	}
 
 	// Add creator as owner
-	err = rb.addRoomMembers(ctx, createdRoom.GetID(), []string{createdBy}, "owner")
+	err = rb.addRoomMembers(ctx, createdRoom.GetID(), []*commonv1.ContactLink{createdBy}, "owner")
 	if err != nil {
 		return nil, fmt.Errorf("failed to add creator to room: %w", err)
 	}
 
 	// Add other members (excluding the creator)
-	memberIDs := removeDuplicateAndExclude(req.GetMembers(), createdBy)
-	if len(memberIDs) > 0 {
-		err = rb.addRoomMembers(ctx, createdRoom.GetID(), memberIDs, "member")
+	members := req.GetMembers()
+	if len(members) > 0 {
+		err = rb.addRoomMembers(ctx, createdRoom.GetID(), members, "member")
 		if err != nil {
 			return nil, fmt.Errorf("failed to add members to room: %w", err)
 		}
 	}
 
 	// Send room created event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdBy,
+	createdByProfileID := ""
+	if createdBy != nil {
+		createdByProfileID = createdBy.GetProfileId()
+	}
+	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdByProfileID,
 		map[string]interface{}{"content": "Room created"},
-		map[string]interface{}{"created_by": createdBy})
+		map[string]interface{}{"created_by": createdByProfileID})
 
 	// Return the created room as proto
 	return createdRoom.ToAPI(), nil
@@ -211,17 +216,26 @@ func (rb *roomBusiness) SearchRooms(
 	}
 
 	// Build the search query
+	searchOpts := []data.SearchOption{
+		data.WithSearchFiltersAndByValue(
+			map[string]any{"id": roomIDs},
+		),
+		data.WithSearchFiltersOrByValue(
+			map[string]any{
+				"name % ?": req.GetQuery(),
+				"searchable @@ websearch_to_tsquery( 'english', ?) ": req.GetQuery()},
+		)}
 
-	query := data.NewSearchQuery(
-		data.WithSearchOffset(int(req.GetPage())),
-		data.WithSearchLimit(int(req.GetCount())),
-		data.WithSearchFiltersAndByValue(map[string]any{
-			"id": roomIDs,
-		}),
-		data.WithSearchFiltersOrByValue(map[string]any{
-			"name % ?": req.GetQuery(),
-			"searchable @@ websearch_to_tsquery( 'english', ?) ": req.GetQuery(),
-		}))
+	cursor := req.GetCursor()
+	if cursor != nil {
+		page, strErr := strconv.Atoi(cursor.GetPage())
+		if strErr != nil {
+			page = 0
+		}
+		searchOpts = append(searchOpts, data.WithSearchOffset(page), data.WithSearchLimit(int(cursor.GetLimit())))
+	}
+
+	query := data.NewSearchQuery(searchOpts...)
 
 	// Get rooms - need to convert JobResultPipe to slice
 	roomsPipe, err := rb.roomRepo.Search(ctx, query)
@@ -266,8 +280,8 @@ func (rb *roomBusiness) AddRoomSubscriptions(
 		return service.ErrRoomAddMembersDenied
 	}
 
-	// Extract profile IDs and roles from members
-	roleMap := make(map[string]string)
+	// Extract ContactLinks and roles from members
+	roleMap := make(map[*commonv1.ContactLink]string)
 
 	for _, member := range req.GetMembers() {
 		// Use first role or default to "member"
@@ -275,7 +289,10 @@ func (rb *roomBusiness) AddRoomSubscriptions(
 		if len(member.GetRoles()) > 0 {
 			role = member.GetRoles()[0]
 		}
-		roleMap[member.GetProfileId()] = role
+		// Use ContactLink directly as key
+		if member.GetMember() != nil {
+			roleMap[member.GetMember()] = role
+		}
 	}
 
 	// Add members with their respective roles
@@ -395,7 +412,7 @@ func (rb *roomBusiness) SearchRoomSubscriptions(
 }
 
 // Helper function to add members to a room with specific roles.
-func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID string, roleMap map[string]string) error {
+func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID string, roleMap map[*commonv1.ContactLink]string) error {
 	// Get existing subscriptions to avoid duplicates
 	existingSubs, err := rb.subRepo.GetByRoomID(ctx, roomID, false)
 	if err != nil {
@@ -403,18 +420,19 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 	}
 
 	// Create a map of existing profile IDs
-	existingMap := make(map[string]bool)
+	existingProfileMap := make(map[string]bool)
 	for _, sub := range existingSubs {
-		existingMap[sub.ProfileID] = true
+		existingProfileMap[sub.ProfileID] = true
 	}
 
 	// Create new subscriptions for profiles that don't exist
 	var newSubs []*models.RoomSubscription
-	for profileID, role := range roleMap {
-		if !existingMap[profileID] {
+	for link, role := range roleMap {
+		if !existingProfileMap[link.GetProfileId()] {
 			sub := &models.RoomSubscription{
 				RoomID:            roomID,
-				ProfileID:         profileID,
+				ProfileID:         link.GetProfileId(),
+				ContactID:         link.GetContactId(),
 				Role:              role,
 				SubscriptionState: models.RoomSubscriptionStateActive,
 			}
@@ -445,10 +463,12 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 }
 
 // Helper function to add members to a room (legacy support).
-func (rb *roomBusiness) addRoomMembers(ctx context.Context, roomID string, profileIDs []string, role string) error {
-	roleMap := make(map[string]string)
-	for _, profileID := range profileIDs {
-		roleMap[profileID] = role
+func (rb *roomBusiness) addRoomMembers(ctx context.Context, roomID string, members []*commonv1.ContactLink, role string) error {
+	roleMap := make(map[*commonv1.ContactLink]string)
+	for _, member := range members {
+		if member != nil {
+			roleMap[member] = role
+		}
 	}
 	return rb.addRoomMembersWithRoles(ctx, roomID, roleMap)
 }
@@ -494,50 +514,23 @@ func (rb *roomBusiness) removeRoomMembers(
 func (rb *roomBusiness) sendRoomEvent(
 	ctx context.Context,
 	roomID string,
-	senderID string,
+	senderSubscriptionID string,
 	content map[string]interface{},
 	metadata map[string]interface{},
 ) error {
-	// Merge content and metadata into a single payload
-	combinedPayload := make(map[string]interface{})
-	for k, v := range content {
-		combinedPayload[k] = v
-	}
-	for k, v := range metadata {
-		combinedPayload[k] = v
-	}
-
-	payload, err := structpb.NewStruct(combinedPayload)
-	if err != nil {
-		return fmt.Errorf("failed to create payload: %w", err)
-	}
-
+	// System events don't have payloads in the new API
+	// TODO: If specific data needs to be sent, use appropriate payload type (TextContent, etc.)
 	req := &chatv1.SendEventRequest{
 		Event: []*chatv1.RoomEvent{
 			{
 				RoomId:   roomID,
-				SenderId: senderID,
+				SenderId: senderSubscriptionID,
 				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
-				Payload:  payload,
+				// No payload for system events
 			},
 		},
 	}
 
-	_, err = rb.messageBusiness.SendEvents(ctx, req, senderID)
+	_, err := rb.messageBusiness.SendEvents(ctx, req, senderSubscriptionID)
 	return err
-}
-
-// Helper function to remove duplicates and exclude a specific value from a string slice.
-func removeDuplicateAndExclude(slice []string, exclude string) []string {
-	keys := make(map[string]bool)
-	result := []string{}
-
-	for _, entry := range slice {
-		if entry != exclude && !keys[entry] {
-			keys[entry] = true
-			result = append(result, entry)
-		}
-	}
-
-	return result
 }

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
-	"connectrpc.com/connect"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -35,9 +34,6 @@ func (cm *connectionManager) handleInboundRequests(
 		}).Warn("Request rate limited")
 		return ErrRateLimited
 	}
-
-	// Update last active timestamp for all inbound requests
-	defer cm.updateLastActive(ctx, conn.Metadata().Key())
 
 	switch cmd := req.GetPayload().(type) {
 	case *chatv1.StreamRequest_SignalUpdate:
@@ -248,9 +244,9 @@ func (cm *connectionManager) processReadMarker(
 
 	// TODO: Implement read marker processing logic
 	util.Log(ctx).WithFields(map[string]any{
-		"profile_id":      profileID,
-		"room_id":         marker.GetRoomId(),
-		"up_to_event_id":  marker.GetUpToEventId(),
+		"profile_id":     profileID,
+		"room_id":        marker.GetRoomId(),
+		"up_to_event_id": marker.GetUpToEventId(),
 	}).Debug("Processed read marker")
 
 	return nil
@@ -301,6 +297,7 @@ func (cm *connectionManager) processRoomEvent(
 
 // DEPRECATED: Old processStateUpdate method - kept for reference during migration
 // TODO: Remove after full migration to new API structure
+//
 //nolint:gocognit,funlen,unused,deadcode // Deprecated - kept for reference
 func (cm *connectionManager) processStateUpdateOld(
 	ctx context.Context,
