@@ -3,7 +3,6 @@ package business_test
 import (
 	"context"
 	"testing"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
@@ -38,7 +37,7 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
+	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, nil)
 
 	return roomBusiness
 }
@@ -269,10 +268,26 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
+		// Get subscription ID
+		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
+			RoomId: created.GetId(),
+		}
+		searchResp, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		require.NoError(t, err)
+
+		var subscriptionID string
+		for _, sub := range searchResp {
+			if sub.GetMember().GetProfileId() == memberID {
+				subscriptionID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, subscriptionID)
+
 		// Remove member
 		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
-			RoomId:     created.GetId(),
-			ProfileIds: []string{memberID},
+			RoomId:         created.GetId(),
+			SubscriptionId: []string{subscriptionID},
 		}
 
 		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
@@ -302,11 +317,27 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
 		require.NoError(t, err)
 
+		// Get subscription ID
+		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
+			RoomId: created.GetId(),
+		}
+		searchResp, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		require.NoError(t, err)
+
+		var subscriptionID string
+		for _, sub := range searchResp {
+			if sub.GetMember().GetProfileId() == memberID {
+				subscriptionID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, subscriptionID)
+
 		// Promote member to admin
 		updateReq := &chatv1.UpdateSubscriptionRoleRequest{
-			RoomId:    created.GetId(),
-			ProfileId: memberID,
-			Roles:     []string{"admin"},
+			RoomId:         created.GetId(),
+			SubscriptionId: subscriptionID,
+			Roles:          []string{"admin"},
 		}
 
 		err = roomBusiness.UpdateSubscriptionRole(ctx, updateReq, creatorID)

@@ -3,10 +3,10 @@ package events
 import (
 	"context"
 	"errors"
-
+	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	"github.com/antinvestor/service-chat/apps/default/config"
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
-	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore/pool"
 	"github.com/pitabwire/frame/queue"
@@ -55,37 +55,37 @@ func (feh *FanoutEventHandler) Name() string {
 }
 
 func (feh *FanoutEventHandler) PayloadType() any {
-	return &eventsv1.EventBroadcast{}
+	return &eventsv1.Broadcast{}
 }
 
 func (feh *FanoutEventHandler) Validate(_ context.Context, payload any) error {
-	_, ok := payload.(*eventsv1.EventBroadcast)
+	_, ok := payload.(*eventsv1.Broadcast)
 	if !ok {
-		return errors.New("invalid payload type, expected eventsv1.EventBroadcast")
+		return errors.New("invalid payload type, expected eventsv1.Broadcast")
 	}
 	return nil
 }
 
 func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
-	broadcast, ok := payload.(*eventsv1.EventBroadcast)
+	broadcast, ok := payload.(*eventsv1.Broadcast)
 	if !ok {
-		return errors.New("invalid payload type, expected eventsv1.EventBroadcast{}")
+		return errors.New("invalid payload type, expected eventsv1.Broadcast{}")
 	}
 
 	eventLink := broadcast.GetEvent()
-	recepientIDs := broadcast.GetRecepientIds()
+	destinations := broadcast.GetDestinations()
 
-	// Early exit if no recepientIDs
-	if len(recepientIDs) == 0 {
+	// Early exit if no destinations
+	if len(destinations) == 0 {
 		return nil
 	}
 
 	logger := util.Log(ctx).WithFields(map[string]any{
 		"room_id":      eventLink.GetRoomId(),
-		"target_count": len(recepientIDs),
+		"target_count": len(destinations),
 	})
 
-	// Create outbox entries for each subscriber
+	// Get event data to extract payload
 	eventLinkData, err := feh.eventRepo.GetByID(ctx, eventLink.GetEventId())
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
@@ -102,24 +102,30 @@ func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 		return err
 	}
 
-	// Pre-compute payload once for all recepientIDs
-	payloadStruct := eventLinkData.Content.ToProtoStruct()
+	// Convert event content to typed payload
+	converter := models.NewPayloadConverter()
+	eventPayload, payloadErr := converter.ToProtoRoomEvent(eventLinkData.Content)
+	if payloadErr != nil {
+		logger.WithError(payloadErr).Error("failed to convert event content to payload")
+		// Continue with nil payload rather than failing entirely
+	}
 
 	// Publish all deliveries - continue on individual failures
 	var failCount int
-	for _, recepientID := range recepientIDs {
-		eventDelivery := &eventsv1.EventDelivery{
+	for _, destination := range destinations {
+		eventDelivery := &eventsv1.Delivery{
 			Event:        eventLink,
-			RecepientId:  recepientID,
-			Payload:      payloadStruct,
+			Destination:  destination,
+			Payload:      eventPayload,
 			IsCompressed: false,
 			RetryCount:   0,
 		}
 
 		if pubErr := deliveryTopic.Publish(ctx, eventDelivery); pubErr != nil {
 			failCount++
-			logger.WithError(pubErr).WithField("recipient_id", recepientID).
-				Warn("failed to publish delivery for recepientID")
+			logger.WithError(pubErr).
+				WithField("destination", destination.GetProfileId()).
+				Warn("failed to publish delivery")
 		}
 	}
 

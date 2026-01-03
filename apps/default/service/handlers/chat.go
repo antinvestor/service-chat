@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -51,7 +50,7 @@ func NewChatServer(
 	ctx context.Context,
 	service *frame.Service,
 	notificationCli notificationv1connect.NotificationServiceClient,
-	_ profilev1connect.ProfileServiceClient) *ChatServer {
+	profileCli profilev1connect.ProfileServiceClient) *ChatServer {
 	workMan := service.WorkManager()
 	evtsMan := service.EventsManager()
 	dbPool := service.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
@@ -64,11 +63,12 @@ func NewChatServer(
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
 	connectBusiness := business.NewConnectBusiness(service, subRepo, eventRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(service, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
+	roomBusiness := business.NewRoomBusiness(service, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, profileCli)
 
 	return &ChatServer{
 		Service:         service,
 		NotificationCli: notificationCli,
+		ProfileCli:      profileCli,
 		ConnectBusiness: connectBusiness,
 		RoomBusiness:    roomBusiness,
 		MessageBusiness: messageBusiness,
@@ -233,26 +233,15 @@ func (ps *ChatServer) GetHistory(
 	}
 
 	// Convert to ServerEvent format with pre-allocated slice for efficiency
-	serverEvents := make([]*chatv1.StreamResponse, 0, len(events))
-	for _, event := range events {
-		if event != nil { // Defensive check
-			serverEvents = append(serverEvents, &chatv1.StreamResponse{
-				Payload: &chatv1.StreamResponse_Message{
-					Message: event,
-				},
-			})
-		}
-	}
-
 	util.Log(ctx).WithFields(map[string]any{
 		"profile_id":  profileID,
 		"room_id":     req.Msg.GetRoomId(),
-		"event_count": len(serverEvents),
+		"event_count": len(events),
 		"limit":       limit,
 	}).Debug("History retrieved successfully")
 
 	return connect.NewResponse(&chatv1.GetHistoryResponse{
-		Events: serverEvents,
+		Events: events,
 	}), nil
 }
 
@@ -554,7 +543,9 @@ func (ps *ChatServer) processReceiptState(
 	}
 
 	// Validate and override profile_id
-	receipt.ProfileId = profileID
+	receipt.SetSource(&commonv1.ContactLink{
+		ProfileId: profileID,
+	})
 
 	// Use room_id from receipt if not provided in request
 	targetRoomID := roomID
@@ -602,7 +593,9 @@ func (ps *ChatServer) processReadMarkerState(
 	}
 
 	// Validate and override profile_id
-	readMarker.ProfileId = profileID
+	readMarker.SetSource(&commonv1.ContactLink{
+		ProfileId: profileID,
+	})
 
 	// Use room_id from read marker if not provided in request
 	targetRoomID := roomID
@@ -643,7 +636,9 @@ func (ps *ChatServer) processTypingState(
 	}
 
 	// Validate and override profile_id
-	typing.ProfileId = profileID
+	typing.SetSource(&commonv1.ContactLink{
+		ProfileId: profileID,
+	})
 
 	// Use room_id from typing if not provided in request
 	targetRoomID := roomID
@@ -685,16 +680,20 @@ func (ps *ChatServer) processPresenceState(
 	}
 
 	// Validate and override profile_id
-	presence.ProfileId = profileID
+	presence.SetSource(&commonv1.ContactLink{
+		ProfileId: profileID,
+	})
 
 	// Set timestamp if not provided
 	if presence.GetLastActive() == nil {
-		presence.LastActive = timestamppb.Now()
+		presence.SetLastActive(timestamppb.Now())
 	}
 
 	// Create presence event
 	presenceEvent := &chatv1.PresenceEvent{
-		ProfileId:  profileID,
+		Source: &commonv1.ContactLink{
+			ProfileId: profileID,
+		},
 		Status:     presence.GetStatus(),
 		StatusMsg:  presence.GetStatusMsg(),
 		LastActive: timestamppb.Now(),

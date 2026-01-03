@@ -3,10 +3,10 @@ package models
 import (
 	"strings"
 	"time"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/frame/data"
+	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -67,25 +67,36 @@ type RoomEvent struct {
 }
 
 // ToAPI converts RoomEvent model to API RoomEvent representation.
-func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
+func (re *RoomEvent) ToAPI(ctx context.Context, converter *PayloadConverter) *chatv1.RoomEvent {
 	if re == nil {
 		return nil
 	}
 
 	// Use PayloadConverter for complete conversion with typed content
-	converter := NewPayloadConverter()
-	protoEvent, err := converter.ToProtoRoomEvent(re)
+	protoEvent := &chatv1.RoomEvent{
+		Id:     re.ID,
+		RoomId: re.RoomID,
+		Source: &commonv1.ContactLink{
+			ProfileId: re.SenderID,
+		},
+		Type: chatv1.RoomEventType(re.EventType),
+	}
+
+	// Set timestamp if available
+	if !re.CreatedAt.IsZero() {
+		protoEvent.SentAt = timestamppb.New(re.CreatedAt)
+	}
+
+	// Set parent ID if present
+	if re.ParentID != "" {
+		parentID := re.ParentID
+		protoEvent.ParentId = &parentID
+	}
+
+	var err error
+	protoEvent.Payload, err = converter.ToProtoRoomEvent(re.Content)
 	if err != nil {
-		// Fallback to basic conversion without content on error
-		return &chatv1.RoomEvent{
-			Id:       re.GetID(),
-			RoomId:   re.RoomID,
-			SenderId: re.SenderID,
-			Type:     chatv1.RoomEventType(re.EventType),
-			SentAt:   timestamppb.New(re.CreatedAt),
-			Edited:   false,
-			Redacted: false,
-		}
+
 	}
 
 	return protoEvent
@@ -125,6 +136,7 @@ func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 	}
 
 	return &chatv1.RoomSubscription{
+		Id:     rs.GetID(),
 		RoomId: rs.RoomID,
 		Member: &commonv1.ContactLink{
 			ProfileId: rs.ProfileID,
@@ -138,4 +150,23 @@ func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 
 func (rs *RoomSubscription) IsActive() bool {
 	return RoomSubscriptionStateActive == rs.SubscriptionState
+}
+
+func (rs *RoomSubscription) Matches(contactLink *commonv1.ContactLink) bool {
+
+	if contactLink == nil {
+		return false
+	}
+
+	if rs.ProfileID != "" && contactLink.ProfileId != "" &&
+		rs.ProfileID != contactLink.ProfileId {
+		return false
+	}
+
+	if rs.ContactID != "" && contactLink.ContactId != "" &&
+		rs.ContactID != contactLink.ContactId {
+		return false
+	}
+
+	return true
 }

@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 	"time"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
-	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/cache"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -48,11 +47,12 @@ func (cb *connectBusiness) UpdatePresence(
 	ctx context.Context,
 	presenceEvt *chatv1.PresenceEvent,
 ) error {
-	if presenceEvt.GetProfileId() == "" {
+	source := presenceEvt.GetSource()
+	if source == nil || source.GetProfileId() == "" {
 		return service.ErrUnspecifiedID
 	}
 
-	return cb.presenceCache.Set(ctx, presenceEvt.GetProfileId(), presenceEvt, 1*time.Minute)
+	return cb.presenceCache.Set(ctx, source.GetProfileId(), presenceEvt, 1*time.Minute)
 }
 
 // UpdateTypingIndicator sends typing indicators to room subscribers.
@@ -78,20 +78,18 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 		return service.ErrRoomAccessDenied
 	}
 
-	payload, _ := structpb.NewStruct(map[string]any{
-		"typing": isTyping,
-	})
-
 	// Broadcast user is typing to other room members
-	typingEvent := &eventsv1.EventDelivery{
-		Event: &eventsv1.EventLink{
-			EventId:   util.IDString(),
-			RoomId:    roomID,
-			SenderId:  &profileID,
-			EventType: eventsv1.EventLink_STATE_TYPING,
+	// Note: STATE_TYPING events don't have typed payload content
+	typingEvent := &eventsv1.Delivery{
+		Event: &eventsv1.Link{
+			EventId: util.IDString(),
+			RoomId:  roomID,
+			Source: &commonv1.ContactLink{
+				ProfileId: profileID,
+			},
+			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
 			CreatedAt: timestamppb.Now(),
 		},
-		Payload:      payload,
 		IsCompressed: false,
 		RetryCount:   0,
 	}
@@ -141,12 +139,14 @@ func (cb *connectBusiness) UpdateReadReceipt(
 	}
 
 	// Broadcast read receipt to other room members
-	receiptEvent := &eventsv1.EventDelivery{
-		Event: &eventsv1.EventLink{
-			EventId:   eventID,
-			RoomId:    roomID,
-			SenderId:  &profileID,
-			EventType: eventsv1.EventLink_STATE_READ,
+	receiptEvent := &eventsv1.Delivery{
+		Event: &eventsv1.Link{
+			EventId: eventID,
+			RoomId:  roomID,
+			Source: &commonv1.ContactLink{
+				ProfileId: profileID,
+			},
+			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
 			CreatedAt: timestamppb.Now(),
 		},
 		IsCompressed: false,
@@ -198,15 +198,17 @@ func (cb *connectBusiness) UpdateReadMarker(
 		}
 	}
 
-	var receiptEvents []*eventsv1.EventDelivery
+	var receiptEvents []*eventsv1.Delivery
 
 	// Broadcast read receipt to other room members
-	receiptEvents = append(receiptEvents, &eventsv1.EventDelivery{
-		Event: &eventsv1.EventLink{
-			EventId:   upToEventID,
-			RoomId:    roomID,
-			SenderId:  &profileID,
-			EventType: eventsv1.EventLink_STATE_READ,
+	receiptEvents = append(receiptEvents, &eventsv1.Delivery{
+		Event: &eventsv1.Link{
+			EventId: upToEventID,
+			RoomId:  roomID,
+			Source: &commonv1.ContactLink{
+				ProfileId: profileID,
+			},
+			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
 			CreatedAt: timestamppb.Now(),
 		},
 		IsCompressed: false,
@@ -216,7 +218,7 @@ func (cb *connectBusiness) UpdateReadMarker(
 	return cb.broadCast(ctx, roomID, receiptEvents...)
 }
 
-func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayloads ...*eventsv1.EventDelivery) error {
+func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayloads ...*eventsv1.Delivery) error {
 	// Get the subscriptions tied to the room
 	subs, err := cb.subRepo.GetByRoomID(ctx, roomID, true)
 	if err != nil {
@@ -225,7 +227,9 @@ func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayl
 
 	for _, sub := range subs {
 		for _, pl := range dlrPayloads {
-			pl.RecepientId = sub.ProfileID
+			pl.Destination = &commonv1.ContactLink{
+				ProfileId: sub.ProfileID,
+			}
 
 			err = cb.deliveryTopic.Publish(ctx, pl)
 			if err != nil {

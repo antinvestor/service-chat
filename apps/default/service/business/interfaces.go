@@ -2,7 +2,6 @@ package business
 
 import (
 	"context"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 )
@@ -48,7 +47,7 @@ type RoomBusiness interface {
 // MessageBusiness defines the business logic for message operations.
 type MessageBusiness interface {
 	// SendEvents sends an event to a room with proper validation and permissions
-	SendEvents(ctx context.Context, req *chatv1.SendEventRequest, senderID string) ([]*chatv1.StreamAck, error)
+	SendEvents(ctx context.Context, req *chatv1.SendEventRequest, senderID string) ([]*chatv1.EventAck, error)
 
 	// GetHistory retrieves message history for a room with pagination
 	GetHistory(ctx context.Context, req *chatv1.GetHistoryRequest, profileID string) ([]*chatv1.RoomEvent, error)

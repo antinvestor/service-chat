@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
+	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
+	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
@@ -22,6 +24,7 @@ type roomBusiness struct {
 	subRepo         repository.RoomSubscriptionRepository
 	subscriptionSvc SubscriptionService
 	messageBusiness MessageBusiness
+	profileCli      profilev1connect.ProfileServiceClient
 }
 
 // NewRoomBusiness creates a new instance of RoomBusiness.
@@ -32,6 +35,7 @@ func NewRoomBusiness(
 	subRepo repository.RoomSubscriptionRepository,
 	subscriptionSvc SubscriptionService,
 	messageBusiness MessageBusiness,
+	profileCli profilev1connect.ProfileServiceClient,
 ) RoomBusiness {
 	return &roomBusiness{
 		service:         service,
@@ -40,6 +44,7 @@ func NewRoomBusiness(
 		subRepo:         subRepo,
 		subscriptionSvc: subscriptionSvc,
 		messageBusiness: messageBusiness,
+		profileCli:      profileCli,
 	}
 }
 
@@ -307,7 +312,7 @@ func (rb *roomBusiness) RemoveRoomSubscriptions(
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
 	}
-	if len(req.GetProfileIds()) == 0 {
+	if len(req.GetSubscriptionId()) == 0 {
 		return service.ErrProfileIDsRequired
 	}
 
@@ -321,8 +326,8 @@ func (rb *roomBusiness) RemoveRoomSubscriptions(
 		return service.ErrRoomRemoveMembersDenied
 	}
 
-	// Remove members from the room
-	return rb.removeRoomMembers(ctx, req.GetRoomId(), req.GetProfileIds(), removerID)
+	// Remove members from the room by subscription ID
+	return rb.removeRoomMembersBySubscriptionID(ctx, req.GetRoomId(), req.GetSubscriptionId(), removerID)
 }
 
 func (rb *roomBusiness) UpdateSubscriptionRole(
@@ -333,7 +338,7 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
 	}
-	if req.GetProfileId() == "" {
+	if req.GetSubscriptionId() == "" {
 		return service.ErrUnspecifiedID
 	}
 
@@ -347,13 +352,18 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 		return service.ErrRoomUpdateRoleDenied
 	}
 
-	// Update the member's role
-	sub, err := rb.subRepo.GetOneByRoomProfileAndIsActive(ctx, req.GetRoomId(), req.GetProfileId())
+	// Update the member's role by subscription ID
+	sub, err := rb.subRepo.GetByID(ctx, req.GetSubscriptionId())
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return service.ErrRoomMemberNotFound
 		}
 		return fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	// Verify subscription belongs to the specified room
+	if sub.RoomID != req.GetRoomId() {
+		return service.ErrRoomMemberNotFound
 	}
 
 	// Update roles (use first role or keep existing)
@@ -369,9 +379,9 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 	_ = rb.sendRoomEvent(ctx, req.GetRoomId(), updaterID,
 		map[string]interface{}{"content": "Member role updated"},
 		map[string]interface{}{
-			"profile_id": req.GetProfileId(),
-			"roles":      req.GetRoles(),
-			"updated_by": updaterID,
+			"subscription_id": req.GetSubscriptionId(),
+			"roles":           req.GetRoles(),
+			"updated_by":      updaterID,
 		})
 
 	return nil
@@ -432,6 +442,30 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 	// Create new subscriptions for profiles that don't exist
 	var newSubs []*models.RoomSubscription
 	for link, role := range roleMap {
+
+		// Validate Contact and Profile ID via Profile Service
+		if link.GetContactId() != "" && rb.profileCli != nil {
+			resp, err := rb.profileCli.GetByContact(ctx, connect.NewRequest(&profilev1.GetByContactRequest{
+				Contact: link.GetContactId(),
+			}))
+			if err != nil {
+				return fmt.Errorf("contact validation failed for %s: %w", link.GetContactId(), err)
+			}
+
+			// The profile as source of truth
+			foundProfileID := resp.Msg.GetData().GetId()
+
+			if link.GetProfileId() != "" {
+				if link.GetProfileId() != foundProfileID {
+					return fmt.Errorf("profile id mismatch for contact %s: expected %s, got %s",
+						link.GetContactId(), foundProfileID, link.GetProfileId())
+				}
+			} else {
+				// Populate ProfileID if missing
+				link.ProfileId = foundProfileID
+			}
+		}
+
 		if !existingProfileMap[link.GetProfileId()] {
 			sub := &models.RoomSubscription{
 				RoomID:            roomID,
@@ -519,6 +553,32 @@ func (rb *roomBusiness) removeRoomMembers(
 	return nil
 }
 
+func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
+	ctx context.Context,
+	roomID string,
+	subscriptionIDs []string,
+	removerID string,
+) error {
+	// Deactivate subscriptions directly
+	err := rb.subRepo.Deactivate(ctx, subscriptionIDs...)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate subscription: %w", err)
+	}
+
+	// Send member removed events for each subscription
+	for _, subID := range subscriptionIDs {
+		// Send member removed event using MessageBusiness
+		_ = rb.sendRoomEvent(ctx, roomID, removerID,
+			map[string]interface{}{"content": "Member removed from room"},
+			map[string]interface{}{
+				"subscription_id": subID,
+				"removed_by":      removerID,
+			})
+	}
+
+	return nil
+}
+
 // Helper function to send room event using MessageBusiness.
 func (rb *roomBusiness) sendRoomEvent(
 	ctx context.Context,
@@ -532,9 +592,11 @@ func (rb *roomBusiness) sendRoomEvent(
 	req := &chatv1.SendEventRequest{
 		Event: []*chatv1.RoomEvent{
 			{
-				RoomId:   roomID,
-				SenderId: senderSubscriptionID,
-				Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
+				RoomId: roomID,
+				Source: &commonv1.ContactLink{
+					ProfileId: senderSubscriptionID,
+				},
+				Type: chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
 				// No payload for system events
 			},
 		},

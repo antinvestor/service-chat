@@ -3,9 +3,9 @@ package events
 import (
 	"context"
 	"errors"
-
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
-	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore/pool"
 	frevents "github.com/pitabwire/frame/events"
@@ -39,11 +39,11 @@ func (csq *RoomOutboxLoggingQueue) Name() string {
 }
 
 func (csq *RoomOutboxLoggingQueue) PayloadType() any {
-	return &eventsv1.EventLink{}
+	return &eventsv1.Link{}
 }
 
 func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) error {
-	_, ok := payload.(*eventsv1.EventLink)
+	_, ok := payload.(*eventsv1.Link)
 	if !ok {
 		return errors.New("invalid payload type, expected *string")
 	}
@@ -52,7 +52,7 @@ func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) erro
 }
 
 func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) error {
-	evtLink, ok := payload.(*eventsv1.EventLink)
+	evtLink, ok := payload.(*eventsv1.Link)
 	if !ok {
 		return errors.New("invalid payload type, expected map[string]string{}")
 	}
@@ -74,24 +74,32 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		return err
 	}
 
-	var recepients []string
+	senderID := ""
+	source := evtLink.GetSource()
+	if source != nil {
+		senderID = source.GetProfileId()
+	}
+
+	var destinations []*commonv1.ContactLink
 
 	for _, sub := range subscriptions {
-		if sub.ProfileID == evtLink.GetSenderId() {
+		if sub.ProfileID == senderID {
 			continue
 		}
 
-		recepients = append(recepients, sub.ProfileID)
+		destinations = append(destinations, &commonv1.ContactLink{
+			ProfileId: sub.ProfileID,
+		})
 	}
 
 	// Save outbox entries and update unread counts
-	if len(recepients) == 0 {
-		logger.Debug("no recepients exist to receive messages")
+	if len(destinations) == 0 {
+		logger.Debug("no recipients exist to receive messages")
 		return nil
 	}
-	eventBroadcast := eventsv1.EventBroadcast{
+	eventBroadcast := eventsv1.Broadcast{
 		Event:        evtLink,
-		RecepientIds: recepients,
+		Destinations: destinations,
 		Priority:     0,
 	}
 

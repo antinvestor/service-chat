@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"time"
-
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame/datastore"
 )

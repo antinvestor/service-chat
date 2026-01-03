@@ -3,7 +3,6 @@ package tests_test
 import (
 	"context"
 	"testing"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
@@ -81,10 +80,10 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			msgReq := &chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
-						RoomId:   room.GetId(),
-						SenderId: creatorID,
-						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-						Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
+						RoomId:  room.GetId(),
+						Source:  &commonv1.ContactLink{ProfileId: creatorID},
+						Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+						Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
 					},
 				},
 			}
@@ -137,8 +136,8 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 
 		// 8. Remove member
 		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
-			RoomId:     room.GetId(),
-			ProfileIds: []string{member2ID},
+			RoomId:         room.GetId(),
+			SubscriptionId: []string{member2ID},
 		}
 
 		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
@@ -189,10 +188,10 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 				msgReq := &chatv1.SendEventRequest{
 					Event: []*chatv1.RoomEvent{
 						{
-							RoomId:   room.GetId(),
-							SenderId: userID,
-							Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-							Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
+							RoomId:  room.GetId(),
+							Source:  &commonv1.ContactLink{ProfileId: userID},
+							Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+							Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
 						},
 					},
 				}
@@ -245,9 +244,9 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 
 		// Promote one member to admin
 		updateRoleReq := &chatv1.UpdateSubscriptionRoleRequest{
-			RoomId:    room.GetId(),
-			ProfileId: adminID,
-			Roles:     []string{"admin"},
+			RoomId:         room.GetId(),
+			SubscriptionId: adminID,
+			Roles:          []string{"admin"},
 		}
 
 		err = roomBusiness.UpdateSubscriptionRole(ctx, updateRoleReq, ownerID)

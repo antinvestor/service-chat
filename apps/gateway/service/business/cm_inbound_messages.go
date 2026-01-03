@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -103,7 +103,7 @@ func (cm *connectionManager) processClientCommand(
 func (cm *connectionManager) processAcknowledgement(
 	ctx context.Context,
 	conn Connection,
-	ack *chatv1.StreamAck,
+	ack *chatv1.EventAck,
 ) error {
 	if ack == nil {
 		return nil
@@ -122,7 +122,7 @@ func (cm *connectionManager) processAcknowledgement(
 
 	// Process as a receipt event
 	return cm.processReceiptEvent(ctx, conn, &chatv1.ReceiptEvent{
-		ProfileId: conn.Metadata().ProfileID,
+		Source:    &commonv1.ContactLink{ProfileId: conn.Metadata().ProfileID},
 		RoomId:    "", // TODO: Extract room_id from context or event metadata
 		EventId:   []string{ack.GetEventId()},
 	})
@@ -141,19 +141,22 @@ func (cm *connectionManager) processReceiptEvent(
 	profileID := conn.Metadata().ProfileID
 
 	// Validate that the profile_id in receipt matches the authenticated user
-	if receipt.GetProfileId() != "" && receipt.GetProfileId() != profileID {
+	if receipt.GetSource().GetProfileId() != "" && receipt.GetSource().GetProfileId() != profileID {
 		util.Log(ctx).WithFields(map[string]any{
-			"claimed_profile": receipt.GetProfileId(),
+			"claimed_profile": receipt.GetSource().GetProfileId(),
 			"actual_profile":  profileID,
 			"room_id":         receipt.GetRoomId(),
 			"event_ids":       receipt.GetEventId(),
 		}).Warn("Profile ID mismatch in receipt - potential spoofing attempt")
 		return fmt.Errorf("receipt profile_id mismatch: claimed %s, actual %s",
-			receipt.GetProfileId(), profileID)
+			receipt.GetSource().GetProfileId(), profileID)
 	}
 
 	// Always override profile_id with authenticated profile ID for security
-	receipt.ProfileId = profileID
+	if receipt.Source == nil {
+		receipt.Source = &commonv1.ContactLink{}
+	}
+	receipt.Source.ProfileId = profileID
 
 	// TODO: Implement receipt processing logic (update delivery status, etc.)
 	util.Log(ctx).WithFields(map[string]any{
@@ -178,18 +181,21 @@ func (cm *connectionManager) processTypingEvent(
 	profileID := conn.Metadata().ProfileID
 
 	// Validate that the profile_id matches the authenticated user
-	if typing.GetProfileId() != "" && typing.GetProfileId() != profileID {
+	if typing.GetSource().GetProfileId() != "" && typing.GetSource().GetProfileId() != profileID {
 		util.Log(ctx).WithFields(map[string]any{
-			"claimed_profile": typing.GetProfileId(),
+			"claimed_profile": typing.GetSource().GetProfileId(),
 			"actual_profile":  profileID,
 			"room_id":         typing.GetRoomId(),
 		}).Warn("Profile ID mismatch in typing indicator - potential spoofing attempt")
 		return fmt.Errorf("typing profile_id mismatch: claimed %s, actual %s",
-			typing.GetProfileId(), profileID)
+			typing.GetSource().GetProfileId(), profileID)
 	}
 
 	// Always override profile_id with authenticated profile ID for security
-	typing.ProfileId = profileID
+	if typing.Source == nil {
+		typing.Source = &commonv1.ContactLink{}
+	}
+	typing.Source.ProfileId = profileID
 
 	// TODO: Implement typing indicator broadcast logic
 	util.Log(ctx).WithFields(map[string]any{
@@ -228,19 +234,22 @@ func (cm *connectionManager) processReadMarker(
 	profileID := conn.Metadata().ProfileID
 
 	// Validate that the profile_id matches the authenticated user
-	if marker.GetProfileId() != "" && marker.GetProfileId() != profileID {
+	if marker.GetSource().GetProfileId() != "" && marker.GetSource().GetProfileId() != profileID {
 		util.Log(ctx).WithFields(map[string]any{
-			"claimed_profile": marker.GetProfileId(),
+			"claimed_profile": marker.GetSource().GetProfileId(),
 			"actual_profile":  profileID,
 			"room_id":         marker.GetRoomId(),
 			"up_to_event_id":  marker.GetUpToEventId(),
 		}).Warn("Profile ID mismatch in read marker - potential spoofing attempt")
 		return fmt.Errorf("read marker profile_id mismatch: claimed %s, actual %s",
-			marker.GetProfileId(), profileID)
+			marker.GetSource().GetProfileId(), profileID)
 	}
 
 	// Always override profile_id with authenticated profile ID for security
-	marker.ProfileId = profileID
+	if marker.Source == nil {
+		marker.Source = &commonv1.ContactLink{}
+	}
+	marker.Source.ProfileId = profileID
 
 	// TODO: Implement read marker processing logic
 	util.Log(ctx).WithFields(map[string]any{
@@ -265,19 +274,22 @@ func (cm *connectionManager) processRoomEvent(
 	profileID := conn.Metadata().ProfileID
 
 	// Validate that the sender_id matches the authenticated user
-	if event.GetSenderId() != "" && event.GetSenderId() != profileID {
+	if event.GetSource().GetProfileId() != "" && event.GetSource().GetProfileId() != profileID {
 		util.Log(ctx).WithFields(map[string]any{
-			"claimed_sender": event.GetSenderId(),
+			"claimed_sender": event.GetSource().GetProfileId(),
 			"actual_sender":  profileID,
 			"room_id":        event.GetRoomId(),
 			"event_type":     event.GetType(),
 		}).Warn("Sender ID mismatch in event - potential spoofing attempt")
 		return fmt.Errorf("sender_id mismatch: claimed %s, actual %s",
-			event.GetSenderId(), profileID)
+			event.GetSource().GetProfileId(), profileID)
 	}
 
 	// Always override sender_id with authenticated profile ID for security
-	event.SenderId = profileID
+	if event.Source == nil {
+		event.Source = &commonv1.ContactLink{}
+	}
+	event.Source.ProfileId = profileID
 
 	// Set timestamp if not provided
 	if event.GetSentAt() == nil {

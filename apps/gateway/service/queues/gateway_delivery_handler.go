@@ -2,12 +2,11 @@ package queues
 
 import (
 	"context"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/gateway/config"
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/antinvestor/service-chat/internal"
-	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
+	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/proto"
@@ -69,8 +68,8 @@ func (dq *GatewayEventsQueueHandler) Handle(ctx context.Context, headers map[str
 func (dq *GatewayEventsQueueHandler) toPayloadToEventData(
 	ctx context.Context,
 	payload []byte,
-) (*eventsv1.EventDelivery, error) {
-	eventDelivery := &eventsv1.EventDelivery{}
+) (*eventsv1.Delivery, error) {
+	eventDelivery := &eventsv1.Delivery{}
 	err := proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("Failed to parse user delivery message")
@@ -80,7 +79,7 @@ func (dq *GatewayEventsQueueHandler) toPayloadToEventData(
 	return eventDelivery, nil
 }
 
-func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventDelivery) *chatv1.StreamResponse {
+func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.Delivery) *chatv1.StreamResponse {
 	evt := eventDelivery.GetEvent()
 
 	parentID := evt.GetParentId()
@@ -93,29 +92,12 @@ func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventD
 		Id:       evt.GetEventId(),
 		ParentId: &parentID,
 		RoomId:   evt.GetRoomId(),
-		SenderId: evt.GetSenderId(),
+		Source:   evt.GetSource(),
 		Type:     eventType,
 		SentAt:   evt.GetCreatedAt(),
 		Edited:   false,
 		Redacted: false,
-	}
-
-	// Convert generic payload to typed payload based on event type
-	payload := eventDelivery.GetPayload()
-	if payload != nil {
-		switch eventType {
-		case chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT:
-			// Extract text content from generic payload
-			if body, ok := payload.GetFields()["body"]; ok && body.GetStringValue() != "" {
-				roomEvent.Payload = &chatv1.RoomEvent_Text{
-					Text: &chatv1.TextContent{
-						Body: body.GetStringValue(),
-					},
-				}
-			}
-			// For other event types, we don't set a payload for now
-			// TODO: Handle ATTACHMENT, REACTION, ENCRYPTED, CALL types when needed
-		}
+		Payload:  eventDelivery.GetPayload(),
 	}
 
 	data := &chatv1.StreamResponse{
@@ -140,7 +122,7 @@ func (dq *GatewayEventsQueueHandler) getOfflineDeliveryTopic() (queue.Publisher,
 func (dq *GatewayEventsQueueHandler) publishToOfflineDevice(
 	ctx context.Context,
 	headers map[string]string,
-	msg *eventsv1.EventDelivery,
+	msg *eventsv1.Delivery,
 ) error {
 	offlineDeliveryTopic, err := dq.getOfflineDeliveryTopic()
 	if err != nil {

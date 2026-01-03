@@ -2,7 +2,6 @@ package repository_test
 
 import (
 	"testing"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
@@ -32,7 +31,7 @@ func (s *EventRepositoryTestSuite) TestCreateEvent() {
 		event := &models.RoomEvent{
 			RoomID:     util.IDString(),
 			SenderID:   util.IDString(),
-			EventType:  int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT.Number()),
+			EventType:  int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
 			Content:    data.JSONMap{"text": "Hello World"},
 			Properties: data.JSONMap{"key": "value"},
 		}
@@ -63,7 +62,7 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 			event := &models.RoomEvent{
 				RoomID:    roomID,
 				SenderID:  senderID,
-				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT.Number()),
+				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
 				Content:   data.JSONMap{"text": util.RandomString(10)},
 			}
 			event.GenID(ctx)
@@ -93,7 +92,7 @@ func (s *EventRepositoryTestSuite) TestGetByRoomID() {
 			event := &models.RoomEvent{
 				RoomID:    roomID,
 				SenderID:  util.IDString(),
-				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT.Number()),
+				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
 				Content:   data.JSONMap{"text": "Message"},
 			}
 			event.GenID(ctx)
@@ -118,7 +117,7 @@ func (s *EventRepositoryTestSuite) TestCountByRoomID() {
 			event := &models.RoomEvent{
 				RoomID:    roomID,
 				SenderID:  util.IDString(),
-				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT.Number()),
+				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
 				Content:   data.JSONMap{"text": "Message"},
 			}
 			event.GenID(ctx)
@@ -143,7 +142,7 @@ func (s *EventRepositoryTestSuite) TestGetByEventID() {
 		event := &models.RoomEvent{
 			RoomID:    roomID,
 			SenderID:  senderID,
-			EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT.Number()),
+			EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
 			Content:   data.JSONMap{"text": "Message"},
 		}
 		event.GenID(ctx)
@@ -164,7 +163,7 @@ func (s *EventRepositoryTestSuite) TestEventTypes() {
 
 		roomID := util.IDString()
 		messageTypes := []chatv1.RoomEventType{
-			chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
+			chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 			chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
 		}
 
@@ -197,7 +196,7 @@ func (s *EventRepositoryTestSuite) TestPagination() {
 			event := &models.RoomEvent{
 				RoomID:    roomID,
 				SenderID:  util.IDString(),
-				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT.Number()),
+				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
 				Content:   data.JSONMap{"text": util.RandomString(10)},
 			}
 			event.GenID(ctx)

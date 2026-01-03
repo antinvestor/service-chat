@@ -2,7 +2,6 @@ package handlers_test
 
 import (
 	"testing"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"connectrpc.com/connect"
@@ -142,10 +141,10 @@ func (s *ChatServerTestSuite) TestSendEvent() {
 		msgReq := connect.NewRequest(&chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
-					RoomId:   roomID,
-					SenderId: profileID,
-					Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-					Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					RoomId:  roomID,
+					Source:  &commonv1.ContactLink{ProfileId: profileID},
+					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
 				},
 			},
 		})
@@ -180,10 +179,10 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 			msgReq := connect.NewRequest(&chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
-						RoomId:   roomID,
-						SenderId: profileID,
-						Type:     chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT,
-						Payload:  &chatv1.RoomEvent_Text{Text: &chatv1.TextContent{Body: "test message"}},
+						RoomId:  roomID,
+						Source:  &commonv1.ContactLink{ProfileId: profileID},
+						Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+						Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
 					},
 				},
 			})
@@ -272,10 +271,26 @@ func (s *ChatServerTestSuite) TestRemoveRoomSubscriptions() {
 		_, err = chatServer.AddRoomSubscriptions(ctx, addReq)
 		require.NoError(t, err)
 
+		// Get subscription ID
+		searchReq := connect.NewRequest(&chatv1.SearchRoomSubscriptionsRequest{
+			RoomId: roomID,
+		})
+		searchResp, err := chatServer.SearchRoomSubscriptions(ctx, searchReq)
+		require.NoError(t, err)
+
+		var subscriptionID string
+		for _, sub := range searchResp.Msg.GetMembers() {
+			if sub.GetMember().GetProfileId() == memberID {
+				subscriptionID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, subscriptionID)
+
 		// Remove member
 		removeReq := connect.NewRequest(&chatv1.RemoveRoomSubscriptionsRequest{
-			RoomId:     roomID,
-			ProfileIds: []string{memberID},
+			RoomId:         roomID,
+			SubscriptionId: []string{subscriptionID},
 		})
 
 		_, err = chatServer.RemoveRoomSubscriptions(ctx, removeReq)
@@ -316,11 +331,27 @@ func (s *ChatServerTestSuite) TestUpdateSubscriptionRole() {
 		_, err = chatServer.AddRoomSubscriptions(ctx, addReq)
 		require.NoError(t, err)
 
+		// Get subscription ID
+		searchReq := connect.NewRequest(&chatv1.SearchRoomSubscriptionsRequest{
+			RoomId: roomID,
+		})
+		searchResp, err := chatServer.SearchRoomSubscriptions(ctx, searchReq)
+		require.NoError(t, err)
+
+		var subscriptionID string
+		for _, sub := range searchResp.Msg.GetMembers() {
+			if sub.GetMember().GetProfileId() == memberID {
+				subscriptionID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, subscriptionID)
+
 		// Update role to moderator
 		updateReq := connect.NewRequest(&chatv1.UpdateSubscriptionRoleRequest{
-			RoomId:    roomID,
-			ProfileId: memberID,
-			Roles:     []string{"moderator"},
+			RoomId:         roomID,
+			SubscriptionId: subscriptionID,
+			Roles:          []string{"moderator"},
 		})
 
 		_, err = chatServer.UpdateSubscriptionRole(ctx, updateReq)

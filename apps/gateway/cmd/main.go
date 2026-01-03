@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"net/http"
-
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	"connectrpc.com/connect"

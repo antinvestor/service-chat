@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"time"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
-	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
+	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	"github.com/pitabwire/frame/data"
 	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/util"
@@ -46,7 +46,7 @@ func (mb *messageBusiness) SendEvents(
 	ctx context.Context,
 	req *chatv1.SendEventRequest,
 	senderID string,
-) ([]*chatv1.StreamAck, error) {
+) ([]*chatv1.EventAck, error) {
 	// Validate request
 	if len(req.GetEvent()) == 0 {
 		return nil, service.ErrMessageContentRequired
@@ -55,7 +55,7 @@ func (mb *messageBusiness) SendEvents(
 	requestEvents := req.GetEvent()
 
 	// Pre-allocate response slice to maintain request order
-	responses := make([]*chatv1.StreamAck, len(requestEvents))
+	responses := make([]*chatv1.EventAck, len(requestEvents))
 	validEvents := make([]*models.RoomEvent, 0, len(requestEvents))
 	eventToIndex := make(map[string]int, len(requestEvents))
 
@@ -119,7 +119,7 @@ func (mb *messageBusiness) SendEvents(
 				"status":     "ok",
 				"idempotent": true,
 			})
-			responses[i] = &chatv1.StreamAck{
+			responses[i] = &chatv1.EventAck{
 				EventId:  reqEvt.GetId(),
 				AckAt:    timestamppb.Now(),
 				Metadata: success,
@@ -132,7 +132,7 @@ func (mb *messageBusiness) SendEvents(
 			errorD, _ := structpb.NewStruct(
 				map[string]any{"error": fmt.Sprintf("failed to check room access: %v", accessErr)},
 			)
-			responses[i] = &chatv1.StreamAck{
+			responses[i] = &chatv1.EventAck{
 				EventId:  reqEvt.GetId(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
@@ -144,7 +144,7 @@ func (mb *messageBusiness) SendEvents(
 		hasAccess := roomAccessMap[roomID]
 		if !hasAccess {
 			errorD, _ := structpb.NewStruct(map[string]any{"error": service.ErrMessageSendDenied.Error()})
-			responses[i] = &chatv1.StreamAck{
+			responses[i] = &chatv1.EventAck{
 				EventId:  reqEvt.GetId(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
@@ -154,10 +154,10 @@ func (mb *messageBusiness) SendEvents(
 
 		// Create the message event using PayloadConverter
 		converter := models.NewPayloadConverter()
-		event, err := converter.FromProtoRoomEvent(reqEvt)
+		content, err := converter.FromProtoRoomEvent(reqEvt.GetPayload())
 		if err != nil {
 			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to convert event: %v", err)})
-			responses[i] = &chatv1.StreamAck{
+			responses[i] = &chatv1.EventAck{
 				EventId:  reqEvt.GetId(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
@@ -165,12 +165,23 @@ func (mb *messageBusiness) SendEvents(
 			continue
 		}
 
-		// Override SenderID with authenticated user
-		event.SenderID = senderID
+		// Create the message event
+		event := &models.RoomEvent{
+			RoomID:    reqEvt.GetRoomId(),
+			EventType: int32(reqEvt.GetType()),
+			Content:   content,
+			SenderID:  senderID,
+		}
 
-		event.GenID(ctx)
+		if reqEvt.ParentId != nil {
+			event.ParentID = *reqEvt.ParentId
+		}
+
+		// Use client-provided ID if available, otherwise generate
 		if reqEvt.GetId() != "" {
 			event.ID = reqEvt.GetId()
+		} else {
+			event.GenID(ctx)
 		}
 
 		validEvents = append(validEvents, event)
@@ -192,7 +203,7 @@ func (mb *messageBusiness) SendEvents(
 			errorD, _ := structpb.NewStruct(
 				map[string]any{"error": fmt.Sprintf("failed to save event: %v", bulkCreateErr)},
 			)
-			responses[responseIdx] = &chatv1.StreamAck{
+			responses[responseIdx] = &chatv1.EventAck{
 				EventId:  event.GetID(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
@@ -201,19 +212,21 @@ func (mb *messageBusiness) SendEvents(
 		}
 
 		// Emit event to outbox for delivery
-		outboxEventLink := eventsv1.EventLink{
-			EventId:   event.GetID(),
-			RoomId:    event.RoomID,
-			SenderId:  &event.SenderID,
+		outboxEventLink := eventsv1.Link{
+			EventId: event.GetID(),
+			RoomId:  event.RoomID,
+			Source: &commonv1.ContactLink{
+				ProfileId: event.SenderID,
+			},
 			ParentId:  event.ParentID,
-			EventType: eventsv1.EventLink_EventType(event.EventType),
+			EventType: chatv1.RoomEventType(event.EventType),
 			CreatedAt: timestamppb.New(event.CreatedAt),
 		}
 
 		emitErr := mb.evtsManager.Emit(ctx, events.RoomOutboxLoggingEventName, &outboxEventLink)
 		if emitErr != nil {
 			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to emit event: %v", emitErr)})
-			responses[responseIdx] = &chatv1.StreamAck{
+			responses[responseIdx] = &chatv1.EventAck{
 				EventId:  event.GetID(),
 				AckAt:    timestamppb.Now(),
 				Metadata: errorD,
@@ -223,7 +236,7 @@ func (mb *messageBusiness) SendEvents(
 
 		// Success - event saved and emitted to outbox
 		success, _ := structpb.NewStruct(map[string]any{"status": "ok"})
-		responses[responseIdx] = &chatv1.StreamAck{
+		responses[responseIdx] = &chatv1.EventAck{
 			EventId:  event.GetID(),
 			AckAt:    timestamppb.Now(),
 			Metadata: success,
@@ -300,9 +313,10 @@ func (mb *messageBusiness) GetHistory(
 	}
 
 	// Convert to proto
+	converter := models.NewPayloadConverter()
 	protoEvents := make([]*chatv1.RoomEvent, 0, len(evts))
 	for _, event := range evts {
-		protoEvents = append(protoEvents, event.ToAPI())
+		protoEvents = append(protoEvents, event.ToAPI(ctx, converter))
 	}
 
 	// Update last read sequence for the user if we have evts

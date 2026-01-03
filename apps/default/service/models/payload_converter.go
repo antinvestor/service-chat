@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/pitabwire/frame/data"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // PayloadConverter handles conversion between JSONMap payloads and typed RoomEvent content.
@@ -19,114 +17,79 @@ func NewPayloadConverter() *PayloadConverter {
 }
 
 // ToProtoRoomEvent converts a domain RoomEvent to a protobuf RoomEvent with typed content.
-func (c *PayloadConverter) ToProtoRoomEvent(event *RoomEvent) (*chatv1.RoomEvent, error) {
-	if event == nil {
-		return nil, errors.New("event cannot be nil")
+func (c *PayloadConverter) ToProtoRoomEvent(content data.JSONMap) (*chatv1.Payload, error) {
+	if content == nil {
+		return nil, errors.New("content cannot be nil")
 	}
 
 	// Create base proto event
-	protoEvent := &chatv1.RoomEvent{
-		Id:       event.ID,
-		RoomId:   event.RoomID,
-		SenderId: event.SenderID,
-		Type:     chatv1.RoomEventType(event.EventType),
-	}
-
-	// Set timestamp if available
-	if !event.CreatedAt.IsZero() {
-		protoEvent.SentAt = timestamppb.New(event.CreatedAt)
-	}
-
-	// Set parent ID if present
-	if event.ParentID != "" {
-		parentID := event.ParentID
-		protoEvent.ParentId = &parentID
-	}
+	protoPayload := &chatv1.Payload{}
 
 	// Convert content based on event type
-	if err := c.setTypedContent(protoEvent, event.Content); err != nil {
+	if err := c.setTypedContent(protoPayload, content); err != nil {
 		return nil, fmt.Errorf("failed to set typed content: %w", err)
 	}
 
-	return protoEvent, nil
+	return protoPayload, nil
 }
 
 // FromProtoRoomEvent converts a protobuf RoomEvent to a domain RoomEvent with JSONMap content.
-func (c *PayloadConverter) FromProtoRoomEvent(protoEvent *chatv1.RoomEvent) (*RoomEvent, error) {
+func (c *PayloadConverter) FromProtoRoomEvent(protoEvent *chatv1.Payload) (data.JSONMap, error) {
 	if protoEvent == nil {
 		return nil, errors.New("proto event cannot be nil")
 	}
 
-	// Create base domain event
-	event := &RoomEvent{
-		BaseModel: data.BaseModel{
-			ID: protoEvent.GetId(),
-		},
-		RoomID:    protoEvent.GetRoomId(),
-		SenderID:  protoEvent.GetSenderId(),
-		EventType: int32(protoEvent.GetType()),
-	}
-
-	// Set parent ID if present
-	if protoEvent.ParentId != nil {
-		event.ParentID = protoEvent.GetParentId()
-	}
-
-	// Set timestamp
-	if protoEvent.GetSentAt() != nil {
-		event.CreatedAt = protoEvent.GetSentAt().AsTime()
-	}
-
 	// Extract content from typed fields
-	content, err := c.extractTypedContent(protoEvent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract typed content: %w", err)
-	}
-	event.Content = content
-
-	return event, nil
+	return c.extractTypedContent(protoEvent)
 }
 
 // setTypedContent sets the appropriate typed content field on the proto event.
-func (c *PayloadConverter) setTypedContent(protoEvent *chatv1.RoomEvent, content data.JSONMap) error {
+// It detects the type from the content keys.
+func (c *PayloadConverter) setTypedContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	if len(content) == 0 {
 		return nil
 	}
 
-	switch protoEvent.GetType() {
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT:
+	// Detect content type based on keys present
+	if _, hasText := content["text"]; hasText {
 		return c.setTextContent(protoEvent, content)
-
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_ATTACHMENT:
-		return c.setAttachmentContent(protoEvent, content)
-
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_REACTION:
-		return c.setReactionContent(protoEvent, content)
-
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_ENCRYPTED:
-		return c.setEncryptedContent(protoEvent, content)
-
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_CALL:
-		return c.setCallContent(protoEvent, content)
-
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_UNSPECIFIED,
-		chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
-		chatv1.RoomEventType_ROOM_EVENT_TYPE_EDIT,
-		chatv1.RoomEventType_ROOM_EVENT_TYPE_REDACTION:
-		// For unknown/unhandled types, no typed content
-		// This maintains forward compatibility
-		return nil
-
-	default:
-		// Unknown event type
-		return nil
 	}
+
+	if _, hasAttachment := content["attachmentId"]; hasAttachment {
+		return c.setAttachmentContent(protoEvent, content)
+	}
+
+	if _, hasEmoji := content["emoji"]; hasEmoji {
+		return c.setReactionContent(protoEvent, content)
+	}
+
+	if _, hasCiphertext := content["ciphertext"]; hasCiphertext {
+		return c.setEncryptedContent(protoEvent, content)
+	}
+
+	if _, hasSDP := content["sdp"]; hasSDP {
+		return c.setCallContent(protoEvent, content)
+	}
+
+	if _, hasMotionID := content["id"]; hasMotionID {
+		// Check if it's a motion (has title/description) vs other content with "id"
+		if _, hasTitle := content["title"]; hasTitle {
+			return c.setMotionContent(protoEvent, content)
+		}
+	}
+
+	if _, hasMotionID := content["motionId"]; hasMotionID {
+		return c.setVoteContent(protoEvent, content)
+	}
+
+	// Unknown/unhandled payload type - store in default field
+	return c.setDefaultContent(protoEvent, content)
 }
 
 // setTextContent converts JSONMap to TextContent.
 //
 //nolint:govet // Multiple type assertions with 'ok' variable is idiomatic Go
-func (c *PayloadConverter) setTextContent(protoEvent *chatv1.RoomEvent, content data.JSONMap) error {
+func (c *PayloadConverter) setTextContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	text, ok := content["text"].(string)
 	if !ok {
 		return errors.New("text content must have 'text' field as string")
@@ -141,6 +104,7 @@ func (c *PayloadConverter) setTextContent(protoEvent *chatv1.RoomEvent, content 
 		textContent.Format = format
 	}
 
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_TEXT)
 	protoEvent.SetText(textContent)
 	return nil
 }
@@ -148,7 +112,7 @@ func (c *PayloadConverter) setTextContent(protoEvent *chatv1.RoomEvent, content 
 // setAttachmentContent converts JSONMap to AttachmentContent.
 //
 //nolint:govet // Multiple type assertions with 'ok' variable is idiomatic Go
-func (c *PayloadConverter) setAttachmentContent(protoEvent *chatv1.RoomEvent, content data.JSONMap) error {
+func (c *PayloadConverter) setAttachmentContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	attachmentID, ok := content["attachmentId"].(string)
 	if !ok {
 		return errors.New("attachment content must have 'attachmentId' field")
@@ -178,20 +142,16 @@ func (c *PayloadConverter) setAttachmentContent(protoEvent *chatv1.RoomEvent, co
 		attachment.Caption = &chatv1.TextContent{Body: captionText}
 	}
 
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT)
 	protoEvent.SetAttachment(attachment)
 	return nil
 }
 
 // setReactionContent converts JSONMap to ReactionContent.
-func (c *PayloadConverter) setReactionContent(protoEvent *chatv1.RoomEvent, content data.JSONMap) error {
+func (c *PayloadConverter) setReactionContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	emoji, ok := content["emoji"].(string)
 	if !ok {
 		return errors.New("reaction content must have 'emoji' field")
-	}
-
-	// Reaction requires a parent event (the message being reacted to)
-	if protoEvent.ParentId == nil || protoEvent.GetParentId() == "" {
-		return errors.New("reaction must have parentId set")
 	}
 
 	reaction := &chatv1.ReactionContent{
@@ -199,6 +159,7 @@ func (c *PayloadConverter) setReactionContent(protoEvent *chatv1.RoomEvent, cont
 		Add:      true, // Default to adding reaction
 	}
 
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_REACTION)
 	protoEvent.SetReaction(reaction)
 	return nil
 }
@@ -206,7 +167,7 @@ func (c *PayloadConverter) setReactionContent(protoEvent *chatv1.RoomEvent, cont
 // setEncryptedContent converts JSONMap to EncryptedContent.
 //
 //nolint:govet // Multiple type assertions with 'ok' variable is idiomatic Go
-func (c *PayloadConverter) setEncryptedContent(protoEvent *chatv1.RoomEvent, content data.JSONMap) error {
+func (c *PayloadConverter) setEncryptedContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	ciphertext, ok := content["ciphertext"].(string)
 	if !ok {
 		return errors.New("encrypted content must have 'ciphertext' field")
@@ -224,12 +185,13 @@ func (c *PayloadConverter) setEncryptedContent(protoEvent *chatv1.RoomEvent, con
 		encrypted.SessionId = &sessionID
 	}
 
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED)
 	protoEvent.SetEncrypted(encrypted)
 	return nil
 }
 
 // setCallContent converts JSONMap to CallContent.
-func (c *PayloadConverter) setCallContent(protoEvent *chatv1.RoomEvent, content data.JSONMap) error {
+func (c *PayloadConverter) setCallContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	// Call content will use the type field and potentially additional data
 	// For now, just create a minimal call content
 	call := &chatv1.CallContent{}
@@ -239,16 +201,76 @@ func (c *PayloadConverter) setCallContent(protoEvent *chatv1.RoomEvent, content 
 		call.Sdp = &sdp
 	}
 
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_CALL)
 	protoEvent.SetCall(call)
 	return nil
 }
 
+// setMotionContent converts JSONMap to MotionContent.
+//
+//nolint:govet // Multiple type assertions with 'ok' variable is idiomatic Go
+func (c *PayloadConverter) setMotionContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
+	motion := &chatv1.MotionContent{}
+
+	// Required fields
+	if id, ok := content["id"].(string); ok {
+		motion.Id = id
+	}
+	if title, ok := content["title"].(string); ok {
+		motion.Title = title
+	}
+	if description, ok := content["description"].(string); ok {
+		motion.Description = description
+	}
+
+	// Optional fields - for complex types like PassingRule and Choices,
+	// we'll need the full proto structures. For now, store basic fields.
+	// TODO: Add full support for PassingRule, VoteChoice when needed
+
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_MOTION)
+	protoEvent.SetMotion(motion)
+	return nil
+}
+
+// setVoteContent converts JSONMap to VoteCast.
+//
+//nolint:govet // Multiple type assertions with 'ok' variable is idiomatic Go
+func (c *PayloadConverter) setVoteContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
+	vote := &chatv1.VoteCast{}
+
+	// Vote content structure
+	if motionID, ok := content["motionId"].(string); ok {
+		vote.MotionId = motionID
+	}
+	if choiceID, ok := content["choiceId"].(string); ok {
+		vote.ChoiceId = choiceID
+	}
+
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_VOTE)
+	protoEvent.SetVote(vote)
+	return nil
+}
+
+// setDefaultContent converts JSONMap to generic Struct for unknown payload types.
+func (c *PayloadConverter) setDefaultContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
+	if len(content) == 0 {
+		return nil
+	}
+
+	structData := content.ToProtoStruct()
+	protoEvent.SetType(chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED)
+	protoEvent.SetDefault(structData)
+	return nil
+}
+
 // extractTypedContent extracts content from typed proto fields into JSONMap.
-func (c *PayloadConverter) extractTypedContent(protoEvent *chatv1.RoomEvent) (data.JSONMap, error) {
+//
+//nolint:gocognit // Event type handling requires multiple cases and conditionals
+func (c *PayloadConverter) extractTypedContent(protoEvent *chatv1.Payload) (data.JSONMap, error) {
 	content := make(data.JSONMap)
 
 	switch protoEvent.GetType() {
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT:
+	case chatv1.PayloadType_PAYLOAD_TYPE_TEXT:
 		text := protoEvent.GetText()
 		if text != nil {
 			content["text"] = text.GetBody()
@@ -257,7 +279,7 @@ func (c *PayloadConverter) extractTypedContent(protoEvent *chatv1.RoomEvent) (da
 			}
 		}
 
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_ATTACHMENT:
+	case chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT:
 		attachment := protoEvent.GetAttachment()
 		if attachment != nil {
 			content["attachmentId"] = attachment.GetAttachmentId()
@@ -275,13 +297,13 @@ func (c *PayloadConverter) extractTypedContent(protoEvent *chatv1.RoomEvent) (da
 			}
 		}
 
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_REACTION:
+	case chatv1.PayloadType_PAYLOAD_TYPE_REACTION:
 		reaction := protoEvent.GetReaction()
 		if reaction != nil {
 			content["emoji"] = reaction.GetReaction()
 		}
 
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_ENCRYPTED:
+	case chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED:
 		encrypted := protoEvent.GetEncrypted()
 		if encrypted != nil {
 			content["ciphertext"] = string(encrypted.GetCiphertext())
@@ -293,7 +315,7 @@ func (c *PayloadConverter) extractTypedContent(protoEvent *chatv1.RoomEvent) (da
 			}
 		}
 
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_CALL:
+	case chatv1.PayloadType_PAYLOAD_TYPE_CALL:
 		call := protoEvent.GetCall()
 		if call != nil {
 			if call.Sdp != nil {
@@ -301,12 +323,28 @@ func (c *PayloadConverter) extractTypedContent(protoEvent *chatv1.RoomEvent) (da
 			}
 		}
 
-	case chatv1.RoomEventType_ROOM_EVENT_TYPE_UNSPECIFIED,
-		chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT,
-		chatv1.RoomEventType_ROOM_EVENT_TYPE_EDIT,
-		chatv1.RoomEventType_ROOM_EVENT_TYPE_REDACTION:
-		// No typed content for these event types
-		// Empty content map is returned
+	case chatv1.PayloadType_PAYLOAD_TYPE_MOTION:
+		motion := protoEvent.GetMotion()
+		if motion != nil {
+			content["id"] = motion.GetId()
+			content["title"] = motion.GetTitle()
+			content["description"] = motion.GetDescription()
+			// TODO: Add full support for PassingRule, VoteChoice, eligible roles when needed
+		}
+
+	case chatv1.PayloadType_PAYLOAD_TYPE_VOTE:
+		vote := protoEvent.GetVote()
+		if vote != nil {
+			content["motionId"] = vote.GetMotionId()
+			content["choiceId"] = vote.GetChoiceId()
+		}
+
+	default:
+		dump := protoEvent.GetDefault()
+		if dump != nil {
+			content.FromProtoStruct(dump)
+		}
+
 	}
 
 	return content, nil

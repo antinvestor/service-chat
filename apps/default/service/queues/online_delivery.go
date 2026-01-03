@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
 	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/internal"
-	eventsv1 "github.com/antinvestor/service-chat/proto/events/v1"
+	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
@@ -80,15 +79,21 @@ func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 }
 
 func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
-	eventDelivery := &eventsv1.EventDelivery{}
+	eventDelivery := &eventsv1.Delivery{}
 	err := proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
 		return err
 	}
 
+	destination := eventDelivery.GetDestination()
+	profileID := ""
+	if destination != nil {
+		profileID = destination.GetProfileId()
+	}
+
 	response, err := dq.deviceCli.Search(ctx, connect.NewRequest(&devicev1.SearchRequest{
-		Query: eventDelivery.GetRecepientId(),
+		Query: profileID,
 		Page:  0,
 		Count: DeviceSearchPageSize,
 	}))
@@ -125,10 +130,10 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 func (dq *hotPathDeliveryQueueHandler) createDeviceJob(
 	_ context.Context,
 	dev *devicev1.DeviceObject,
-	eventDelivery *eventsv1.EventDelivery,
+	eventDelivery *eventsv1.Delivery,
 ) workerpool.Job[any] {
 	return workerpool.NewJob[any](func(ctx context.Context, resultPipe workerpool.JobResultPipe[any]) error {
-		eventCopy, ok := proto.Clone(eventDelivery).(*eventsv1.EventDelivery)
+		eventCopy, ok := proto.Clone(eventDelivery).(*eventsv1.Delivery)
 		if !ok {
 			return resultPipe.WriteError(ctx, errors.New("failed to clone event delivery"))
 		}
@@ -146,7 +151,7 @@ func (dq *hotPathDeliveryQueueHandler) createDeviceJob(
 
 func (dq *hotPathDeliveryQueueHandler) deliver(
 	ctx context.Context,
-	msg *eventsv1.EventDelivery,
+	msg *eventsv1.Delivery,
 	dev *devicev1.DeviceObject,
 ) error {
 	if dq.deviceIsOnline(ctx, dev) {
@@ -177,9 +182,13 @@ func (dq *hotPathDeliveryQueueHandler) deviceIsOnline(_ context.Context, dev *de
 func (dq *hotPathDeliveryQueueHandler) publishToOnlineDevice(
 	ctx context.Context,
 	dev *devicev1.DeviceObject,
-	msg *eventsv1.EventDelivery,
+	msg *eventsv1.Delivery,
 ) error {
-	profileID := msg.GetRecepientId()
+	destination := msg.GetDestination()
+	profileID := ""
+	if destination != nil {
+		profileID = destination.GetProfileId()
+	}
 	deviceID := dev.GetId()
 
 	deliveryTopic, shardID, err := dq.getOnlineDeliveryTopic(ctx, profileID, deviceID)

@@ -3,7 +3,6 @@ package business_test
 import (
 	"context"
 	"testing"
-
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
@@ -38,7 +37,7 @@ func (s *SubscriptionServiceTestSuite) setupBusinessLayer(
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
+	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, nil)
 
 	return subscriptionSvc, roomBusiness
 }
@@ -197,10 +196,26 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 		require.NoError(t, err)
 		s.True(hasAccess)
 
+		// Get subscription ID
+		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
+			RoomId: room.GetId(),
+		}
+		searchResp, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		require.NoError(t, err)
+
+		var subscriptionID string
+		for _, sub := range searchResp {
+			if sub.GetMember().GetProfileId() == memberID {
+				subscriptionID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, subscriptionID)
+
 		// Remove member
 		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
-			RoomId:     room.GetId(),
-			ProfileIds: []string{memberID},
+			RoomId:         room.GetId(),
+			SubscriptionId: []string{subscriptionID},
 		}
 
 		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
