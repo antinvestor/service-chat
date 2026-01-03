@@ -72,55 +72,23 @@ func (re *RoomEvent) ToAPI() *chatv1.RoomEvent {
 		return nil
 	}
 
-	// Map message type to RoomEventType
-	eventType := chatv1.RoomEventType(re.EventType)
-
-	roomEvent := &chatv1.RoomEvent{
-		Id:       re.GetID(),
-		RoomId:   re.RoomID,
-		SenderId: re.SenderID,
-		Type:     eventType,
-		SentAt:   timestamppb.New(re.CreatedAt),
-		Edited:   false,
-		Redacted: false,
-	}
-
-	// Populate payload based on event type
-	// Note: This is a simplified conversion - actual implementation may need
-	// to properly marshal/unmarshal the Content/Properties to specific types
-	if re.Properties != nil {
-		switch eventType {
-		case chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT:
-			// Extract text content if available
-			if text, ok := re.Properties["text"].(string); ok {
-				roomEvent.Payload = &chatv1.RoomEvent_Text{
-					Text: &chatv1.TextContent{Body: text},
-				}
-			}
-		case chatv1.RoomEventType_ROOM_EVENT_TYPE_ATTACHMENT:
-			// TODO: Properly convert attachment data
-			roomEvent.Payload = &chatv1.RoomEvent_Attachment{
-				Attachment: &chatv1.AttachmentContent{},
-			}
-		case chatv1.RoomEventType_ROOM_EVENT_TYPE_REACTION:
-			// TODO: Properly convert reaction data
-			roomEvent.Payload = &chatv1.RoomEvent_Reaction{
-				Reaction: &chatv1.ReactionContent{},
-			}
-		case chatv1.RoomEventType_ROOM_EVENT_TYPE_ENCRYPTED:
-			// TODO: Properly convert encrypted data
-			roomEvent.Payload = &chatv1.RoomEvent_Encrypted{
-				Encrypted: &chatv1.EncryptedContent{},
-			}
-		case chatv1.RoomEventType_ROOM_EVENT_TYPE_CALL:
-			// TODO: Properly convert call data
-			roomEvent.Payload = &chatv1.RoomEvent_Call{
-				Call: &chatv1.CallContent{},
-			}
+	// Use PayloadConverter for complete conversion with typed content
+	converter := NewPayloadConverter()
+	protoEvent, err := converter.ToProtoRoomEvent(re)
+	if err != nil {
+		// Fallback to basic conversion without content on error
+		return &chatv1.RoomEvent{
+			Id:       re.GetID(),
+			RoomId:   re.RoomID,
+			SenderId: re.SenderID,
+			Type:     chatv1.RoomEventType(re.EventType),
+			SentAt:   timestamppb.New(re.CreatedAt),
+			Edited:   false,
+			Redacted: false,
 		}
 	}
 
-	return roomEvent
+	return protoEvent
 }
 
 type RoomSubscriptionState int

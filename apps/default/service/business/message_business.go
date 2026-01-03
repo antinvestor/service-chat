@@ -152,38 +152,21 @@ func (mb *messageBusiness) SendEvents(
 			continue
 		}
 
-		// Create the message event
-		// Extract payload content based on type
-		var content data.JSONMap
-		if reqEvt.Payload != nil {
-			switch p := reqEvt.Payload.(type) {
-			case *chatv1.RoomEvent_Text:
-				content = data.JSONMap{
-					"body":   p.Text.GetBody(),
-					"format": p.Text.GetFormat(),
-				}
-			case *chatv1.RoomEvent_Attachment:
-				// TODO: Extract attachment fields when needed
-				content = data.JSONMap{}
-			case *chatv1.RoomEvent_Reaction:
-				// TODO: Extract reaction fields when needed
-				content = data.JSONMap{}
-			case *chatv1.RoomEvent_Encrypted:
-				// TODO: Extract encrypted fields when needed
-				content = data.JSONMap{}
-			case *chatv1.RoomEvent_Call:
-				// TODO: Extract call fields when needed
-				content = data.JSONMap{}
+		// Create the message event using PayloadConverter
+		converter := models.NewPayloadConverter()
+		event, err := converter.FromProtoRoomEvent(reqEvt)
+		if err != nil {
+			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to convert event: %v", err)})
+			responses[i] = &chatv1.StreamAck{
+				EventId:  reqEvt.GetId(),
+				AckAt:    timestamppb.Now(),
+				Metadata: errorD,
 			}
+			continue
 		}
 
-		event := &models.RoomEvent{
-			RoomID:    reqEvt.GetRoomId(),
-			SenderID:  senderID,
-			ParentID:  reqEvt.GetParentId(),
-			EventType: int32(reqEvt.GetType().Number()),
-			Content:   content,
-		}
+		// Override SenderID with authenticated user
+		event.SenderID = senderID
 
 		event.GenID(ctx)
 		if reqEvt.GetId() != "" {
@@ -301,7 +284,7 @@ func (mb *messageBusiness) GetHistory(
 	}
 
 	// Build the query - use cursor for pagination
-	var limit int = 50 // default limit
+	var limit = 50 // default limit
 	var cursor string
 	if req.GetCursor() != nil {
 		if req.GetCursor().GetLimit() > 0 {

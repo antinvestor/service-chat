@@ -305,7 +305,7 @@ func (cm *connectionManager) processStateUpdateOld(
 	clientState interface{},
 ) error {
 	// This method is deprecated and should not be used
-	return fmt.Errorf("deprecated method called")
+	return errors.New("deprecated method called")
 }
 
 // DEPRECATED: oldValidationReference removed - old code structure no longer compatible with new API

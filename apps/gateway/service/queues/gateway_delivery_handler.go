@@ -106,7 +106,7 @@ func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.EventD
 		switch eventType {
 		case chatv1.RoomEventType_ROOM_EVENT_TYPE_TEXT:
 			// Extract text content from generic payload
-			if body, ok := payload.Fields["body"]; ok && body.GetStringValue() != "" {
+			if body, ok := payload.GetFields()["body"]; ok && body.GetStringValue() != "" {
 				roomEvent.Payload = &chatv1.RoomEvent_Text{
 					Text: &chatv1.TextContent{
 						Body: body.GetStringValue(),

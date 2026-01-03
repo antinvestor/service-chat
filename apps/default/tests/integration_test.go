@@ -57,7 +57,10 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			Name:        "Integration Test Room",
 			Description: "Testing complete workflow",
 			IsPrivate:   false,
-			Members:     []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: member1ID}, &commonv1.ContactLink{ProfileId: member2ID}},
+			Members: []*commonv1.ContactLink{
+				&commonv1.ContactLink{ProfileId: member1ID},
+				&commonv1.ContactLink{ProfileId: member2ID},
+			},
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, createReq, &commonv1.ContactLink{ProfileId: creatorID})
@@ -231,7 +234,10 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		createReq := &chatv1.CreateRoomRequest{
 			Name:      "Permission Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: adminID}, &commonv1.ContactLink{ProfileId: memberID}},
+			Members: []*commonv1.ContactLink{
+				&commonv1.ContactLink{ProfileId: adminID},
+				&commonv1.ContactLink{ProfileId: memberID},
+			},
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, createReq, &commonv1.ContactLink{ProfileId: ownerID})
@@ -239,9 +245,9 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 
 		// Promote one member to admin
 		updateRoleReq := &chatv1.UpdateSubscriptionRoleRequest{
-			RoomId: room.GetId(),
-			Member: &commonv1.ContactLink{ProfileId: adminID},
-			Roles:  []string{"admin"},
+			RoomId:    room.GetId(),
+			ProfileId: adminID,
+			Roles:     []string{"admin"},
 		}
 
 		err = roomBusiness.UpdateSubscriptionRole(ctx, updateRoleReq, ownerID)

@@ -53,7 +53,10 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 			Name:        "Test Room",
 			Description: "Test Description",
 			IsPrivate:   false,
-			Members:     []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: util.IDString()}, &commonv1.ContactLink{ProfileId: util.IDString()}},
+			Members: []*commonv1.ContactLink{
+				&commonv1.ContactLink{ProfileId: util.IDString()},
+				&commonv1.ContactLink{ProfileId: util.IDString()},
+			},
 		}
 
 		room, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})

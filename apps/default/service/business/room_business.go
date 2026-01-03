@@ -412,7 +412,11 @@ func (rb *roomBusiness) SearchRoomSubscriptions(
 }
 
 // Helper function to add members to a room with specific roles.
-func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID string, roleMap map[*commonv1.ContactLink]string) error {
+func (rb *roomBusiness) addRoomMembersWithRoles(
+	ctx context.Context,
+	roomID string,
+	roleMap map[*commonv1.ContactLink]string,
+) error {
 	// Get existing subscriptions to avoid duplicates
 	existingSubs, err := rb.subRepo.GetByRoomID(ctx, roomID, false)
 	if err != nil {
@@ -463,7 +467,12 @@ func (rb *roomBusiness) addRoomMembersWithRoles(ctx context.Context, roomID stri
 }
 
 // Helper function to add members to a room (legacy support).
-func (rb *roomBusiness) addRoomMembers(ctx context.Context, roomID string, members []*commonv1.ContactLink, role string) error {
+func (rb *roomBusiness) addRoomMembers(
+	ctx context.Context,
+	roomID string,
+	members []*commonv1.ContactLink,
+	role string,
+) error {
 	roleMap := make(map[*commonv1.ContactLink]string)
 	for _, member := range members {
 		if member != nil {

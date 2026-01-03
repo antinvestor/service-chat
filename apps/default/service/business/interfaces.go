@@ -10,7 +10,11 @@ import (
 // RoomBusiness defines the business logic for room operations.
 type RoomBusiness interface {
 	// CreateRoom creates a new room with the given parameters and adds the creator as an admin
-	CreateRoom(ctx context.Context, req *chatv1.CreateRoomRequest, createdBy *commonv1.ContactLink) (*chatv1.Room, error)
+	CreateRoom(
+		ctx context.Context,
+		req *chatv1.CreateRoomRequest,
+		createdBy *commonv1.ContactLink,
+	) (*chatv1.Room, error)
 
 	// GetRoom retrieves a room by ID with proper authorization checks
 	GetRoom(ctx context.Context, roomID string, profileID string) (*chatv1.Room, error)
