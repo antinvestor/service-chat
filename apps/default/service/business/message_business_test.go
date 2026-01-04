@@ -3,6 +3,7 @@ package business_test
 import (
 	"context"
 	"testing"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
@@ -62,10 +63,12 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
-					RoomId:  room.GetId(),
-					Source:  &commonv1.ContactLink{ProfileId: creatorID},
-					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+					RoomId: room.GetId(),
+					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					},
 				},
 			},
 		}
@@ -85,10 +88,12 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
-					RoomId:  util.IDString(), // Non-existent room
-					Source:  &commonv1.ContactLink{ProfileId: util.IDString()},
-					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+					RoomId: util.IDString(), // Non-existent room
+					Source: &commonv1.ContactLink{ProfileId: util.IDString()},
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					},
 				},
 			},
 		}
@@ -161,10 +166,12 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 			msgReq := &chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
-						RoomId:  room.GetId(),
-						Source:  &commonv1.ContactLink{ProfileId: creatorID},
-						Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-						Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+						RoomId: room.GetId(),
+						Source: &commonv1.ContactLink{ProfileId: creatorID},
+						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+						Payload: &chatv1.Payload{
+							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+						},
 					},
 				},
 			}
@@ -203,10 +210,12 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
-					RoomId:  room.GetId(),
-					Source:  &commonv1.ContactLink{ProfileId: creatorID},
-					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+					RoomId: room.GetId(),
+					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					},
 				},
 			},
 		}
@@ -260,11 +269,13 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
-					Id:      util.IDString(),
-					RoomId:  room.GetId(),
-					Source:  &commonv1.ContactLink{ProfileId: creatorID},
-					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+					Id:     util.IDString(),
+					RoomId: room.GetId(),
+					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					},
 				},
 			},
 		}
@@ -309,10 +320,12 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
-					RoomId:  room.GetId(),
-					Source:  &commonv1.ContactLink{ProfileId: creatorID},
-					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+					RoomId: room.GetId(),
+					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					},
 				},
 			},
 		}
@@ -352,10 +365,12 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 			msgReq := &chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
-						RoomId:  room.GetId(),
-						Source:  &commonv1.ContactLink{ProfileId: creatorID},
-						Type:    msgType,
-						Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+						RoomId: room.GetId(),
+						Source: &commonv1.ContactLink{ProfileId: creatorID},
+						Type:   msgType,
+						Payload: &chatv1.Payload{
+							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+						},
 					},
 				},
 			}

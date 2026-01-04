@@ -2,6 +2,7 @@ package models
 
 import (
 	"testing"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/pitabwire/frame/data"
 	"github.com/stretchr/testify/assert"

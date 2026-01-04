@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"testing"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
@@ -37,7 +38,7 @@ func (s *IntegrationTestSuite) setupBusinessLayer(
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness)
+	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, nil)
 
 	return roomBusiness, messageBusiness, subscriptionSvc
 }
@@ -80,10 +81,12 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			msgReq := &chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
-						RoomId:  room.GetId(),
-						Source:  &commonv1.ContactLink{ProfileId: creatorID},
-						Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-						Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+						RoomId: room.GetId(),
+						Source: &commonv1.ContactLink{ProfileId: creatorID},
+						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+						Payload: &chatv1.Payload{
+							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+						},
 					},
 				},
 			}
@@ -188,10 +191,12 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 				msgReq := &chatv1.SendEventRequest{
 					Event: []*chatv1.RoomEvent{
 						{
-							RoomId:  room.GetId(),
-							Source:  &commonv1.ContactLink{ProfileId: userID},
-							Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-							Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+							RoomId: room.GetId(),
+							Source: &commonv1.ContactLink{ProfileId: userID},
+							Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+							Payload: &chatv1.Payload{
+								Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+							},
 						},
 					},
 				}

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore"
@@ -30,28 +31,52 @@ type roomSubscriptionRepository struct {
 	activeSubscriptionStates []models.RoomSubscriptionState
 }
 
-// GetOneByRoomAndProfile retrieves a subscription by room ID and profile ID.
-func (rsr *roomSubscriptionRepository) GetOneByRoomAndProfile(
+// NewRoomSubscriptionRepository creates a new room subscription repository instance.
+func NewRoomSubscriptionRepository(
 	ctx context.Context,
-	roomID, profileID string,
-) (*models.RoomSubscription, error) {
-	subscription := &models.RoomSubscription{}
-	err := rsr.Pool().DB(ctx, true).
-		Select("*"). // Explicitly select all columns including read-only unread_count
-		Where("room_id = ? AND profile_id = ?", roomID, profileID).
-		First(subscription).Error
-	return subscription, err
+	dbPool pool.Pool,
+	workMan workerpool.Manager,
+) RoomSubscriptionRepository {
+	return &roomSubscriptionRepository{
+		BaseRepository: datastore.NewBaseRepository[*models.RoomSubscription](
+			ctx, dbPool, workMan, func() *models.RoomSubscription { return &models.RoomSubscription{} },
+		),
+
+		activeSubscriptionStates: []models.RoomSubscriptionState{
+			models.RoomSubscriptionStateActive,
+		},
+	}
 }
 
-// GetOneByRoomProfileAndIsActive retrieves an active subscription by room ID and profile ID.
-func (rsr *roomSubscriptionRepository) GetOneByRoomProfileAndIsActive(
-	ctx context.Context,
-	roomID string, profileID string,
-) (*models.RoomSubscription, error) {
+// GetByContactLinkAndRooms retrieves a subscription by room ID and profile ID.
+func (rsr *roomSubscriptionRepository) GetByContactLinkAndRooms(
+	ctx context.Context, contactLink *commonv1.ContactLink,
+	roomIDList ...string,
+) ([]*models.RoomSubscription, error) {
+	var subscriptions []*models.RoomSubscription
+	query := rsr.Pool().DB(ctx, true).
+		Select("*"). // Explicitly select all columns including read-only unread_count
+		Where("  room_id IN ? AND contact_link_id = ? ", roomIDList, contactLink.GetContactId())
+
+	if contactLink.GetProfileId() != "" {
+		query = query.Where(" profile_id = ? ", contactLink.GetProfileId())
+	}
+
+	err := query.Find(subscriptions).Error
+	return subscriptions, err
+}
+
+// GetOneByRoomContactLinkAndIsActive retrieves an active subscription by room ID and profile ID.
+func (rsr *roomSubscriptionRepository) GetOneByRoomContactLinkAndIsActive(ctx context.Context, roomID string, contactLink *commonv1.ContactLink) (*models.RoomSubscription, error) {
 	subscription := &models.RoomSubscription{}
-	err := rsr.Pool().DB(ctx, true).
-		Where("room_id = ? AND profile_id = ? AND subscription_state IN ?", roomID, profileID, rsr.activeSubscriptionStates).
-		First(subscription).Error
+	query := rsr.Pool().DB(ctx, true).
+		Where("room_id = ? AND  contact_link_id = ? ", roomID, contactLink.GetContactId())
+
+	if contactLink.GetProfileId() != "" {
+		query = query.Where(" profile_id = ? ", contactLink.GetProfileId())
+	}
+
+	err := query.First(subscription).Error
 	return subscription, err
 }
 
@@ -72,29 +97,38 @@ func (rsr *roomSubscriptionRepository) GetByRoomID(
 	return subscriptions, err
 }
 
-// GetByRoomIDAndProfiles retrieves a subscription by room ID and a list of profile IDs.
-func (rsr *roomSubscriptionRepository) GetByRoomIDAndProfiles(
-	ctx context.Context,
-	roomID string,
-	profileID ...string,
-) ([]*models.RoomSubscription, error) {
+// GetByRoomIDAndContactLinks retrieves a subscription by room ID and a list of profile IDs.
+func (rsr *roomSubscriptionRepository) GetByRoomIDAndContactLinks(ctx context.Context, roomID string, contactLink ...*commonv1.ContactLink) ([]*models.RoomSubscription, error) {
 	var subscriptionSlice []*models.RoomSubscription
+
+	profileIDList := make([]string, len(contactLink))
+	contactIDList := make([]string, len(contactLink))
+
+	for i, cl := range contactLink {
+		if cl.GetProfileId() != "" {
+			profileIDList[i] = cl.GetProfileId()
+		}
+		contactIDList[i] = cl.GetContactId()
+	}
+
 	err := rsr.Pool().DB(ctx, true).
-		Where("room_id = ? AND profile_id IN ?", roomID, profileID).
+		Where("room_id = ? AND ( profile_id IN ? OR contact_id IN ? )", roomID, profileIDList, contactIDList).
 		Find(&subscriptionSlice).Error
 	return subscriptionSlice, err
 }
 
-// GetByProfileID retrieves all subscriptions for a specific profile.
-func (rsr *roomSubscriptionRepository) GetByProfileID(
-	ctx context.Context,
-	profileID string,
+// GetByContactLink retrieves all subscriptions for a specific profile.
+func (rsr *roomSubscriptionRepository) GetByContactLink(ctx context.Context, contactLink *commonv1.ContactLink,
 	activeOnly bool,
 ) ([]*models.RoomSubscription, error) {
 	var subscriptions []*models.RoomSubscription
 	query := rsr.Pool().DB(ctx, true).
 		Preload(clause.Associations).
-		Where("profile_id = ?", profileID)
+		Where(" contact_link_id = ? ", contactLink.GetContactId())
+
+	if contactLink.GetProfileId() != "" {
+		query = query.Where(" profile_id = ? ", contactLink.GetProfileId())
+	}
 
 	if activeOnly {
 		query = query.Where("subscription_state IN ?", rsr.activeSubscriptionStates)
@@ -105,13 +139,17 @@ func (rsr *roomSubscriptionRepository) GetByProfileID(
 }
 
 // GetMembersByRoomID retrieves all active member profile IDs for a room.
-func (rsr *roomSubscriptionRepository) GetMembersByRoomID(ctx context.Context, roomID string) ([]string, error) {
-	var profileIDs []string
+func (rsr *roomSubscriptionRepository) GetMembersByRoomID(ctx context.Context, roomID string) ([]*commonv1.ContactLink, error) {
+	var subscriptions []*models.RoomSubscription
 	err := rsr.Pool().DB(ctx, true).
-		Model(&models.RoomSubscription{}).
-		Where("room_id = ? AND subscription_state IN ?", roomID, rsr.activeSubscriptionStates).
-		Pluck("profile_id", &profileIDs).Error
-	return profileIDs, err
+		Where("room_id = ? AND subscription_state IN ?", roomID, rsr.activeSubscriptionStates).Find(subscriptions).Error
+
+	contactLinks := make([]*commonv1.ContactLink, len(subscriptions))
+	for _, sub := range subscriptions {
+		contactLinks = append(contactLinks, sub.ToLink())
+	}
+
+	return contactLinks, err
 }
 
 // GetByRole retrieves subscriptions by room ID and role.
@@ -181,9 +219,9 @@ func (rsr *roomSubscriptionRepository) CountActiveMembers(ctx context.Context, r
 // HasPermission checks if a profile has a specific role or higher in a room.
 func (rsr *roomSubscriptionRepository) HasPermission(
 	ctx context.Context,
-	roomID, profileID, minRole string,
+	roomID string, contactLink *commonv1.ContactLink, minRole string,
 ) (bool, error) {
-	subscription, err := rsr.GetOneByRoomProfileAndIsActive(ctx, roomID, profileID)
+	subscription, err := rsr.GetOneByRoomContactLinkAndIsActive(ctx, roomID, contactLink)
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return false, nil
@@ -206,8 +244,8 @@ func (rsr *roomSubscriptionRepository) HasPermission(
 }
 
 // IsActiveMember checks if a profile is an active member of a room.
-func (rsr *roomSubscriptionRepository) IsActiveMember(ctx context.Context, roomID, profileID string) (bool, error) {
-	subscription, err := rsr.GetOneByRoomAndProfile(ctx, roomID, profileID)
+func (rsr *roomSubscriptionRepository) IsActiveMember(ctx context.Context, roomID string, contactLink *commonv1.ContactLink) (bool, error) {
+	subscription, err := rsr.GetOneByRoomContactLinkAndIsActive(ctx, roomID, contactLink)
 	if err != nil {
 		if data.ErrorIsNoRows(err) {
 			return false, nil
@@ -239,21 +277,4 @@ func (rsr *roomSubscriptionRepository) GetByRoomIDPaged(
 
 	err := query.Order("id ASC").Limit(limit).Find(&subscriptions).Error
 	return subscriptions, err
-}
-
-// NewRoomSubscriptionRepository creates a new room subscription repository instance.
-func NewRoomSubscriptionRepository(
-	ctx context.Context,
-	dbPool pool.Pool,
-	workMan workerpool.Manager,
-) RoomSubscriptionRepository {
-	return &roomSubscriptionRepository{
-		BaseRepository: datastore.NewBaseRepository[*models.RoomSubscription](
-			ctx, dbPool, workMan, func() *models.RoomSubscription { return &models.RoomSubscription{} },
-		),
-
-		activeSubscriptionStates: []models.RoomSubscriptionState{
-			models.RoomSubscriptionStateActive,
-		},
-	}
 }

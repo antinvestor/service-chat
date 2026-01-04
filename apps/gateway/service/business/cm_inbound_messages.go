@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/util"
@@ -122,9 +123,9 @@ func (cm *connectionManager) processAcknowledgement(
 
 	// Process as a receipt event
 	return cm.processReceiptEvent(ctx, conn, &chatv1.ReceiptEvent{
-		Source:    &commonv1.ContactLink{ProfileId: conn.Metadata().ProfileID},
-		RoomId:    "", // TODO: Extract room_id from context or event metadata
-		EventId:   []string{ack.GetEventId()},
+		Source:  &commonv1.ContactLink{ProfileId: conn.Metadata().ProfileID},
+		RoomId:  "", // TODO: Extract room_id from context or event metadata
+		EventId: []string{ack.GetEventId()},
 	})
 }
 
@@ -153,7 +154,7 @@ func (cm *connectionManager) processReceiptEvent(
 	}
 
 	// Always override profile_id with authenticated profile ID for security
-	if receipt.Source == nil {
+	if receipt.GetSource() == nil {
 		receipt.Source = &commonv1.ContactLink{}
 	}
 	receipt.Source.ProfileId = profileID
@@ -192,7 +193,7 @@ func (cm *connectionManager) processTypingEvent(
 	}
 
 	// Always override profile_id with authenticated profile ID for security
-	if typing.Source == nil {
+	if typing.GetSource() == nil {
 		typing.Source = &commonv1.ContactLink{}
 	}
 	typing.Source.ProfileId = profileID
@@ -246,7 +247,7 @@ func (cm *connectionManager) processReadMarker(
 	}
 
 	// Always override profile_id with authenticated profile ID for security
-	if marker.Source == nil {
+	if marker.GetSource() == nil {
 		marker.Source = &commonv1.ContactLink{}
 	}
 	marker.Source.ProfileId = profileID
@@ -286,7 +287,7 @@ func (cm *connectionManager) processRoomEvent(
 	}
 
 	// Always override sender_id with authenticated profile ID for security
-	if event.Source == nil {
+	if event.GetSource() == nil {
 		event.Source = &commonv1.ContactLink{}
 	}
 	event.Source.ProfileId = profileID

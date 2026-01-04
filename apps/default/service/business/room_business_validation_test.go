@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
@@ -22,62 +23,132 @@ type mockProfileClient struct {
 	getByContactFunc func(context.Context, *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error)
 }
 
-func (m *mockProfileClient) GetByContact(ctx context.Context, req *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
+func (m *mockProfileClient) GetByContact(
+	ctx context.Context,
+	req *connect.Request[profilev1.GetByContactRequest],
+) (*connect.Response[profilev1.GetByContactResponse], error) {
 	if m.getByContactFunc != nil {
 		return m.getByContactFunc(ctx, req)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockProfileClient) AddAddress(context.Context, *connect.Request[profilev1.AddAddressRequest]) (*connect.Response[profilev1.AddAddressResponse], error) {
+func (m *mockProfileClient) AddAddress(
+	context.Context,
+	*connect.Request[profilev1.AddAddressRequest],
+) (*connect.Response[profilev1.AddAddressResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) AddContact(context.Context, *connect.Request[profilev1.AddContactRequest]) (*connect.Response[profilev1.AddContactResponse], error) {
+
+func (m *mockProfileClient) AddContact(
+	context.Context,
+	*connect.Request[profilev1.AddContactRequest],
+) (*connect.Response[profilev1.AddContactResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) AddRelationship(context.Context, *connect.Request[profilev1.AddRelationshipRequest]) (*connect.Response[profilev1.AddRelationshipResponse], error) {
+
+func (m *mockProfileClient) AddRelationship(
+	context.Context,
+	*connect.Request[profilev1.AddRelationshipRequest],
+) (*connect.Response[profilev1.AddRelationshipResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) AddRoster(context.Context, *connect.Request[profilev1.AddRosterRequest]) (*connect.Response[profilev1.AddRosterResponse], error) {
+
+func (m *mockProfileClient) AddRoster(
+	context.Context,
+	*connect.Request[profilev1.AddRosterRequest],
+) (*connect.Response[profilev1.AddRosterResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) CheckVerification(context.Context, *connect.Request[profilev1.CheckVerificationRequest]) (*connect.Response[profilev1.CheckVerificationResponse], error) {
+
+func (m *mockProfileClient) CheckVerification(
+	context.Context,
+	*connect.Request[profilev1.CheckVerificationRequest],
+) (*connect.Response[profilev1.CheckVerificationResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) Create(context.Context, *connect.Request[profilev1.CreateRequest]) (*connect.Response[profilev1.CreateResponse], error) {
+
+func (m *mockProfileClient) Create(
+	context.Context,
+	*connect.Request[profilev1.CreateRequest],
+) (*connect.Response[profilev1.CreateResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) CreateContact(context.Context, *connect.Request[profilev1.CreateContactRequest]) (*connect.Response[profilev1.CreateContactResponse], error) {
+
+func (m *mockProfileClient) CreateContact(
+	context.Context,
+	*connect.Request[profilev1.CreateContactRequest],
+) (*connect.Response[profilev1.CreateContactResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) CreateContactVerification(context.Context, *connect.Request[profilev1.CreateContactVerificationRequest]) (*connect.Response[profilev1.CreateContactVerificationResponse], error) {
+
+func (m *mockProfileClient) CreateContactVerification(
+	context.Context,
+	*connect.Request[profilev1.CreateContactVerificationRequest],
+) (*connect.Response[profilev1.CreateContactVerificationResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) DeleteRelationship(context.Context, *connect.Request[profilev1.DeleteRelationshipRequest]) (*connect.Response[profilev1.DeleteRelationshipResponse], error) {
+
+func (m *mockProfileClient) DeleteRelationship(
+	context.Context,
+	*connect.Request[profilev1.DeleteRelationshipRequest],
+) (*connect.Response[profilev1.DeleteRelationshipResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) GetById(context.Context, *connect.Request[profilev1.GetByIdRequest]) (*connect.Response[profilev1.GetByIdResponse], error) {
+
+func (m *mockProfileClient) GetById(
+	context.Context,
+	*connect.Request[profilev1.GetByIdRequest],
+) (*connect.Response[profilev1.GetByIdResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) ListRelationship(context.Context, *connect.Request[profilev1.ListRelationshipRequest]) (*connect.ServerStreamForClient[profilev1.ListRelationshipResponse], error) {
+
+func (m *mockProfileClient) ListRelationship(
+	context.Context,
+	*connect.Request[profilev1.ListRelationshipRequest],
+) (*connect.ServerStreamForClient[profilev1.ListRelationshipResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) Merge(context.Context, *connect.Request[profilev1.MergeRequest]) (*connect.Response[profilev1.MergeResponse], error) {
+
+func (m *mockProfileClient) Merge(
+	context.Context,
+	*connect.Request[profilev1.MergeRequest],
+) (*connect.Response[profilev1.MergeResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) RemoveContact(context.Context, *connect.Request[profilev1.RemoveContactRequest]) (*connect.Response[profilev1.RemoveContactResponse], error) {
+
+func (m *mockProfileClient) RemoveContact(
+	context.Context,
+	*connect.Request[profilev1.RemoveContactRequest],
+) (*connect.Response[profilev1.RemoveContactResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) RemoveRoster(context.Context, *connect.Request[profilev1.RemoveRosterRequest]) (*connect.Response[profilev1.RemoveRosterResponse], error) {
+
+func (m *mockProfileClient) RemoveRoster(
+	context.Context,
+	*connect.Request[profilev1.RemoveRosterRequest],
+) (*connect.Response[profilev1.RemoveRosterResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) Search(context.Context, *connect.Request[profilev1.SearchRequest]) (*connect.ServerStreamForClient[profilev1.SearchResponse], error) {
+
+func (m *mockProfileClient) Search(
+	context.Context,
+	*connect.Request[profilev1.SearchRequest],
+) (*connect.ServerStreamForClient[profilev1.SearchResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) SearchRoster(context.Context, *connect.Request[profilev1.SearchRosterRequest]) (*connect.ServerStreamForClient[profilev1.SearchRosterResponse], error) {
+
+func (m *mockProfileClient) SearchRoster(
+	context.Context,
+	*connect.Request[profilev1.SearchRosterRequest],
+) (*connect.ServerStreamForClient[profilev1.SearchRosterResponse], error) {
 	return nil, errors.New("not implemented")
 }
-func (m *mockProfileClient) Update(context.Context, *connect.Request[profilev1.UpdateRequest]) (*connect.Response[profilev1.UpdateResponse], error) {
+
+func (m *mockProfileClient) Update(
+	context.Context,
+	*connect.Request[profilev1.UpdateRequest],
+) (*connect.Response[profilev1.UpdateResponse], error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -94,7 +165,15 @@ func (s *RoomBusinessTestSuite) setupBusinessLayerWithProfileClient(
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, profileCli)
+	roomBusiness := business.NewRoomBusiness(
+		svc,
+		roomRepo,
+		eventRepo,
+		subRepo,
+		subscriptionSvc,
+		messageBusiness,
+		profileCli,
+	)
 
 	return roomBusiness
 }
@@ -108,7 +187,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationSuccess() {
 
 		mockCli := &mockProfileClient{
 			getByContactFunc: func(ctx context.Context, req *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
-				if req.Msg.Contact == validContactID {
+				if req.Msg.GetContact() == validContactID {
 					return connect.NewResponse(&profilev1.GetByContactResponse{
 						Data: &profilev1.ProfileObject{Id: validProfileID},
 					}), nil

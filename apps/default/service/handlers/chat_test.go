@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"testing"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"connectrpc.com/connect"
@@ -141,10 +142,12 @@ func (s *ChatServerTestSuite) TestSendEvent() {
 		msgReq := connect.NewRequest(&chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
-					RoomId:  roomID,
-					Source:  &commonv1.ContactLink{ProfileId: profileID},
-					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+					RoomId: roomID,
+					Source: &commonv1.ContactLink{ProfileId: profileID},
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					},
 				},
 			},
 		})
@@ -179,10 +182,12 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 			msgReq := connect.NewRequest(&chatv1.SendEventRequest{
 				Event: []*chatv1.RoomEvent{
 					{
-						RoomId:  roomID,
-						Source:  &commonv1.ContactLink{ProfileId: profileID},
-						Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
-						Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
+						RoomId: roomID,
+						Source: &commonv1.ContactLink{ProfileId: profileID},
+						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+						Payload: &chatv1.Payload{
+							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+						},
 					},
 				},
 			})

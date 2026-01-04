@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/antinvestor/service-chat/apps/default/service/events"
-	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/datastore"
@@ -29,8 +28,7 @@ func (csqts *ClientSetupQueueTestSuite) createQueue(
 	workMan := svc.WorkManager()
 	eventsMan := svc.EventsManager()
 	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-	repo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
-	return events.NewRoomOutboxLoggingQueue(ctx, repo, eventsMan)
+	return events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan)
 }
 
 func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_Name() {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
@@ -12,6 +13,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/internal"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/util"
@@ -53,6 +55,11 @@ func (rb *roomBusiness) CreateRoom(
 	req *chatv1.CreateRoomRequest,
 	createdBy *commonv1.ContactLink,
 ) (*chatv1.Room, error) {
+
+	if err := internal.IsValidContactLink(createdBy); err != nil {
+		return nil, err
+	}
+
 	// Validate request
 	if req.GetName() == "" {
 		return nil, service.ErrRoomNameRequired
@@ -92,27 +99,31 @@ func (rb *roomBusiness) CreateRoom(
 	}
 
 	// Send room created event using MessageBusiness
-	createdByProfileID := ""
-	if createdBy != nil {
-		createdByProfileID = createdBy.GetProfileId()
-	}
-	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdByProfileID,
+	_ = rb.sendRoomEvent(ctx, createdRoom.GetID(), createdBy,
 		map[string]interface{}{"content": "Room created"},
-		map[string]interface{}{"created_by": createdByProfileID})
+		map[string]interface{}{"created_by": createdBy.GetProfileId()})
 
 	// Return the created room as proto
 	return createdRoom.ToAPI(), nil
 }
 
-func (rb *roomBusiness) GetRoom(ctx context.Context, roomID string, profileID string) (*chatv1.Room, error) {
+func (rb *roomBusiness) GetRoom(ctx context.Context, roomID string, searchedBy *commonv1.ContactLink) (*chatv1.Room, error) {
+
+	if err := internal.IsValidContactLink(searchedBy); err != nil {
+		return nil, err
+	}
+
 	// Check if the user has access to the room
-	hasAccess, err := rb.subscriptionSvc.HasAccess(ctx, profileID, roomID)
+	accessMap, err := rb.subscriptionSvc.HasAccess(ctx, searchedBy, roomID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check room access: %w", err)
 	}
 
-	if !hasAccess {
-		return nil, service.ErrRoomAccessDenied
+	// Check if the user has access to the room
+	for sub, hasAccess := range accessMap {
+		if sub.RoomID != roomID || !hasAccess {
+			return nil, service.ErrRoomAccessDenied
+		}
 	}
 
 	room, err := rb.roomRepo.GetByID(ctx, roomID)
@@ -129,10 +140,14 @@ func (rb *roomBusiness) GetRoom(ctx context.Context, roomID string, profileID st
 func (rb *roomBusiness) UpdateRoom(
 	ctx context.Context,
 	req *chatv1.UpdateRoomRequest,
-	updatedBy string,
+	updatedBy *commonv1.ContactLink,
 ) (*chatv1.Room, error) {
 	if req.GetRoomId() == "" {
 		return nil, service.ErrRoomIDRequired
+	}
+
+	if err := internal.IsValidContactLink(updatedBy); err != nil {
+		return nil, err
 	}
 
 	// Check if the user is an admin of the room
@@ -168,20 +183,24 @@ func (rb *roomBusiness) UpdateRoom(
 	// Send room updated event using MessageBusiness
 	_ = rb.sendRoomEvent(ctx, room.GetID(), updatedBy,
 		map[string]interface{}{"content": "Room details updated"},
-		map[string]interface{}{"updated_by": updatedBy})
+		map[string]interface{}{"updated_by": updatedBy.GetProfileId()})
 
 	return room.ToAPI(), nil
 }
 
-func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRequest, profileID string) error {
+func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRequest, deletedBy *commonv1.ContactLink) error {
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
+	}
+
+	if err := internal.IsValidContactLink(deletedBy); err != nil {
+		return err
 	}
 
 	roomID := req.GetRoomId()
 
 	// Check if the user is an owner of the room
-	isAdmin, err := rb.subscriptionSvc.HasRole(ctx, profileID, roomID, repository.RoleOwner)
+	isAdmin, err := rb.subscriptionSvc.HasRole(ctx, deletedBy, roomID, repository.RoleOwner)
 	if err != nil {
 		return fmt.Errorf("failed to check admin status: %w", err)
 	}
@@ -196,9 +215,9 @@ func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRe
 	}
 
 	// Send room deleted event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, roomID, profileID,
+	_ = rb.sendRoomEvent(ctx, roomID, deletedBy,
 		map[string]interface{}{"content": "Room deleted"},
-		map[string]interface{}{"deleted_by": profileID})
+		map[string]interface{}{"deleted_by": deletedBy.GetProfileId()})
 
 	return nil
 }
@@ -206,10 +225,14 @@ func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRe
 func (rb *roomBusiness) SearchRooms(
 	ctx context.Context,
 	req *chatv1.SearchRoomsRequest,
-	profileID string,
+	searchedBy *commonv1.ContactLink,
 ) ([]*chatv1.Room, error) {
+	if err := internal.IsValidContactLink(searchedBy); err != nil {
+		return nil, err
+	}
+
 	// Get all room IDs the user is subscribed to
-	roomIDs, err := rb.subscriptionSvc.GetSubscribedRoomIDs(ctx, profileID)
+	roomIDs, err := rb.subscriptionSvc.GetSubscribedRoomIDs(ctx, searchedBy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user subscriptions: %w", err)
 	}
@@ -266,13 +289,17 @@ func (rb *roomBusiness) SearchRooms(
 func (rb *roomBusiness) AddRoomSubscriptions(
 	ctx context.Context,
 	req *chatv1.AddRoomSubscriptionsRequest,
-	addedBy string,
+	addedBy *commonv1.ContactLink,
 ) error {
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
 	}
 	if len(req.GetMembers()) == 0 {
 		return service.ErrProfileIDsRequired
+	}
+
+	if err := internal.IsValidContactLink(addedBy); err != nil {
+		return err
 	}
 
 	// Check if the user has permission to add members
@@ -307,7 +334,7 @@ func (rb *roomBusiness) AddRoomSubscriptions(
 func (rb *roomBusiness) RemoveRoomSubscriptions(
 	ctx context.Context,
 	req *chatv1.RemoveRoomSubscriptionsRequest,
-	removerID string,
+	removedBy *commonv1.ContactLink,
 ) error {
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
@@ -316,8 +343,12 @@ func (rb *roomBusiness) RemoveRoomSubscriptions(
 		return service.ErrProfileIDsRequired
 	}
 
+	if err := internal.IsValidContactLink(removedBy); err != nil {
+		return err
+	}
+
 	// Check if the user has permission to remove members
-	hasPermission, err := rb.subscriptionSvc.CanManageMembers(ctx, removerID, req.GetRoomId())
+	hasPermission, err := rb.subscriptionSvc.CanManageMembers(ctx, removedBy, req.GetRoomId())
 	if err != nil {
 		return fmt.Errorf("failed to check permissions: %w", err)
 	}
@@ -327,13 +358,13 @@ func (rb *roomBusiness) RemoveRoomSubscriptions(
 	}
 
 	// Remove members from the room by subscription ID
-	return rb.removeRoomMembersBySubscriptionID(ctx, req.GetRoomId(), req.GetSubscriptionId(), removerID)
+	return rb.removeRoomMembersBySubscriptionID(ctx, req.GetRoomId(), req.GetSubscriptionId(), removedBy)
 }
 
 func (rb *roomBusiness) UpdateSubscriptionRole(
 	ctx context.Context,
 	req *chatv1.UpdateSubscriptionRoleRequest,
-	updaterID string,
+	updatedBy *commonv1.ContactLink,
 ) error {
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
@@ -342,8 +373,12 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 		return service.ErrUnspecifiedID
 	}
 
+	if err := internal.IsValidContactLink(updatedBy); err != nil {
+		return err
+	}
+
 	// Check if the updater has permission to update roles
-	hasPermission, err := rb.subscriptionSvc.CanManageRoles(ctx, updaterID, req.GetRoomId())
+	hasPermission, err := rb.subscriptionSvc.CanManageRoles(ctx, updatedBy, req.GetRoomId())
 	if err != nil {
 		return fmt.Errorf("failed to check permissions: %w", err)
 	}
@@ -376,12 +411,12 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 	}
 
 	// Send member role updated event using MessageBusiness
-	_ = rb.sendRoomEvent(ctx, req.GetRoomId(), updaterID,
+	_ = rb.sendRoomEvent(ctx, req.GetRoomId(), updatedBy,
 		map[string]interface{}{"content": "Member role updated"},
 		map[string]interface{}{
 			"subscription_id": req.GetSubscriptionId(),
 			"roles":           req.GetRoles(),
-			"updated_by":      updaterID,
+			"updated_by":      updatedBy.GetProfileId(),
 		})
 
 	return nil
@@ -390,20 +425,27 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 func (rb *roomBusiness) SearchRoomSubscriptions(
 	ctx context.Context,
 	req *chatv1.SearchRoomSubscriptionsRequest,
-	profileID string,
+	searchedBy *commonv1.ContactLink,
 ) ([]*chatv1.RoomSubscription, error) {
 	if req.GetRoomId() == "" {
 		return nil, service.ErrRoomIDRequired
 	}
 
+	if err := internal.IsValidContactLink(searchedBy); err != nil {
+		return nil, err
+	}
+
 	// Check if the user has access to the room
-	hasAccess, err := rb.subscriptionSvc.HasAccess(ctx, profileID, req.GetRoomId())
+	accessMap, err := rb.subscriptionSvc.HasAccess(ctx, searchedBy, req.GetRoomId())
 	if err != nil {
 		return nil, fmt.Errorf("failed to check room access: %w", err)
 	}
 
-	if !hasAccess {
-		return nil, service.ErrRoomAccessDenied
+	// Check if the user has access to the room
+	for sub, hasAccess := range accessMap {
+		if sub.RoomID != req.GetRoomId() || !hasAccess {
+			return nil, service.ErrRoomAccessDenied
+		}
 	}
 
 	// Get all active subscriptions for the room
@@ -442,7 +484,6 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 	// Create new subscriptions for profiles that don't exist
 	var newSubs []*models.RoomSubscription
 	for link, role := range roleMap {
-
 		// Validate Contact and Profile ID via Profile Service
 		if link.GetContactId() != "" && rb.profileCli != nil {
 			resp, err := rb.profileCli.GetByContact(ctx, connect.NewRequest(&profilev1.GetByContactRequest{
@@ -488,7 +529,11 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 
 		// Send member added events using MessageBusiness
 		for _, sub := range newSubs {
-			_ = rb.sendRoomEvent(ctx, roomID, sub.ProfileID,
+			memberLink := &commonv1.ContactLink{
+				ProfileId: sub.ProfileID,
+				ContactId: sub.ContactID,
+			}
+			_ = rb.sendRoomEvent(ctx, roomID, memberLink,
 				map[string]interface{}{"content": "Member added to room"},
 				map[string]interface{}{
 					"profile_id": sub.ProfileID,
@@ -520,11 +565,11 @@ func (rb *roomBusiness) addRoomMembers(
 func (rb *roomBusiness) removeRoomMembers(
 	ctx context.Context,
 	roomID string,
-	profileIDs []string,
-	removerID string,
+	contactLinks []*commonv1.ContactLink,
+	remover *commonv1.ContactLink,
 ) error {
 	// Get all subscriptions for the room
-	subscriptionsToRemove, err := rb.subRepo.GetByRoomIDAndProfiles(ctx, roomID, profileIDs...)
+	subscriptionsToRemove, err := rb.subRepo.GetByRoomIDAndContactLinks(ctx, roomID, contactLinks...)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriptions: %w", err)
 	}
@@ -542,11 +587,11 @@ func (rb *roomBusiness) removeRoomMembers(
 
 	for _, sub := range subscriptionsToRemove {
 		// Send member removed event using MessageBusiness
-		_ = rb.sendRoomEvent(ctx, roomID, removerID,
+		_ = rb.sendRoomEvent(ctx, roomID, remover,
 			map[string]interface{}{"content": "Member removed from room"},
 			map[string]interface{}{
 				"profile_id": sub.ProfileID,
-				"removed_by": removerID,
+				"removed_by": remover.GetProfileId(),
 			})
 	}
 
@@ -557,7 +602,7 @@ func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
 	ctx context.Context,
 	roomID string,
 	subscriptionIDs []string,
-	removerID string,
+	remover *commonv1.ContactLink,
 ) error {
 	// Deactivate subscriptions directly
 	err := rb.subRepo.Deactivate(ctx, subscriptionIDs...)
@@ -568,11 +613,11 @@ func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
 	// Send member removed events for each subscription
 	for _, subID := range subscriptionIDs {
 		// Send member removed event using MessageBusiness
-		_ = rb.sendRoomEvent(ctx, roomID, removerID,
+		_ = rb.sendRoomEvent(ctx, roomID, remover,
 			map[string]interface{}{"content": "Member removed from room"},
 			map[string]interface{}{
 				"subscription_id": subID,
-				"removed_by":      removerID,
+				"removed_by":      remover.GetProfileId(),
 			})
 	}
 
@@ -583,7 +628,7 @@ func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
 func (rb *roomBusiness) sendRoomEvent(
 	ctx context.Context,
 	roomID string,
-	senderSubscriptionID string,
+	sender *commonv1.ContactLink,
 	content map[string]interface{},
 	metadata map[string]interface{},
 ) error {
@@ -593,15 +638,13 @@ func (rb *roomBusiness) sendRoomEvent(
 		Event: []*chatv1.RoomEvent{
 			{
 				RoomId: roomID,
-				Source: &commonv1.ContactLink{
-					ProfileId: senderSubscriptionID,
-				},
-				Type: chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
+				Source: sender,
+				Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
 				// No payload for system events
 			},
 		},
 	}
 
-	_, err := rb.messageBusiness.SendEvents(ctx, req, senderSubscriptionID)
+	_, err := rb.messageBusiness.SendEvents(ctx, req, sender)
 	return err
 }

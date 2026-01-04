@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame/datastore"
 )
@@ -35,21 +36,21 @@ type RoomEventRepository interface {
 // RoomSubscriptionRepository defines the interface for room subscription data access operations.
 type RoomSubscriptionRepository interface {
 	datastore.BaseRepository[*models.RoomSubscription]
-	GetOneByRoomAndProfile(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
-	GetOneByRoomProfileAndIsActive(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
+	GetByContactLinkAndRooms(ctx context.Context, contactLink *commonv1.ContactLink, roomID ...string) ([]*models.RoomSubscription, error)
+	GetOneByRoomContactLinkAndIsActive(ctx context.Context, roomID string, contactLink *commonv1.ContactLink) (*models.RoomSubscription, error)
 	GetByRoomID(ctx context.Context, roomID string, activeOnly bool) ([]*models.RoomSubscription, error)
 	GetByRoomIDPaged(ctx context.Context, roomID string, lastID string, limit int) ([]*models.RoomSubscription, error)
-	GetByRoomIDAndProfiles(ctx context.Context, roomID string, profileID ...string) ([]*models.RoomSubscription, error)
-	GetByProfileID(ctx context.Context, profileID string, activeOnly bool) ([]*models.RoomSubscription, error)
-	GetMembersByRoomID(ctx context.Context, roomID string) ([]string, error)
+	GetByRoomIDAndContactLinks(ctx context.Context, roomID string, contactLink ...*commonv1.ContactLink) ([]*models.RoomSubscription, error)
+	GetByContactLink(ctx context.Context, contactLink *commonv1.ContactLink, activeOnly bool) ([]*models.RoomSubscription, error)
+	GetMembersByRoomID(ctx context.Context, roomID string) ([]*commonv1.ContactLink, error)
 	GetByRole(ctx context.Context, roomID, role string) ([]*models.RoomSubscription, error)
 	UpdateRole(ctx context.Context, id, role string) error
 	UpdateLastReadEventID(ctx context.Context, id string, eventID string) error
 	Deactivate(ctx context.Context, id ...string) error
 	Activate(ctx context.Context, id ...string) error
 	CountActiveMembers(ctx context.Context, roomID string) (int64, error)
-	HasPermission(ctx context.Context, roomID, profileID, minRole string) (bool, error)
-	IsActiveMember(ctx context.Context, roomID, profileID string) (bool, error)
+	HasPermission(ctx context.Context, roomID string, contactLink *commonv1.ContactLink, minRole string) (bool, error)
+	IsActiveMember(ctx context.Context, roomID string, contactLink *commonv1.ContactLink) (bool, error)
 	BulkCreate(ctx context.Context, subscriptions []*models.RoomSubscription) error
 }
 

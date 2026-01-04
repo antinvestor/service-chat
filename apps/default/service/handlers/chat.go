@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -13,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/internal"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore"
@@ -63,7 +65,15 @@ func NewChatServer(
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
 	connectBusiness := business.NewConnectBusiness(service, subRepo, eventRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(service, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, profileCli)
+	roomBusiness := business.NewRoomBusiness(
+		service,
+		roomRepo,
+		eventRepo,
+		subRepo,
+		subscriptionSvc,
+		messageBusiness,
+		profileCli,
+	)
 
 	return &ChatServer{
 		Service:         service,
@@ -131,17 +141,9 @@ func (ps *ChatServer) SendEvent(
 	req *connect.Request[chatv1.SendEventRequest],
 ) (*connect.Response[chatv1.SendEventResponse], error) {
 	// Validate authentication
-	profileID, err := ps.validateAuthentication(ctx)
+	authenticatedContact, err := internal.AuthContactLink(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	// Input validation
-	if req.Msg == nil {
-		return nil, connect.NewError(
-			connect.CodeInvalidArgument,
-			errors.New("request cannot be nil"),
-		)
 	}
 
 	if len(req.Msg.GetEvent()) == 0 {
@@ -164,17 +166,17 @@ func (ps *ChatServer) SendEvent(
 	defer cancel()
 
 	// Send the events
-	acks, err := ps.MessageBusiness.SendEvents(timeoutCtx, req.Msg, profileID)
+	acks, err := ps.MessageBusiness.SendEvents(timeoutCtx, req.Msg, authenticatedContact)
 	if err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"profile_id":  profileID,
+			"auth":        authenticatedContact,
 			"event_count": len(req.Msg.GetEvent()),
 		}).Error("Failed to send events")
 		return nil, ps.toAPIError(ctx, err)
 	}
 
 	util.Log(ctx).WithFields(map[string]any{
-		"profile_id":  profileID,
+		"auth":        authenticatedContact,
 		"event_count": len(req.Msg.GetEvent()),
 		"ack_count":   len(acks),
 	}).Debug("Events sent successfully")
@@ -189,7 +191,7 @@ func (ps *ChatServer) GetHistory(
 	req *connect.Request[chatv1.GetHistoryRequest],
 ) (*connect.Response[chatv1.GetHistoryResponse], error) {
 	// Validate authentication
-	profileID, err := ps.validateAuthentication(ctx)
+	authenticatedContact, err := internal.AuthContactLink(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -222,19 +224,19 @@ func (ps *ChatServer) GetHistory(
 	timeoutCtx, cancel := ps.withTimeout(ctx, updateStateTimeout)
 	defer cancel()
 
-	events, err := ps.MessageBusiness.GetHistory(timeoutCtx, req.Msg, profileID)
+	events, err := ps.MessageBusiness.GetHistory(timeoutCtx, req.Msg, authenticatedContact)
 	if err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"profile_id": profileID,
-			"room_id":    req.Msg.GetRoomId(),
-			"limit":      limit,
+			"auth":    authenticatedContact,
+			"room_id": req.Msg.GetRoomId(),
+			"limit":   limit,
 		}).Error("Failed to get history")
 		return nil, ps.toAPIError(ctx, err)
 	}
 
 	// Convert to ServerEvent format with pre-allocated slice for efficiency
 	util.Log(ctx).WithFields(map[string]any{
-		"profile_id":  profileID,
+		"auth":        authenticatedContact,
 		"room_id":     req.Msg.GetRoomId(),
 		"event_count": len(events),
 		"limit":       limit,
@@ -249,23 +251,21 @@ func (ps *ChatServer) CreateRoom(
 	ctx context.Context,
 	req *connect.Request[chatv1.CreateRoomRequest],
 ) (*connect.Response[chatv1.CreateRoomResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	// Create ContactLink for the creator
-	creatorLink := &commonv1.ContactLink{
-		ProfileId: profileID,
-		// ContactId can be set if available from profile service
-	}
-
-	room, err := ps.RoomBusiness.CreateRoom(ctx, req.Msg, creatorLink)
+	room, err := ps.RoomBusiness.CreateRoom(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return nil, err
 	}
@@ -280,17 +280,21 @@ func (ps *ChatServer) SearchRooms(
 	req *connect.Request[chatv1.SearchRoomsRequest],
 	stream *connect.ServerStream[chatv1.SearchRoomsResponse],
 ) error {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	rooms, err := ps.RoomBusiness.SearchRooms(ctx, req.Msg, profileID)
+	rooms, err := ps.RoomBusiness.SearchRooms(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return err
 	}
@@ -305,17 +309,20 @@ func (ps *ChatServer) UpdateRoom(
 	ctx context.Context,
 	req *connect.Request[chatv1.UpdateRoomRequest],
 ) (*connect.Response[chatv1.UpdateRoomResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	room, err := ps.RoomBusiness.UpdateRoom(ctx, req.Msg, profileID)
+	room, err := ps.RoomBusiness.UpdateRoom(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return nil, err
 	}
@@ -329,17 +336,20 @@ func (ps *ChatServer) DeleteRoom(
 	ctx context.Context,
 	req *connect.Request[chatv1.DeleteRoomRequest],
 ) (*connect.Response[chatv1.DeleteRoomResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	err := ps.RoomBusiness.DeleteRoom(ctx, req.Msg, profileID)
+	err = ps.RoomBusiness.DeleteRoom(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return nil, err
 	}
@@ -351,17 +361,20 @@ func (ps *ChatServer) AddRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.AddRoomSubscriptionsRequest],
 ) (*connect.Response[chatv1.AddRoomSubscriptionsResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	err := ps.RoomBusiness.AddRoomSubscriptions(ctx, req.Msg, profileID)
+	err = ps.RoomBusiness.AddRoomSubscriptions(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return nil, err
 	}
@@ -373,17 +386,20 @@ func (ps *ChatServer) RemoveRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.RemoveRoomSubscriptionsRequest],
 ) (*connect.Response[chatv1.RemoveRoomSubscriptionsResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	err := ps.RoomBusiness.RemoveRoomSubscriptions(ctx, req.Msg, profileID)
+	err = ps.RoomBusiness.RemoveRoomSubscriptions(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return nil, err
 	}
@@ -395,17 +411,20 @@ func (ps *ChatServer) UpdateSubscriptionRole(
 	ctx context.Context,
 	req *connect.Request[chatv1.UpdateSubscriptionRoleRequest],
 ) (*connect.Response[chatv1.UpdateSubscriptionRoleResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	err := ps.RoomBusiness.UpdateSubscriptionRole(ctx, req.Msg, profileID)
+	err = ps.RoomBusiness.UpdateSubscriptionRole(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return nil, err
 	}
@@ -417,17 +436,20 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.SearchRoomSubscriptionsRequest],
 ) (*connect.Response[chatv1.SearchRoomSubscriptionsResponse], error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
 		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
 		)
 	}
 
-	profileID, _ := authClaims.GetSubject()
-
-	subscriptions, err := ps.RoomBusiness.SearchRoomSubscriptions(ctx, req.Msg, profileID)
+	subscriptions, err := ps.RoomBusiness.SearchRoomSubscriptions(ctx, req.Msg, authenticatedContact)
 	if err != nil {
 		return nil, ps.toAPIError(ctx, err)
 	}
@@ -443,21 +465,16 @@ func (ps *ChatServer) UpdateClientState(
 	req *connect.Request[chatv1.UpdateClientStateRequest],
 ) (*connect.Response[chatv1.UpdateClientStateResponse], error) {
 	// Authentication check
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
-		return nil, connect.NewError(
-			connect.CodeUnauthenticated,
-			status.Error(codes.Unauthenticated, "request needs to be authenticated"),
-		)
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	profileID, _ := authClaims.GetSubject()
 
 	// Input validation
 	if req.Msg == nil {
 		return nil, connect.NewError(
 			connect.CodeInvalidArgument,
-			status.Error(codes.InvalidArgument, "request cannot be nil"),
+			errors.New("request cannot be nil"),
 		)
 	}
 
@@ -487,7 +504,7 @@ func (ps *ChatServer) UpdateClientState(
 		}
 
 		// Validate and process the client state
-		if err := ps.processClientState(ctx, clientState, profileID, req.Msg.GetRoomId()); err != nil {
+		if err := ps.processClientState(ctx, clientState, authenticatedContact, req.Msg.GetRoomId()); err != nil {
 			errorList = append(errorList, fmt.Sprintf("client state at index %d: %v", i, err))
 			continue
 		}
@@ -513,18 +530,18 @@ func (ps *ChatServer) UpdateClientState(
 func (ps *ChatServer) processClientState(
 	ctx context.Context,
 	clientCommand *chatv1.ClientCommand,
-	profileID string,
 	roomID string,
+	authenticatedContact *commonv1.ContactLink,
 ) error {
 	// Process different state types
 	switch state := clientCommand.GetState().(type) {
 	case *chatv1.ClientCommand_ReadMarker:
-		return ps.processReadMarkerState(ctx, state.ReadMarker, profileID, roomID)
+		return ps.processReadMarkerState(ctx, state.ReadMarker, authenticatedContact, roomID)
 	case *chatv1.ClientCommand_Event:
-		return ps.processRoomEventState(ctx, state.Event, profileID)
+		return ps.processRoomEventState(ctx, state.Event, authenticatedContact)
 	default:
 		util.Log(ctx).WithFields(map[string]any{
-			"profile_id": profileID,
+			"auth":       authenticatedContact,
 			"state_type": fmt.Sprintf("%T", state),
 		}).Warn("Unknown client command type received")
 		return fmt.Errorf("unsupported client command type: %T", state)
@@ -535,17 +552,15 @@ func (ps *ChatServer) processClientState(
 func (ps *ChatServer) processReceiptState(
 	ctx context.Context,
 	receipt *chatv1.ReceiptEvent,
-	profileID string,
 	roomID string,
+	authenticatedContact *commonv1.ContactLink,
 ) error {
 	if receipt == nil {
 		return errors.New("receipt event cannot be nil")
 	}
 
 	// Validate and override profile_id
-	receipt.SetSource(&commonv1.ContactLink{
-		ProfileId: profileID,
-	})
+	receipt.SetSource(authenticatedContact)
 
 	// Use room_id from receipt if not provided in request
 	targetRoomID := roomID
@@ -568,11 +583,11 @@ func (ps *ChatServer) processReceiptState(
 			continue
 		}
 
-		if err := ps.ConnectBusiness.UpdateReadReceipt(ctx, profileID, targetRoomID, eventID); err != nil {
+		if err := ps.ConnectBusiness.UpdateReadReceipt(ctx, authenticatedContact, targetRoomID, eventID); err != nil {
 			util.Log(ctx).WithError(err).WithFields(map[string]any{
-				"profile_id": profileID,
-				"room_id":    targetRoomID,
-				"event_id":   eventID,
+				"auth":     authenticatedContact,
+				"room_id":  targetRoomID,
+				"event_id": eventID,
 			}).Error("Failed to send read receipt")
 			return fmt.Errorf("failed to send read receipt for event %s: %w", eventID, err)
 		}
@@ -585,17 +600,15 @@ func (ps *ChatServer) processReceiptState(
 func (ps *ChatServer) processReadMarkerState(
 	ctx context.Context,
 	readMarker *chatv1.ReadMarker,
-	profileID string,
 	roomID string,
+	authenticatedContact *commonv1.ContactLink,
 ) error {
 	if readMarker == nil {
 		return errors.New("read marker event cannot be nil")
 	}
 
 	// Validate and override profile_id
-	readMarker.SetSource(&commonv1.ContactLink{
-		ProfileId: profileID,
-	})
+	readMarker.SetSource(authenticatedContact)
 
 	// Use room_id from read marker if not provided in request
 	targetRoomID := roomID
@@ -658,9 +671,9 @@ func (ps *ChatServer) processTypingState(
 	// Send typing indicator
 	if err := ps.ConnectBusiness.UpdateTypingIndicator(ctx, profileID, targetRoomID, typing.GetTyping()); err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"profile_id": profileID,
-			"room_id":    targetRoomID,
-			"typing":     typing.GetTyping(),
+			"auth":    authenticatedContact,
+			"room_id": targetRoomID,
+			"typing":  typing.GetTyping(),
 		}).Error("Failed to send typing indicator")
 		return fmt.Errorf("failed to send typing indicator: %w", err)
 	}
@@ -702,8 +715,8 @@ func (ps *ChatServer) processPresenceState(
 	// Send presence update
 	if err := ps.ConnectBusiness.UpdatePresence(ctx, presenceEvent); err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"profile_id": profileID,
-			"status":     presence.GetStatus(),
+			"auth":   authenticatedContact,
+			"status": presence.GetStatus(),
 		}).Error("Failed to send presence update")
 		return fmt.Errorf("failed to send presence update: %w", err)
 	}

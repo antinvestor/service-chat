@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"time"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/internal"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/cache"
 	"github.com/pitabwire/frame/queue"
@@ -58,23 +61,37 @@ func (cb *connectBusiness) UpdatePresence(
 // UpdateTypingIndicator sends typing indicators to room subscribers.
 func (cb *connectBusiness) UpdateTypingIndicator(
 	ctx context.Context,
-	profileID string,
 	roomID string,
+	typer *commonv1.ContactLink,
 	isTyping bool,
 ) error {
-	if profileID == "" {
-		return service.ErrUnspecifiedID
+
+	if !isTyping {
+		return nil
+	}
+
+	if err := internal.IsValidContactLink(typer); err != nil {
+		return err
 	}
 	if roomID == "" {
 		return service.ErrRoomIDRequired
 	}
 
 	// Check if user has access to the room
-	hasAccess, err := cb.subscriptionSvc.HasAccess(ctx, profileID, roomID)
+	accessMap, err := cb.subscriptionSvc.HasAccess(ctx, typer, roomID)
 	if err != nil {
 		return fmt.Errorf("failed to check room access: %w", err)
 	}
-	if !hasAccess {
+
+	var subscription *models.RoomSubscription
+	// Check if the user has access to the room
+	for sub, hasAccess := range accessMap {
+		if sub.RoomID == roomID && hasAccess {
+			subscription = sub
+		}
+	}
+
+	if subscription == nil {
 		return service.ErrRoomAccessDenied
 	}
 
@@ -85,7 +102,8 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 			EventId: util.IDString(),
 			RoomId:  roomID,
 			Source: &commonv1.ContactLink{
-				ProfileId: profileID,
+				ProfileId: typer.GetProfileId(),
+				ContactId: typer.GetContactId(),
 			},
 			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
 			CreatedAt: timestamppb.Now(),
@@ -100,39 +118,42 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 // UpdateReadReceipt update read receipt and notifies room subscribers.
 func (cb *connectBusiness) UpdateReadReceipt(
 	ctx context.Context,
-	profileID string,
 	roomID string,
+	recipient *commonv1.ContactLink,
 	eventID string,
 ) error {
-	if profileID == "" {
-		return service.ErrUnspecifiedID
+	if err := internal.IsValidContactLink(recipient); err != nil {
+		return err
 	}
 	if roomID == "" {
 		return service.ErrRoomIDRequired
 	}
 
 	// Check if user has access to the room
-	hasAccess, err := cb.subscriptionSvc.HasAccess(ctx, profileID, roomID)
+	accessMap, err := cb.subscriptionSvc.HasAccess(ctx, recipient, roomID)
 	if err != nil {
 		return fmt.Errorf("failed to check room access: %w", err)
 	}
-	if !hasAccess {
-		return service.ErrRoomAccessDenied
+
+	var subscription *models.RoomSubscription
+	// Check if the user has access to the room
+	for sub, hasAccess := range accessMap {
+		if sub.RoomID == roomID && hasAccess {
+			subscription = sub
+		}
 	}
 
-	// Update the subscription's last read event ID
-	sub, err := cb.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
-	if err != nil {
-		return fmt.Errorf("failed to get subscription: %w", err)
+	if subscription == nil {
+		return service.ErrRoomAccessDenied
 	}
 
 	// Update to the new event ID
 	// UnreadCount is now a generated column and will be automatically calculated
-	if sub.LastReadEventID < eventID {
-		sub.LastReadEventID = eventID
-		sub.LastReadAt = time.Now().Unix()
+	if subscription.LastReadEventID < eventID {
+		subscription.LastReadEventID = eventID
+		subscription.LastReadAt = time.Now().Unix()
 
-		_, err = cb.subRepo.Update(ctx, sub)
+		_, err = cb.subRepo.Update(ctx, subscription)
 		if err != nil {
 			return fmt.Errorf("failed to update subscription: %w", err)
 		}
@@ -144,7 +165,8 @@ func (cb *connectBusiness) UpdateReadReceipt(
 			EventId: eventID,
 			RoomId:  roomID,
 			Source: &commonv1.ContactLink{
-				ProfileId: profileID,
+				ProfileId: recipient.GetProfileId(),
+				ContactId: recipient.GetContactId(),
 			},
 			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
 			CreatedAt: timestamppb.Now(),
@@ -158,42 +180,47 @@ func (cb *connectBusiness) UpdateReadReceipt(
 
 func (cb *connectBusiness) UpdateReadMarker(
 	ctx context.Context,
-	profileID string,
 	roomID string,
+	reader *commonv1.ContactLink,
 	upToEventID string,
 ) error {
-	if profileID == "" {
-		return service.ErrUnspecifiedID
+	if err := internal.IsValidContactLink(reader); err != nil {
+		return err
 	}
 	if roomID == "" {
 		return service.ErrRoomIDRequired
 	}
 
 	// Check if user has access to the room
-	hasAccess, err := cb.subscriptionSvc.HasAccess(ctx, profileID, roomID)
+	accessMap, err := cb.subscriptionSvc.HasAccess(ctx, reader, roomID)
 	if err != nil {
 		return fmt.Errorf("failed to check room access: %w", err)
 	}
-	if !hasAccess {
+
+	var subscription *models.RoomSubscription
+	// Check if the user has access to the room
+	for sub, hasAccess := range accessMap {
+		if sub.RoomID == roomID && hasAccess {
+			subscription = sub
+		}
+	}
+
+	if subscription == nil {
 		return service.ErrRoomAccessDenied
 	}
 
 	// Update the subscription's last read event ID
-	sub, err := cb.subRepo.GetOneByRoomAndProfile(ctx, roomID, profileID)
-	if err != nil {
-		return fmt.Errorf("failed to get subscription: %w", err)
-	}
 
-	subLastReadEventID := sub.LastReadEventID
+	subLastReadEventID := subscription.LastReadEventID
 	// Update to the new event ID
 	// UnreadCount is now a generated column and will be automatically calculated
 	if subLastReadEventID < upToEventID {
 		subLastReadEventID = upToEventID
 	}
 
-	if subLastReadEventID != sub.LastReadEventID {
-		sub.LastReadAt = time.Now().Unix()
-		if _, err = cb.subRepo.Update(ctx, sub); err != nil {
+	if subLastReadEventID != subscription.LastReadEventID {
+		subscription.LastReadAt = time.Now().Unix()
+		if _, err = cb.subRepo.Update(ctx, subscription); err != nil {
 			return fmt.Errorf("failed to update subscription: %w", err)
 		}
 	}
@@ -203,11 +230,9 @@ func (cb *connectBusiness) UpdateReadMarker(
 	// Broadcast read receipt to other room members
 	receiptEvents = append(receiptEvents, &eventsv1.Delivery{
 		Event: &eventsv1.Link{
-			EventId: upToEventID,
-			RoomId:  roomID,
-			Source: &commonv1.ContactLink{
-				ProfileId: profileID,
-			},
+			EventId:   upToEventID,
+			RoomId:    roomID,
+			Source:    reader,
 			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
 			CreatedAt: timestamppb.Now(),
 		},

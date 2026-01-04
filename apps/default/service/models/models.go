@@ -3,6 +3,7 @@ package models
 import (
 	"strings"
 	"time"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/frame/data"
@@ -124,6 +125,13 @@ type RoomSubscription struct {
 	Properties          data.JSONMap
 }
 
+func (rs *RoomSubscription) ToLink() *commonv1.ContactLink {
+	return &commonv1.ContactLink{
+		ProfileId: rs.ProfileID,
+		ContactId: rs.ContactID,
+	}
+}
+
 // ToAPI converts RoomSubscription model to API representation.
 func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 	if rs == nil {
@@ -136,12 +144,9 @@ func (rs *RoomSubscription) ToAPI() *chatv1.RoomSubscription {
 	}
 
 	return &chatv1.RoomSubscription{
-		Id:     rs.GetID(),
-		RoomId: rs.RoomID,
-		Member: &commonv1.ContactLink{
-			ProfileId: rs.ProfileID,
-			ContactId: rs.ContactID,
-		},
+		Id:         rs.GetID(),
+		RoomId:     rs.RoomID,
+		Member:     rs.ToLink(),
 		Roles:      strings.Split(rs.Role, ","),
 		JoinedAt:   timestamppb.New(rs.CreatedAt),
 		LastActive: lastActive,
@@ -153,18 +158,17 @@ func (rs *RoomSubscription) IsActive() bool {
 }
 
 func (rs *RoomSubscription) Matches(contactLink *commonv1.ContactLink) bool {
-
 	if contactLink == nil {
 		return false
 	}
 
-	if rs.ProfileID != "" && contactLink.ProfileId != "" &&
-		rs.ProfileID != contactLink.ProfileId {
+	if rs.ProfileID != "" && contactLink.GetProfileId() != "" &&
+		rs.ProfileID != contactLink.GetProfileId() {
 		return false
 	}
 
-	if rs.ContactID != "" && contactLink.ContactId != "" &&
-		rs.ContactID != contactLink.ContactId {
+	if rs.ContactID != "" && contactLink.GetContactId() != "" &&
+		rs.ContactID != contactLink.GetContactId() {
 		return false
 	}
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	"github.com/pitabwire/frame/data"
 )
@@ -208,7 +209,7 @@ func (c *PayloadConverter) setCallContent(protoEvent *chatv1.Payload, content da
 
 // setMotionContent converts JSONMap to MotionContent.
 //
-//nolint:govet // Multiple type assertions with 'ok' variable is idiomatic Go
+
 func (c *PayloadConverter) setMotionContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	motion := &chatv1.MotionContent{}
 
@@ -234,7 +235,7 @@ func (c *PayloadConverter) setMotionContent(protoEvent *chatv1.Payload, content 
 
 // setVoteContent converts JSONMap to VoteCast.
 //
-//nolint:govet // Multiple type assertions with 'ok' variable is idiomatic Go
+
 func (c *PayloadConverter) setVoteContent(protoEvent *chatv1.Payload, content data.JSONMap) error {
 	vote := &chatv1.VoteCast{}
 
@@ -344,7 +345,6 @@ func (c *PayloadConverter) extractTypedContent(protoEvent *chatv1.Payload) (data
 		if dump != nil {
 			content.FromProtoStruct(dump)
 		}
-
 	}
 
 	return content, nil

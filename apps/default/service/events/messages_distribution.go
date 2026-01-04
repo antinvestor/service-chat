@@ -7,7 +7,9 @@ import (
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/pitabwire/frame/datastore/pool"
 	frevents "github.com/pitabwire/frame/events"
+	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
 )
 
@@ -29,11 +31,12 @@ type RoomOutboxLoggingQueue struct {
 
 func NewRoomOutboxLoggingQueue(
 	ctx context.Context,
-	subscriptionRepo repository.RoomSubscriptionRepository,
+	dbPool pool.Pool,
+	workMan workerpool.Manager,
 	evtsManager frevents.Manager,
 ) *RoomOutboxLoggingQueue {
 	return &RoomOutboxLoggingQueue{
-		subscriptionRepo: subscriptionRepo,
+		subscriptionRepo: repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan),
 		evtsManager:      evtsManager,
 	}
 }

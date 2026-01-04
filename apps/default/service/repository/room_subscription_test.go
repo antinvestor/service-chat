@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"testing"
+
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -91,13 +92,13 @@ func (s *SubscriptionRepositoryTestSuite) TestGetActiveByRoomAndProfile() {
 		activeSub.GenID(ctx)
 		require.NoError(t, repo.Create(ctx, activeSub))
 
-		retrieved, err := repo.GetOneByRoomProfileAndIsActive(ctx, roomID, profileID)
+		retrieved, err := repo.GetOneByRoomContactLinkAndIsActive(ctx, roomID, profileID)
 		require.NoError(t, err)
 		s.Equal(activeSub.GetID(), retrieved.GetID())
 
 		require.NoError(t, repo.Deactivate(ctx, activeSub.GetID()))
 
-		_, err = repo.GetOneByRoomProfileAndIsActive(ctx, roomID, profileID)
+		_, err = repo.GetOneByRoomContactLinkAndIsActive(ctx, roomID, profileID)
 		require.Error(t, err)
 	})
 }
@@ -155,7 +156,7 @@ func (s *SubscriptionRepositoryTestSuite) TestGetByProfileID() {
 			require.NoError(t, repo.Create(ctx, sub))
 		}
 
-		subs, err := repo.GetByProfileID(ctx, profileID, true)
+		subs, err := repo.GetByContactLink(ctx, profileID, true)
 		require.NoError(t, err)
 		s.Len(subs, 3)
 	})

@@ -112,7 +112,7 @@ func (bs *BaseTestSuite) CreateService(
 		eventDeliveryQueuePublisher,
 		eventDeliveryQueueSubscriber,
 		frame.WithRegisterEvents(
-			events.NewRoomOutboxLoggingQueue(ctx, repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan), eventsMan),
+			events.NewRoomOutboxLoggingQueue(ctx, dbPool, workMan, eventsMan),
 			events.NewFanoutEventHandler(ctx, &cfg, dbPool, workMan, queueMan),
 		)}
 
