@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore"
@@ -219,6 +220,25 @@ func (rsr *roomSubscriptionRepository) IsActiveMember(ctx context.Context, roomI
 // BulkCreate creates multiple subscriptions in a single transaction.
 func (rsr *roomSubscriptionRepository) BulkCreate(ctx context.Context, subscriptions []*models.RoomSubscription) error {
 	return rsr.Pool().DB(ctx, false).Create(&subscriptions).Error
+}
+
+// GetByRoomIDPaged retrieves active subscriptions for a room with keyset pagination.
+func (rsr *roomSubscriptionRepository) GetByRoomIDPaged(
+	ctx context.Context,
+	roomID string,
+	lastID string,
+	limit int,
+) ([]*models.RoomSubscription, error) {
+	var subscriptions []*models.RoomSubscription
+	query := rsr.Pool().DB(ctx, true).
+		Where("room_id = ? AND subscription_state IN ?", roomID, rsr.activeSubscriptionStates)
+
+	if lastID != "" {
+		query = query.Where("id > ?", lastID)
+	}
+
+	err := query.Order("id ASC").Limit(limit).Find(&subscriptions).Error
+	return subscriptions, err
 }
 
 // NewRoomSubscriptionRepository creates a new room subscription repository instance.

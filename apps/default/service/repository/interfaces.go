@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"time"
+
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/pitabwire/frame/datastore"
 )
@@ -37,6 +38,7 @@ type RoomSubscriptionRepository interface {
 	GetOneByRoomAndProfile(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
 	GetOneByRoomProfileAndIsActive(ctx context.Context, roomID, profileID string) (*models.RoomSubscription, error)
 	GetByRoomID(ctx context.Context, roomID string, activeOnly bool) ([]*models.RoomSubscription, error)
+	GetByRoomIDPaged(ctx context.Context, roomID string, lastID string, limit int) ([]*models.RoomSubscription, error)
 	GetByRoomIDAndProfiles(ctx context.Context, roomID string, profileID ...string) ([]*models.RoomSubscription, error)
 	GetByProfileID(ctx context.Context, profileID string, activeOnly bool) ([]*models.RoomSubscription, error)
 	GetMembersByRoomID(ctx context.Context, roomID string) ([]string, error)
