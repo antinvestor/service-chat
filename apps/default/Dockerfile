@@ -18,7 +18,6 @@ RUN go mod download
 
 # Copy the actual source
 COPY ./internal ./internal
-COPY ./proto ./proto
 COPY ./apps/default ./apps/default
 
 # Build static binary for target platform
