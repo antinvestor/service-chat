@@ -22,7 +22,7 @@ func TestPayloadConverter_TextContent(t *testing.T) {
 	t.Run("ToProto - Text Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number()),
-			ContentField:     `{"body":"Hello, world!"}`,
+			ContentField:     []byte(`{"body":"Hello, world!"}`),
 		}
 
 		payload, err := converter.ToProto(content)
@@ -48,13 +48,17 @@ func TestPayloadConverter_TextContent(t *testing.T) {
 		require.NotNil(t, content)
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number(), content[PayloadTypeField])
-		assert.Contains(t, string(content[ContentField].([]byte)), "Hello, world!")
+
+		// Content is now stored as []byte in the JSONMap
+		contentBytes, ok := content[ContentField].([]byte)
+		require.True(t, ok, "ContentField should be []byte")
+		assert.Contains(t, string(contentBytes), "Hello, world!")
 	})
 
 	t.Run("Round Trip - Text Content", func(t *testing.T) {
 		original := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number()),
-			ContentField:     `{"body":"Hello, world!","format":"<b>Hello, world!</b>"}`,
+			ContentField:     []byte(`{"body":"Hello, world!","format":"<b>Hello, world!</b>"}`),
 		}
 
 		// Convert to proto
@@ -66,7 +70,11 @@ func TestPayloadConverter_TextContent(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number(), result[PayloadTypeField])
-		assert.Contains(t, string(result[ContentField].([]byte)), "Hello, world!")
+
+		// Content is now stored as []byte in the JSONMap
+		contentBytes, ok := result[ContentField].([]byte)
+		require.True(t, ok, "ContentField should be []byte")
+		assert.Contains(t, string(contentBytes), "Hello, world!")
 	})
 }
 
@@ -76,7 +84,7 @@ func TestPayloadConverter_AttachmentContent(t *testing.T) {
 	t.Run("ToProto - Attachment Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT.Number()),
-			ContentField:     `{"attachment_id":"attach123","filename":"document.pdf","mime_type":"application/pdf","size_bytes":1024000}`,
+			ContentField:     []byte(`{"attachment_id":"attach123","filename":"document.pdf","mime_type":"application/pdf","size_bytes":1024000}`),
 		}
 
 		payload, err := converter.ToProto(content)
@@ -135,7 +143,7 @@ func TestPayloadConverter_ReactionContent(t *testing.T) {
 	t.Run("ToProto - Reaction Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_REACTION.Number()),
-			ContentField:     `{"reaction":"👍"}`,
+			ContentField:     []byte(`{"reaction":"👍"}`),
 		}
 
 		payload, err := converter.ToProto(content)
@@ -162,7 +170,11 @@ func TestPayloadConverter_ReactionContent(t *testing.T) {
 		require.NotNil(t, content)
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_REACTION.Number(), content[PayloadTypeField])
-		assert.Contains(t, string(content[ContentField].([]byte)), "❤️")
+
+		// Content is now stored as []byte in the JSONMap
+		contentBytes, ok := content[ContentField].([]byte)
+		require.True(t, ok, "ContentField should be []byte")
+		assert.Contains(t, string(contentBytes), "❤️")
 	})
 
 	// TODO: Re-enable when validation methods are implemented
@@ -189,7 +201,7 @@ func TestPayloadConverter_CallContent(t *testing.T) {
 	t.Run("ToProto - Call Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_CALL.Number()),
-			ContentField:     `{"sdp":"v=0\r\no=- 123..."}`,
+			ContentField:     []byte(`{"sdp":"v=0\r\no=- 123..."}`),
 		}
 
 		payload, err := converter.ToProto(content)
@@ -217,7 +229,11 @@ func TestPayloadConverter_CallContent(t *testing.T) {
 		require.NotNil(t, content)
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_CALL.Number(), content[PayloadTypeField])
-		assert.Contains(t, string(content[ContentField].([]byte)), `"v=0\r\no=- 789..."`)
+
+		// Content is now stored as []byte in the JSONMap
+		contentBytes, ok := content[ContentField].([]byte)
+		require.True(t, ok, "ContentField should be []byte")
+		assert.Contains(t, string(contentBytes), `"v=0\r\no=- 789..."`)
 	})
 
 	// TODO: Re-enable when validation methods are implemented
@@ -244,7 +260,7 @@ func TestPayloadConverter_EncryptedContent(t *testing.T) {
 	t.Run("ToProto - Encrypted Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED.Number()),
-			ContentField:     `{"ciphertext":"ZW5jcnlwdGVkX2RhdGE=","algorithm":"m.megolm.v1.aes-sha2","session_id":"session_abc"}`,
+			ContentField:     []byte(`{"ciphertext":"ZW5jcnlwdGVkX2RhdGE=","algorithm":"m.megolm.v1.aes-sha2","session_id":"session_abc"}`),
 		}
 
 		payload, err := converter.ToProto(content)

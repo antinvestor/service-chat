@@ -32,19 +32,20 @@ func (c *PayloadConverter) ToProto(content data.JSONMap) (*chatv1.Payload, error
 
 	// Extract payload type and content
 	payloadType := chatv1.PayloadType(content.GetFloat(PayloadTypeField))
-	payloadData := content.GetString(ContentField)
 
 	// Create base proto event
 	protoPayload := &chatv1.Payload{Type: payloadType}
 
-	// Handle empty content gracefully
-	if payloadData == "" {
-		return protoPayload, nil
-	}
+	rawContent, ok := content[ContentField]
+	if ok {
+		payloadData, dataOk := rawContent.([]byte)
+		if dataOk {
+			// Convert content based on type
+			if err := c.setTypedContent(protoPayload, payloadType, payloadData); err != nil {
+				return nil, fmt.Errorf("failed to set typed content: %w", err)
+			}
+		}
 
-	// Convert content based on type
-	if err := c.setTypedContent(protoPayload, payloadType, []byte(payloadData)); err != nil {
-		return nil, fmt.Errorf("failed to set typed content: %w", err)
 	}
 
 	return protoPayload, nil
@@ -83,17 +84,22 @@ func (c *PayloadConverter) FromProto(protoEvent *chatv1.Payload) (data.JSONMap, 
 		payload = protoEvent.GetDefault()
 	}
 
-	// Marshal payload to JSON
-	jsonContent, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
+	content := data.JSONMap{
+		PayloadTypeField: protoEvent.GetType().Number(),
+	}
+
+	if payload != nil {
+		// Marshal payload to JSON
+		jsonContent, err := json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+
+		content[ContentField] = jsonContent
 	}
 
 	// Return structured result
-	return data.JSONMap{
-		PayloadTypeField: protoEvent.GetType().Number(),
-		ContentField:     jsonContent,
-	}, nil
+	return content, nil
 }
 
 // setTypedContent sets the appropriate typed content field on the proto event.
@@ -102,6 +108,11 @@ func (c *PayloadConverter) setTypedContent(
 	payloadType chatv1.PayloadType,
 	content []byte,
 ) error {
+
+	if len(content) == 0 {
+		return nil
+	}
+
 	switch payloadType {
 	case chatv1.PayloadType_PAYLOAD_TYPE_TEXT:
 		return unmarshalAndSet(content, protoEvent.SetText)
