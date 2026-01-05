@@ -144,11 +144,16 @@ func (rsr *roomSubscriptionRepository) GetMembersByRoomID(
 	ctx context.Context,
 	roomID string,
 ) ([]*commonv1.ContactLink, error) {
-	var subscriptions []*models.RoomSubscription
+	subscriptions := []*models.RoomSubscription{}
 	err := rsr.Pool().DB(ctx, true).
-		Where("room_id = ? AND subscription_state IN ?", roomID, rsr.activeSubscriptionStates).Find(subscriptions).Error
+		Where("room_id = ? AND subscription_state IN ?", roomID, rsr.activeSubscriptionStates).
+		Find(&subscriptions).Error
 
-	contactLinks := make([]*commonv1.ContactLink, len(subscriptions))
+	if err != nil {
+		return nil, err
+	}
+
+	contactLinks := make([]*commonv1.ContactLink, 0, len(subscriptions))
 	for _, sub := range subscriptions {
 		contactLinks = append(contactLinks, sub.ToLink())
 	}

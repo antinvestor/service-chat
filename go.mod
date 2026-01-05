@@ -19,10 +19,10 @@ require (
 	github.com/antinvestor/apis/go/notification v1.52.4
 	github.com/antinvestor/apis/go/profile v1.52.4
 	github.com/gojuno/minimock/v3 v3.4.7
+	github.com/golang/protobuf v1.5.4
 	github.com/pitabwire/frame v1.69.13
 	github.com/pitabwire/util v0.3.9
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/net v0.48.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gorm.io/gorm v1.31.1
@@ -145,6 +145,7 @@ require (
 	gocloud.dev v0.44.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
+	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect

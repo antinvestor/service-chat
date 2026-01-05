@@ -491,37 +491,17 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 	var newSubs []*models.RoomSubscription
 	for link, role := range roleMap {
 		// Validate Contact and Profile ID via Profile Service
-		if link.GetContactId() != "" && rb.profileCli != nil {
-			resp, err := rb.profileCli.GetByContact(ctx, connect.NewRequest(&profilev1.GetByContactRequest{
-				Contact: link.GetContactId(),
-			}))
-			if err != nil {
-				return fmt.Errorf("contact validation failed for %s: %w", link.GetContactId(), err)
-			}
-
-			// The profile as source of truth
-			foundProfileID := resp.Msg.GetData().GetId()
-
-			if link.GetProfileId() != "" {
-				if link.GetProfileId() != foundProfileID {
-					return fmt.Errorf("profile id mismatch for contact %s: expected %s, got %s",
-						link.GetContactId(), foundProfileID, link.GetProfileId())
-				}
-			} else {
-				// Populate ProfileID if missing
-				link.ProfileId = foundProfileID
-			}
+		if validateErr := rb.validateContactProfile(ctx, link); validateErr != nil {
+			return validateErr
 		}
 
 		if !existingProfileMap[link.GetProfileId()] {
 			sub := &models.RoomSubscription{
 				RoomID:            roomID,
 				ProfileID:         link.GetProfileId(),
-				ContactID:         link.GetContactId(),
-				Role:              role,
 				SubscriptionState: models.RoomSubscriptionStateActive,
+				Role:              role,
 			}
-			sub.GenID(ctx)
 			newSubs = append(newSubs, sub)
 		}
 	}
@@ -567,38 +547,30 @@ func (rb *roomBusiness) addRoomMembers(
 	return rb.addRoomMembersWithRoles(ctx, roomID, roleMap)
 }
 
-// Helper function to remove members from a room.
-func (rb *roomBusiness) removeRoomMembers(
-	ctx context.Context,
-	roomID string,
-	contactLinks []*commonv1.ContactLink,
-	remover *commonv1.ContactLink,
-) error {
-	// Get all subscriptions for the room
-	subscriptionsToRemove, err := rb.subRepo.GetByRoomIDAndContactLinks(ctx, roomID, contactLinks...)
-	if err != nil {
-		return fmt.Errorf("failed to get subscriptions: %w", err)
+// validateContactProfile validates contact and profile ID via Profile Service.
+func (rb *roomBusiness) validateContactProfile(ctx context.Context, link *commonv1.ContactLink) error {
+	if link.GetContactId() == "" || rb.profileCli == nil {
+		return nil
 	}
 
-	var subscriptionIDs []string
-	// Deactivate subscriptions
-	for _, sub := range subscriptionsToRemove {
-		subscriptionIDs = append(subscriptionIDs, sub.GetID())
+	resp, profileErr := rb.profileCli.GetByContact(ctx, connect.NewRequest(&profilev1.GetByContactRequest{
+		Contact: link.GetContactId(),
+	}))
+	if profileErr != nil {
+		return fmt.Errorf("contact validation failed for %s: %w", link.GetContactId(), profileErr)
 	}
 
-	err = rb.subRepo.Deactivate(ctx, subscriptionIDs...)
-	if err != nil {
-		return fmt.Errorf("failed to deactivate subscription: %w", err)
-	}
+	// The profile as source of truth
+	foundProfileID := resp.Msg.GetData().GetId()
 
-	for _, sub := range subscriptionsToRemove {
-		// Send member removed event using MessageBusiness
-		_ = rb.sendRoomEvent(ctx, roomID, remover,
-			map[string]interface{}{"content": "Member removed from room"},
-			map[string]interface{}{
-				"profile_id": sub.ProfileID,
-				"removed_by": remover.GetProfileId(),
-			})
+	if link.GetProfileId() != "" {
+		if link.GetProfileId() != foundProfileID {
+			return fmt.Errorf("profile id mismatch for contact %s: expected %s, got %s",
+				link.GetContactId(), foundProfileID, link.GetProfileId())
+		}
+	} else {
+		// Populate ProfileID if missing
+		link.ProfileId = foundProfileID
 	}
 
 	return nil
@@ -635,8 +607,8 @@ func (rb *roomBusiness) sendRoomEvent(
 	ctx context.Context,
 	roomID string,
 	sender *commonv1.ContactLink,
-	content map[string]interface{},
-	metadata map[string]interface{},
+	_ map[string]interface{},
+	_ map[string]interface{},
 ) error {
 	// System events don't have payloads in the new API
 	// TODO: If specific data needs to be sent, use appropriate payload type (TextContent, etc.)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -13,8 +12,8 @@ import (
 )
 
 const (
-	// clientStateTimeout is the timeout for updating client state.
-	clientStateTimeout = 5 * time.Second
+// clientStateTimeout defines timeout for client state operations
+// clientStateTimeout = 5 * time.Second // Currently unused
 )
 
 // ErrRateLimited is returned when a connection exceeds its rate limit.
@@ -129,7 +128,34 @@ func (cm *connectionManager) processAcknowledgement(
 	})
 }
 
-// processReceiptEvent handles receipt acknowledgements with security validation.
+// validateAndSetProfileID validates profile ID and sets it to authenticated user.
+func validateAndSetProfileID(
+	ctx context.Context,
+	conn Connection,
+	source *commonv1.ContactLink,
+	claimedProfileID, eventType string,
+) error {
+	profileID := conn.Metadata().ProfileID
+
+	// Validate that the profile_id matches the authenticated user
+	if claimedProfileID != "" && claimedProfileID != profileID {
+		util.Log(ctx).WithFields(map[string]any{
+			"claimed_profile": claimedProfileID,
+			"actual_profile":  profileID,
+		}).Warn("Profile ID mismatch in " + eventType + " - potential spoofing attempt")
+		return fmt.Errorf(eventType+" profile_id mismatch: claimed %s, actual %s", claimedProfileID, profileID)
+	}
+
+	// Always override profile_id with authenticated profile ID for security
+	if source == nil {
+		source = &commonv1.ContactLink{}
+	}
+	source.ProfileId = profileID
+
+	return nil
+}
+
+// processReceiptEvent handles receipt events with security validation.
 func (cm *connectionManager) processReceiptEvent(
 	ctx context.Context,
 	conn Connection,
@@ -139,29 +165,14 @@ func (cm *connectionManager) processReceiptEvent(
 		return nil
 	}
 
-	profileID := conn.Metadata().ProfileID
-
-	// Validate that the profile_id in receipt matches the authenticated user
-	if receipt.GetSource().GetProfileId() != "" && receipt.GetSource().GetProfileId() != profileID {
-		util.Log(ctx).WithFields(map[string]any{
-			"claimed_profile": receipt.GetSource().GetProfileId(),
-			"actual_profile":  profileID,
-			"room_id":         receipt.GetRoomId(),
-			"event_ids":       receipt.GetEventId(),
-		}).Warn("Profile ID mismatch in receipt - potential spoofing attempt")
-		return fmt.Errorf("receipt profile_id mismatch: claimed %s, actual %s",
-			receipt.GetSource().GetProfileId(), profileID)
+	// Validate and set profile ID
+	if err := validateAndSetProfileID(ctx, conn, receipt.GetSource(), receipt.GetSource().GetProfileId(), "receipt"); err != nil {
+		return err
 	}
-
-	// Always override profile_id with authenticated profile ID for security
-	if receipt.GetSource() == nil {
-		receipt.Source = &commonv1.ContactLink{}
-	}
-	receipt.Source.ProfileId = profileID
 
 	// TODO: Implement receipt processing logic (update delivery status, etc.)
 	util.Log(ctx).WithFields(map[string]any{
-		"profile_id": profileID,
+		"profile_id": conn.Metadata().ProfileID,
 		"room_id":    receipt.GetRoomId(),
 		"event_ids":  receipt.GetEventId(),
 	}).Debug("Processed receipt event")
@@ -210,7 +221,7 @@ func (cm *connectionManager) processTypingEvent(
 // processPresenceEvent handles presence updates.
 func (cm *connectionManager) processPresenceEvent(
 	ctx context.Context,
-	conn Connection,
+	_ Connection,
 	presence *chatv1.PresenceEvent,
 ) error {
 	if presence == nil {
@@ -232,29 +243,14 @@ func (cm *connectionManager) processReadMarker(
 		return nil
 	}
 
-	profileID := conn.Metadata().ProfileID
-
-	// Validate that the profile_id matches the authenticated user
-	if marker.GetSource().GetProfileId() != "" && marker.GetSource().GetProfileId() != profileID {
-		util.Log(ctx).WithFields(map[string]any{
-			"claimed_profile": marker.GetSource().GetProfileId(),
-			"actual_profile":  profileID,
-			"room_id":         marker.GetRoomId(),
-			"up_to_event_id":  marker.GetUpToEventId(),
-		}).Warn("Profile ID mismatch in read marker - potential spoofing attempt")
-		return fmt.Errorf("read marker profile_id mismatch: claimed %s, actual %s",
-			marker.GetSource().GetProfileId(), profileID)
+	// Validate and set profile ID
+	if err := validateAndSetProfileID(ctx, conn, marker.GetSource(), marker.GetSource().GetProfileId(), "read marker"); err != nil {
+		return err
 	}
-
-	// Always override profile_id with authenticated profile ID for security
-	if marker.GetSource() == nil {
-		marker.Source = &commonv1.ContactLink{}
-	}
-	marker.Source.ProfileId = profileID
 
 	// TODO: Implement read marker processing logic
 	util.Log(ctx).WithFields(map[string]any{
-		"profile_id":     profileID,
+		"profile_id":     conn.Metadata().ProfileID,
 		"room_id":        marker.GetRoomId(),
 		"up_to_event_id": marker.GetUpToEventId(),
 	}).Debug("Processed read marker")
@@ -306,19 +302,6 @@ func (cm *connectionManager) processRoomEvent(
 	}).Debug("Processed room event")
 
 	return nil
-}
-
-// DEPRECATED: Old processStateUpdate method - kept for reference during migration
-// TODO: Remove after full migration to new API structure
-//
-//nolint:gocognit,funlen,unused,deadcode // Deprecated - kept for reference
-func (cm *connectionManager) processStateUpdateOld(
-	ctx context.Context,
-	conn Connection,
-	clientState interface{},
-) error {
-	// This method is deprecated and should not be used
-	return errors.New("deprecated method called")
 }
 
 // DEPRECATED: oldValidationReference removed - old code structure no longer compatible with new API

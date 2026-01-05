@@ -18,7 +18,6 @@ import (
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore"
-	"github.com/pitabwire/frame/security"
 	"github.com/pitabwire/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -107,27 +106,6 @@ func (ps *ChatServer) toAPIError(ctx context.Context, err error) error {
 	}
 }
 
-// validateAuthentication extracts and validates authentication claims.
-func (ps *ChatServer) validateAuthentication(ctx context.Context) (string, error) {
-	authClaims := security.ClaimsFromContext(ctx)
-	if authClaims == nil {
-		return "", connect.NewError(
-			connect.CodeUnauthenticated,
-			errors.New("request needs to be authenticated"),
-		)
-	}
-
-	profileID, err := authClaims.GetSubject()
-	if err != nil || profileID == "" {
-		return "", connect.NewError(
-			connect.CodeUnauthenticated,
-			errors.New("invalid authentication claims"),
-		)
-	}
-
-	return profileID, nil
-}
-
 // withTimeout creates a context with timeout for resource efficiency.
 func (ps *ChatServer) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if timeout <= 0 {
@@ -212,7 +190,8 @@ func (ps *ChatServer) GetHistory(
 	}
 
 	// Validate pagination parameters
-	limit := int32(50) // Default limit
+	const defaultLimit = int32(50) // Default limit
+	limit := defaultLimit
 	if req.Msg.GetCursor() != nil && req.Msg.GetCursor().GetLimit() > 0 {
 		limit = req.Msg.GetCursor().GetLimit()
 		if limit > MaxBatchSize {
@@ -502,8 +481,8 @@ func (ps *ChatServer) UpdateClientState(
 		}
 
 		// Validate and process the client state
-		if err := ps.processClientState(ctx, clientState, authenticatedContact, req.Msg.GetRoomId()); err != nil {
-			errorList = append(errorList, fmt.Sprintf("client state at index %d: %v", i, err))
+		if processErr := ps.processClientState(ctx, clientState, authenticatedContact, req.Msg.GetRoomId()); processErr != nil {
+			errorList = append(errorList, fmt.Sprintf("client state at index %d: %v", i, processErr))
 			continue
 		}
 	}
@@ -544,54 +523,6 @@ func (ps *ChatServer) processClientState(
 		}).Warn("Unknown client command type received")
 		return fmt.Errorf("unsupported client command type: %T", state)
 	}
-}
-
-// processReceiptState handles receipt acknowledgments.
-func (ps *ChatServer) processReceiptState(
-	ctx context.Context,
-	receipt *chatv1.ReceiptEvent,
-	authenticatedContact *commonv1.ContactLink,
-	roomID string,
-) error {
-	if receipt == nil {
-		return errors.New("receipt event cannot be nil")
-	}
-
-	// Validate and override profile_id
-	receipt.SetSource(authenticatedContact)
-
-	// Use room_id from receipt if not provided in request
-	targetRoomID := roomID
-	if targetRoomID == "" {
-		targetRoomID = receipt.GetRoomId()
-	}
-
-	if targetRoomID == "" {
-		return errors.New("room_id must be specified")
-	}
-
-	// Validate event_ids are provided
-	if len(receipt.GetEventId()) == 0 {
-		return errors.New("at least one event_id must be provided")
-	}
-
-	// Process read receipts for each event
-	for _, eventID := range receipt.GetEventId() {
-		if eventID == "" {
-			continue
-		}
-
-		if err := ps.ConnectBusiness.UpdateReadReceipt(ctx, targetRoomID, authenticatedContact, eventID); err != nil {
-			util.Log(ctx).WithError(err).WithFields(map[string]any{
-				"auth":     authenticatedContact,
-				"room_id":  targetRoomID,
-				"event_id": eventID,
-			}).Error("Failed to send read receipt")
-			return fmt.Errorf("failed to send read receipt for event %s: %w", eventID, err)
-		}
-	}
-
-	return nil
 }
 
 // processReadMarkerState handles read marker updates.
@@ -635,88 +566,7 @@ func (ps *ChatServer) processReadMarkerState(
 	return nil
 }
 
-// processTypingState handles typing indicators.
-func (ps *ChatServer) processTypingState(
-	ctx context.Context,
-	typing *chatv1.TypingEvent,
-	authenticatedContact *commonv1.ContactLink,
-	roomID string,
-) error {
-	if typing == nil {
-		return errors.New("typing event cannot be nil")
-	}
-
-	// Validate and override profile_id
-	typing.SetSource(authenticatedContact)
-
-	// Use room_id from typing if not provided in request
-	targetRoomID := roomID
-	if targetRoomID == "" {
-		targetRoomID = typing.GetRoomId()
-	}
-
-	if targetRoomID == "" {
-		return errors.New("room_id must be specified")
-	}
-
-	// Set timestamp if not provided
-	if typing.GetSince() == nil {
-		typing.Since = timestamppb.Now()
-	}
-
-	// Send typing indicator
-	if err := ps.ConnectBusiness.UpdateTypingIndicator(ctx, targetRoomID, authenticatedContact, typing.GetTyping()); err != nil {
-		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"auth":    authenticatedContact,
-			"room_id": targetRoomID,
-			"typing":  typing.GetTyping(),
-		}).Error("Failed to send typing indicator")
-		return fmt.Errorf("failed to send typing indicator: %w", err)
-	}
-
-	return nil
-}
-
-// processPresenceState handles presence updates.
-func (ps *ChatServer) processPresenceState(
-	ctx context.Context,
-	presence *chatv1.PresenceEvent,
-	authenticatedContact *commonv1.ContactLink,
-	_ string,
-) error {
-	if presence == nil {
-		return errors.New("presence event cannot be nil")
-	}
-
-	// Validate and override profile_id
-	presence.SetSource(authenticatedContact)
-
-	// Set timestamp if not provided
-	if presence.GetLastActive() == nil {
-		presence.SetLastActive(timestamppb.Now())
-	}
-
-	// Create presence event
-	presenceEvent := &chatv1.PresenceEvent{
-		Source:     authenticatedContact,
-		Status:     presence.GetStatus(),
-		StatusMsg:  presence.GetStatusMsg(),
-		LastActive: timestamppb.Now(),
-	}
-
-	// Send presence update
-	if err := ps.ConnectBusiness.UpdatePresence(ctx, presenceEvent); err != nil {
-		util.Log(ctx).WithError(err).WithFields(map[string]any{
-			"auth":   authenticatedContact,
-			"status": presence.GetStatus(),
-		}).Error("Failed to send presence update")
-		return fmt.Errorf("failed to send presence update: %w", err)
-	}
-
-	return nil
-}
-
-// processRoomEventState handles room events (messages, etc.)
+// processRoomEventState handles room events (messages, etc.).
 func (ps *ChatServer) processRoomEventState(
 	ctx context.Context,
 	roomEvent *chatv1.RoomEvent,

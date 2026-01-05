@@ -96,6 +96,7 @@ func (m *mockProfileClient) DeleteRelationship(
 	return nil, errors.New("not implemented")
 }
 
+//nolint:staticcheck,revive // Method name required by interface
 func (m *mockProfileClient) GetById(
 	context.Context,
 	*connect.Request[profilev1.GetByIdRequest],
@@ -189,7 +190,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationSuccess() {
 		creatorContactID := util.IDString()
 
 		mockCli := &mockProfileClient{
-			getByContactFunc: func(ctx context.Context, req *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
+			getByContactFunc: func(_ context.Context, req *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
 				if req.Msg.GetContact() == validContactID {
 					return connect.NewResponse(&profilev1.GetByContactResponse{
 						Data: &profilev1.ProfileObject{Id: validProfileID},
@@ -253,7 +254,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationFailure_ProfileMisma
 		wrongProfileID := util.IDString()
 
 		mockCli := &mockProfileClient{
-			getByContactFunc: func(ctx context.Context, req *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
+			getByContactFunc: func(_ context.Context, _ *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
 				return connect.NewResponse(&profilev1.GetByContactResponse{
 					Data: &profilev1.ProfileObject{Id: actualProfileID},
 				}), nil
@@ -289,7 +290,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationFailure_ContactNotFo
 		invalidContactID := util.IDString()
 
 		mockCli := &mockProfileClient{
-			getByContactFunc: func(ctx context.Context, req *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
+			getByContactFunc: func(_ context.Context, _ *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
 				return nil, errors.New("contact not found")
 			},
 		}

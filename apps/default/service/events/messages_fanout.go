@@ -105,7 +105,7 @@ func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 
 	// Convert event content to typed payload
 	converter := models.NewPayloadConverter()
-	eventPayload, payloadErr := converter.ToProtoRoomEvent(eventLinkData.Content)
+	eventPayload, payloadErr := converter.ToProto(eventLinkData.Content)
 	if payloadErr != nil {
 		logger.WithError(payloadErr).Error("failed to convert event content to payload")
 		// Continue with nil payload rather than failing entirely

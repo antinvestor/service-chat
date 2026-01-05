@@ -1,13 +1,13 @@
 package models
 
 import (
+	"context"
 	"strings"
 	"time"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/pitabwire/frame/data"
-	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -68,7 +68,7 @@ type RoomEvent struct {
 }
 
 // ToAPI converts RoomEvent model to API RoomEvent representation.
-func (re *RoomEvent) ToAPI(ctx context.Context, converter *PayloadConverter) *chatv1.RoomEvent {
+func (re *RoomEvent) ToAPI(_ context.Context, converter *PayloadConverter) *chatv1.RoomEvent {
 	if re == nil {
 		return nil
 	}
@@ -95,9 +95,9 @@ func (re *RoomEvent) ToAPI(ctx context.Context, converter *PayloadConverter) *ch
 	}
 
 	var err error
-	protoEvent.Payload, err = converter.ToProtoRoomEvent(re.Content)
+	protoEvent.Payload, err = converter.ToProto(re.Content)
 	if err != nil {
-
+		return nil
 	}
 
 	return protoEvent

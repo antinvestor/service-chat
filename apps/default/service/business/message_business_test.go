@@ -109,7 +109,11 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 
 		senderID := util.IDString()
 		senderContactID := util.IDString()
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, &commonv1.ContactLink{ProfileId: senderID, ContactId: senderContactID})
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: senderID, ContactId: senderContactID},
+		)
 		require.NoError(t, err) // Should return acks with errors
 		s.Len(acks, 1)
 		// Check if ack contains error in metadata

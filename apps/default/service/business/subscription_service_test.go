@@ -2,6 +2,7 @@ package business_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
@@ -95,7 +96,11 @@ func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 			room.GetId(),
 		)
 		require.Error(t, err)
-		s.Equal(connect.CodePermissionDenied, err.(*connect.Error).Code())
+		s.Equal(connect.CodePermissionDenied, func() *connect.Error {
+			target := &connect.Error{}
+			_ = errors.As(err, &target)
+			return target
+		}().Code())
 	})
 }
 
@@ -216,29 +221,33 @@ func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 		require.NoError(t, err)
 
 		// Check membership via HasAccess
-		accessMap, err := subscriptionSvc.HasAccess(
+		creatorAccessMap, err := subscriptionSvc.HasAccess(
 			ctx,
 			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 			room.GetId(),
 		)
 		require.NoError(t, err)
-		s.NotEmpty(accessMap)
+		s.NotEmpty(creatorAccessMap)
 
-		accessMap, err = subscriptionSvc.HasAccess(
+		memberAccessMap, err := subscriptionSvc.HasAccess(
 			ctx,
 			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 			room.GetId(),
 		)
 		require.NoError(t, err)
-		s.NotEmpty(accessMap)
+		s.NotEmpty(memberAccessMap)
 
-		accessMap, err = subscriptionSvc.HasAccess(
+		_, err = subscriptionSvc.HasAccess(
 			ctx,
 			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
 			room.GetId(),
 		)
 		require.Error(t, err)
-		s.Equal(connect.CodePermissionDenied, err.(*connect.Error).Code())
+		s.Equal(connect.CodePermissionDenied, func() *connect.Error {
+			target := &connect.Error{}
+			_ = errors.As(err, &target)
+			return target
+		}().Code())
 	})
 }
 

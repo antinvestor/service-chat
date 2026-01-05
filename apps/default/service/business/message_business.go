@@ -2,6 +2,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -88,7 +89,8 @@ func (mb *messageBusiness) SendEvents(
 		roomAccessMap, accessErr := mb.subscriptionSvc.HasAccess(ctx, sentBy, roomID)
 		if accessErr != nil {
 			// For non-existent rooms, create empty access map
-			if connectError, ok := accessErr.(*connect.Error); ok && connectError.Code() == connect.CodePermissionDenied {
+			connectError := &connect.Error{}
+			if errors.As(accessErr, &connectError) {
 				continue
 			}
 			return nil, accessErr
@@ -140,7 +142,7 @@ func (mb *messageBusiness) SendEvents(
 
 		// Create the message event using PayloadConverter
 		converter := models.NewPayloadConverter()
-		content, err := converter.FromProtoRoomEvent(reqEvt.GetPayload())
+		content, err := converter.FromProto(reqEvt.GetPayload())
 		if err != nil {
 			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to convert event: %v", err)})
 			responses[i] = &chatv1.EventAck{

@@ -106,7 +106,7 @@ func (ss *subscriptionService) HasRole(
 
 	for _, sub := range subscriptionList {
 		if !sub.IsActive() {
-			return false, nil
+			continue // Skip inactive subscriptions
 		}
 
 		// Check if the user has the required role or higher

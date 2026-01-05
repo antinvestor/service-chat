@@ -38,7 +38,54 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 		return err
 	}
 
-	// Extract notification content from typed payload
+	// Extract notification content
+	messageTitle, messageBody := dq.extractMessageContent(evtMsg)
+
+	// Convert typed payload to generic Struct for push notification data
+	payloadData, err := dq.payloadToStruct(evtMsg)
+	if err != nil {
+		util.Log(ctx).WithError(err).Warn("failed to convert payload to struct, using empty data")
+		payloadData = &structpb.Struct{}
+	}
+
+	destination := evtMsg.GetDestination()
+	targetID := ""
+	if destination != nil {
+		targetID = destination.GetProfileId()
+	}
+
+	if targetID == "" {
+		util.Log(ctx).Warn("target profile ID is empty, skipping notification")
+		return nil
+	}
+
+	// Create push notification message
+	messages := []*devicev1.NotifyMessage{
+		{
+			Title:  messageTitle,
+			Body:   messageBody,
+			Data:   payloadData,
+			Extras: &structpb.Struct{},
+		},
+	}
+
+	notification := &devicev1.NotifyRequest{
+		DeviceId:      evtMsg.GetDeviceId(),
+		KeyType:       devicev1.KeyType_FCM_TOKEN,
+		Notifications: messages,
+	}
+	resp, err := dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
+	if err != nil {
+		return err
+	}
+
+	util.Log(ctx).WithField("resp", resp).Debug("fcm notification response successful")
+
+	return nil
+}
+
+// extractMessageContent extracts notification content from typed payload.
+func (dq *offlineDeliveryQueueHandler) extractMessageContent(evtMsg *eventsv1.Delivery) (string, string) {
 	messageTitle := "Stawi message"
 	messageBody := ""
 
@@ -61,52 +108,24 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 			if reaction != nil {
 				messageBody = "Reacted with " + reaction.GetReaction()
 			}
+		case chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED:
+			messageBody = "Sent an encrypted message"
+		case chatv1.PayloadType_PAYLOAD_TYPE_CALL:
+			messageBody = "Started a call"
+		case chatv1.PayloadType_PAYLOAD_TYPE_MOTION:
+			messageBody = "Created a motion"
+		case chatv1.PayloadType_PAYLOAD_TYPE_VOTE:
+			messageBody = "Voted"
+		case chatv1.PayloadType_PAYLOAD_TYPE_MOTION_TALLY:
+			messageBody = "Motion tally completed"
+		case chatv1.PayloadType_PAYLOAD_TYPE_VOTE_TALLY:
+			messageBody = "Vote tally completed"
+		case chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED:
+			// Handle unspecified payload type
 		}
 	}
 
-	// Convert typed payload to generic Struct for push notification data
-	payloadData, err := dq.payloadToStruct(evtMsg)
-	if err != nil {
-		util.Log(ctx).WithError(err).Warn("failed to convert payload to struct, using empty data")
-		payloadData = &structpb.Struct{}
-	}
-
-	destination := evtMsg.GetDestination()
-	targetID := ""
-	if destination != nil {
-		targetID = destination.GetProfileId()
-	}
-
-	extraData, err := structpb.NewStruct(map[string]any{
-		"event":  evtMsg.GetEvent(),
-		"target": targetID,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	messages := []*devicev1.NotifyMessage{
-		{
-			Title:  messageTitle,
-			Body:   messageBody,
-			Data:   payloadData,
-			Extras: extraData,
-		}}
-
-	notification := &devicev1.NotifyRequest{
-		DeviceId:      evtMsg.GetDeviceId(),
-		KeyType:       devicev1.KeyType_FCM_TOKEN,
-		Notifications: messages,
-	}
-	resp, err := dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
-	if err != nil {
-		return err
-	}
-
-	util.Log(ctx).WithField("resp", resp).Debug("fcm notification response successful")
-
-	return nil
+	return messageTitle, messageBody
 }
 
 // payloadToStruct converts Delivery payload to generic Struct for push notifications.
@@ -120,71 +139,105 @@ func (dq *offlineDeliveryQueueHandler) payloadToStruct(evtMsg *eventsv1.Delivery
 
 	switch eventPayload.GetType() {
 	case chatv1.PayloadType_PAYLOAD_TYPE_TEXT:
-		text := eventPayload.GetText()
-		if text != nil {
-			data["text"] = text.GetBody()
-			if text.GetFormat() != "" {
-				data["format"] = text.GetFormat()
-			}
-		}
-
+		dq.addTextData(data, eventPayload.GetText())
 	case chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT:
-		attachment := eventPayload.GetAttachment()
-		if attachment != nil {
-			data["attachmentId"] = attachment.GetAttachmentId()
-			if attachment.GetFilename() != "" {
-				data["fileName"] = attachment.GetFilename()
-			}
-			if attachment.GetMimeType() != "" {
-				data["mimeType"] = attachment.GetMimeType()
-			}
-			if attachment.GetSizeBytes() != 0 {
-				data["size"] = attachment.GetSizeBytes()
-			}
-			if attachment.GetCaption() != nil {
-				data["caption"] = attachment.GetCaption().GetBody()
-			}
-		}
-
+		dq.addAttachmentData(data, eventPayload.GetAttachment())
 	case chatv1.PayloadType_PAYLOAD_TYPE_REACTION:
-		reaction := eventPayload.GetReaction()
-		if reaction != nil {
-			data["emoji"] = reaction.GetReaction()
-		}
-
+		dq.addReactionData(data, eventPayload.GetReaction())
 	case chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED:
-		encrypted := eventPayload.GetEncrypted()
-		if encrypted != nil {
-			data["ciphertext"] = string(encrypted.GetCiphertext())
-			if encrypted.GetAlgorithm() != "" {
-				data["algorithm"] = encrypted.GetAlgorithm()
-			}
-			if encrypted.SessionId != nil {
-				data["sessionId"] = encrypted.GetSessionId()
-			}
-		}
-
+		dq.addEncryptedData(data, eventPayload.GetEncrypted())
 	case chatv1.PayloadType_PAYLOAD_TYPE_CALL:
-		call := eventPayload.GetCall()
-		if call != nil && call.Sdp != nil {
-			data["sdp"] = call.GetSdp()
-		}
-
+		dq.addCallData(data, eventPayload.GetCall())
 	case chatv1.PayloadType_PAYLOAD_TYPE_MOTION:
-		motion := eventPayload.GetMotion()
-		if motion != nil {
-			data["id"] = motion.GetId()
-			data["title"] = motion.GetTitle()
-			data["description"] = motion.GetDescription()
-		}
-
+		dq.addMotionData(data, eventPayload.GetMotion())
 	case chatv1.PayloadType_PAYLOAD_TYPE_VOTE:
-		vote := eventPayload.GetVote()
-		if vote != nil {
-			data["motionId"] = vote.GetMotionId()
-			data["choiceId"] = vote.GetChoiceId()
-		}
+		dq.addVoteData(data, eventPayload.GetVote())
+	case chatv1.PayloadType_PAYLOAD_TYPE_MOTION_TALLY:
+		dq.addMotionTallyData(data, eventPayload.GetMotionTally())
+	case chatv1.PayloadType_PAYLOAD_TYPE_VOTE_TALLY:
+		dq.addVoteTallyData(data, eventPayload.GetVoteTally())
+	case chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED:
+		// Handle unspecified payload type
 	}
 
 	return structpb.NewStruct(data)
+}
+
+// Helper methods to reduce cognitive complexity.
+func (dq *offlineDeliveryQueueHandler) addTextData(data map[string]any, text *chatv1.TextContent) {
+	if text != nil {
+		data["text"] = text.GetBody()
+		if text.GetFormat() != "" {
+			data["format"] = text.GetFormat()
+		}
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addAttachmentData(data map[string]any, attachment *chatv1.AttachmentContent) {
+	if attachment != nil {
+		data["attachmentId"] = attachment.GetAttachmentId()
+		if attachment.GetFilename() != "" {
+			data["fileName"] = attachment.GetFilename()
+		}
+		if attachment.GetMimeType() != "" {
+			data["mimeType"] = attachment.GetMimeType()
+		}
+		if attachment.GetSizeBytes() != 0 {
+			data["size"] = attachment.GetSizeBytes()
+		}
+		if attachment.GetCaption() != nil {
+			data["caption"] = attachment.GetCaption().GetBody()
+		}
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addReactionData(data map[string]any, reaction *chatv1.ReactionContent) {
+	if reaction != nil {
+		data["emoji"] = reaction.GetReaction()
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addEncryptedData(data map[string]any, encrypted *chatv1.EncryptedContent) {
+	if encrypted != nil {
+		data["ciphertext"] = string(encrypted.GetCiphertext())
+		if encrypted.GetAlgorithm() != "" {
+			data["algorithm"] = encrypted.GetAlgorithm()
+		}
+		if encrypted.SessionId != nil {
+			data["sessionId"] = encrypted.GetSessionId()
+		}
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addCallData(data map[string]any, call *chatv1.CallContent) {
+	if call != nil && call.Sdp != nil {
+		data["sdp"] = call.GetSdp()
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addMotionData(data map[string]any, motion *chatv1.MotionContent) {
+	if motion != nil {
+		data["id"] = motion.GetId()
+		data["title"] = motion.GetTitle()
+		data["description"] = motion.GetDescription()
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addVoteData(data map[string]any, vote *chatv1.VoteCast) {
+	if vote != nil {
+		data["motionId"] = vote.GetMotionId()
+		data["choiceId"] = vote.GetChoiceId()
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addMotionTallyData(data map[string]any, motionTally *chatv1.MotionTally) {
+	if motionTally != nil {
+		data["motionTally"] = "completed"
+	}
+}
+
+func (dq *offlineDeliveryQueueHandler) addVoteTallyData(data map[string]any, voteTally *chatv1.VoteTally) {
+	if voteTally != nil {
+		data["voteTally"] = "completed"
+	}
 }
