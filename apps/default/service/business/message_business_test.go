@@ -98,7 +98,7 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId: util.IDString(), // Non-existent room
-					Source: &commonv1.ContactLink{ProfileId: util.IDString()},
+					Source: &commonv1.ContactLink{ProfileId: util.IDString(), ContactId: util.IDString()},
 					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 					Payload: &chatv1.Payload{
 						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -108,7 +108,8 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 		}
 
 		senderID := util.IDString()
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, &commonv1.ContactLink{ProfileId: senderID})
+		senderContactID := util.IDString()
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, &commonv1.ContactLink{ProfileId: senderID, ContactId: senderContactID})
 		require.NoError(t, err) // Should return acks with errors
 		s.Len(acks, 1)
 		// Check if ack contains error in metadata

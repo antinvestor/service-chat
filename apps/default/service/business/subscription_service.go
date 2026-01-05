@@ -69,6 +69,11 @@ func (ss *subscriptionService) HasAccess(
 		return nil, fmt.Errorf("failed to check subscription: %w", err)
 	}
 
+	// If no subscriptions found, deny access
+	if len(subscriptionList) == 0 {
+		return nil, service.ErrRoomAccessDenied
+	}
+
 	subscMap := make(map[*models.RoomSubscription]bool)
 	for _, s := range subscriptionList {
 		subscMap[s] = s.IsActive()

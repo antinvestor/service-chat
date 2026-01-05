@@ -185,11 +185,19 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationSuccess() {
 		validContactID := util.IDString()
 		validProfileID := util.IDString()
 
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+
 		mockCli := &mockProfileClient{
 			getByContactFunc: func(ctx context.Context, req *connect.Request[profilev1.GetByContactRequest]) (*connect.Response[profilev1.GetByContactResponse], error) {
 				if req.Msg.GetContact() == validContactID {
 					return connect.NewResponse(&profilev1.GetByContactResponse{
 						Data: &profilev1.ProfileObject{Id: validProfileID},
+					}), nil
+				}
+				if req.Msg.GetContact() == creatorContactID {
+					return connect.NewResponse(&profilev1.GetByContactResponse{
+						Data: &profilev1.ProfileObject{Id: creatorID},
 					}), nil
 				}
 				return nil, errors.New("not found")
@@ -198,8 +206,6 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationSuccess() {
 
 		roomBusiness := s.setupBusinessLayerWithProfileClient(ctx, svc, mockCli)
 
-		creatorID := util.IDString()
-		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Validation Room",
 			IsPrivate: false,

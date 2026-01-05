@@ -126,6 +126,7 @@ func (s *ChatServerTestSuite) TestSendEvent() {
 		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
 
 		profileID := util.IDString()
+		profileContactID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
 
 		// Create room
@@ -143,7 +144,7 @@ func (s *ChatServerTestSuite) TestSendEvent() {
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId: roomID,
-					Source: &commonv1.ContactLink{ProfileId: profileID},
+					Source: &commonv1.ContactLink{ProfileId: profileID, ContactId: profileContactID},
 					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 					Payload: &chatv1.Payload{
 						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -165,6 +166,7 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
 
 		profileID := util.IDString()
+		profileContactID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
 
 		// Create room
@@ -183,7 +185,7 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId: roomID,
-						Source: &commonv1.ContactLink{ProfileId: profileID},
+						Source: &commonv1.ContactLink{ProfileId: profileID, ContactId: profileContactID},
 						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 						Payload: &chatv1.Payload{
 							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},

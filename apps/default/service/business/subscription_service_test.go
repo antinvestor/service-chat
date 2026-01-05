@@ -6,6 +6,7 @@ import (
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -88,13 +89,13 @@ func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 		s.NotEmpty(accessMap)
 
 		// Non-member should not have access
-		accessMap, err = subscriptionSvc.HasAccess(
+		_, err = subscriptionSvc.HasAccess(
 			ctx,
 			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
 			room.GetId(),
 		)
-		require.NoError(t, err)
-		s.Empty(accessMap)
+		require.Error(t, err)
+		s.Equal(connect.CodePermissionDenied, err.(*connect.Error).Code())
 	})
 }
 
@@ -236,8 +237,8 @@ func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
 			room.GetId(),
 		)
-		require.NoError(t, err)
-		s.Empty(accessMap)
+		require.Error(t, err)
+		s.Equal(connect.CodePermissionDenied, err.(*connect.Error).Code())
 	})
 }
 
@@ -314,6 +315,10 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 			room.GetId(),
 		)
 		require.NoError(t, err)
-		s.Empty(accessMap)
+
+		// Check that no subscriptions are active (all values should be false)
+		for _, hasAccess := range accessMap {
+			s.False(hasAccess, "Removed member should not have active access")
+		}
 	})
 }

@@ -8,6 +8,7 @@ import (
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
@@ -79,16 +80,25 @@ func (mb *messageBusiness) SendEvents(
 		uniqueRoomIDList = append(uniqueRoomIDList, roomID)
 	}
 
-	accessMap, accessErr := mb.subscriptionSvc.HasAccess(ctx, sentBy, uniqueRoomIDList...)
-	if accessErr != nil {
-		return nil, accessErr
-	}
+	// Check access for each room individually to handle non-existent rooms
+	subscriptionMap := make(map[string]*models.RoomSubscription)
+	accessMap := make(map[*models.RoomSubscription]bool)
 
-	// Batch check access for all unique rooms
-	subscriptionMap := make(map[string]*models.RoomSubscription, len(accessMap))
+	for _, roomID := range uniqueRoomIDList {
+		roomAccessMap, accessErr := mb.subscriptionSvc.HasAccess(ctx, sentBy, roomID)
+		if accessErr != nil {
+			// For non-existent rooms, create empty access map
+			if connectError, ok := accessErr.(*connect.Error); ok && connectError.Code() == connect.CodePermissionDenied {
+				continue
+			}
+			return nil, accessErr
+		}
 
-	for sub := range accessMap {
-		subscriptionMap[sub.RoomID] = sub
+		// Add to combined maps
+		for sub, hasAccess := range roomAccessMap {
+			subscriptionMap[sub.RoomID] = sub
+			accessMap[sub] = hasAccess
+		}
 	}
 
 	// Phase 1: Validate all events and prepare valid ones for bulk save
