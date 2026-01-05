@@ -84,7 +84,9 @@ func TestPayloadConverter_AttachmentContent(t *testing.T) {
 	t.Run("ToProto - Attachment Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT.Number()),
-			ContentField:     []byte(`{"attachment_id":"attach123","filename":"document.pdf","mime_type":"application/pdf","size_bytes":1024000}`),
+			ContentField: []byte(
+				`{"attachment_id":"attach123","filename":"document.pdf","mime_type":"application/pdf","size_bytes":1024000}`,
+			),
 		}
 
 		payload, err := converter.ToProto(content)
@@ -260,7 +262,9 @@ func TestPayloadConverter_EncryptedContent(t *testing.T) {
 	t.Run("ToProto - Encrypted Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED.Number()),
-			ContentField:     []byte(`{"ciphertext":"ZW5jcnlwdGVkX2RhdGE=","algorithm":"m.megolm.v1.aes-sha2","session_id":"session_abc"}`),
+			ContentField: []byte(
+				`{"ciphertext":"ZW5jcnlwdGVkX2RhdGE=","algorithm":"m.megolm.v1.aes-sha2","session_id":"session_abc"}`,
+			),
 		}
 
 		payload, err := converter.ToProto(content)

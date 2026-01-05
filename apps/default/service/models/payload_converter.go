@@ -45,7 +45,6 @@ func (c *PayloadConverter) ToProto(content data.JSONMap) (*chatv1.Payload, error
 				return nil, fmt.Errorf("failed to set typed content: %w", err)
 			}
 		}
-
 	}
 
 	return protoPayload, nil
@@ -108,7 +107,6 @@ func (c *PayloadConverter) setTypedContent(
 	payloadType chatv1.PayloadType,
 	content []byte,
 ) error {
-
 	if len(content) == 0 {
 		return nil
 	}
