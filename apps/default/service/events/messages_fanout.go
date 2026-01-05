@@ -117,6 +117,7 @@ func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 		eventDelivery := &eventsv1.Delivery{
 			Event:        eventLink,
 			Destination:  destination,
+			Source:       broadcast.GetSource(),
 			Payload:      eventPayload,
 			IsCompressed: false,
 			RetryCount:   0,

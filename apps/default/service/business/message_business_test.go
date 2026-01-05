@@ -51,12 +51,17 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 
 		// Create room first
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Send message
@@ -64,7 +69,7 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId: room.GetId(),
-					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 					Payload: &chatv1.Payload{
 						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -73,7 +78,11 @@ func (s *MessageBusinessTestSuite) TestSendMessage() {
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.Len(acks, 1)
 		s.NotEmpty(acks[0].GetEventId())
@@ -98,7 +107,8 @@ func (s *MessageBusinessTestSuite) TestSendMessageToNonExistentRoom() {
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, util.IDString())
+		senderID := util.IDString()
+		acks, err := messageBusiness.SendEvents(ctx, msgReq, &commonv1.ContactLink{ProfileId: senderID})
 		require.NoError(t, err) // Should return acks with errors
 		s.Len(acks, 1)
 		// Check if ack contains error in metadata
@@ -113,12 +123,17 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 
 		// Create room
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Send multiple messages
@@ -126,7 +141,7 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 		for range 5 {
 			messages = append(messages, &chatv1.RoomEvent{
 				RoomId:  room.GetId(),
-				Source:  &commonv1.ContactLink{ProfileId: creatorID},
+				Source:  &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 				Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 				Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}}},
 			})
@@ -136,7 +151,11 @@ func (s *MessageBusinessTestSuite) TestSendMultipleMessages() {
 			Event: messages,
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.Len(acks, 5)
 
@@ -153,12 +172,17 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 
 		// Create room and send messages
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Send 10 messages
@@ -167,7 +191,7 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId: room.GetId(),
-						Source: &commonv1.ContactLink{ProfileId: creatorID},
+						Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 						Payload: &chatv1.Payload{
 							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -176,7 +200,11 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 				},
 			}
 
-			_, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			_, sendErr := messageBusiness.SendEvents(
+				ctx,
+				msgReq,
+				&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+			)
 			require.NoError(t, sendErr)
 		}
 
@@ -186,7 +214,11 @@ func (s *MessageBusinessTestSuite) TestGetHistory() {
 			Cursor: &commonv1.PageCursor{Limit: 5, Page: ""},
 		}
 
-		events, err := messageBusiness.GetHistory(ctx, historyReq, creatorID)
+		events, err := messageBusiness.GetHistory(
+			ctx,
+			historyReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.Len(events, 5)
 	})
@@ -199,19 +231,24 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 
 		// Create room and send message
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		msgReq := &chatv1.SendEventRequest{
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId: room.GetId(),
-					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 					Payload: &chatv1.Payload{
 						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -220,7 +257,11 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		messageID := acks[0].GetEventId()
 
@@ -230,7 +271,11 @@ func (s *MessageBusinessTestSuite) TestGetMessageViaHistory() {
 			Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
 		}
 
-		events, err := messageBusiness.GetHistory(ctx, historyReq, creatorID)
+		events, err := messageBusiness.GetHistory(
+			ctx,
+			historyReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.NotEmpty(events)
 
@@ -258,12 +303,18 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 
 		// Create room and send message
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		msgReq := &chatv1.SendEventRequest{
@@ -271,7 +322,7 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 				{
 					Id:     util.IDString(),
 					RoomId: room.GetId(),
-					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 					Payload: &chatv1.Payload{
 						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -280,7 +331,11 @@ func (s *MessageBusinessTestSuite) TestDeleteMessageViaRepository() {
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		messageID := acks[0].GetEventId()
 
@@ -305,15 +360,22 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 
 		// Create room with member
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Send message
@@ -321,7 +383,7 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 			Event: []*chatv1.RoomEvent{
 				{
 					RoomId: room.GetId(),
-					Source: &commonv1.ContactLink{ProfileId: creatorID},
+					Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 					Payload: &chatv1.Payload{
 						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -330,12 +392,21 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 			},
 		}
 
-		acks, err := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		eventID := acks[0].GetEventId()
 
 		// Mark as read by member
-		err = messageBusiness.MarkMessagesAsRead(ctx, room.GetId(), eventID, memberID)
+		err = messageBusiness.MarkMessagesAsRead(
+			ctx,
+			room.GetId(),
+			eventID,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
 		require.NoError(t, err)
 	})
 }
@@ -347,12 +418,17 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 
 		// Create room
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Test different message types
@@ -366,7 +442,7 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId: room.GetId(),
-						Source: &commonv1.ContactLink{ProfileId: creatorID},
+						Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 						Type:   msgType,
 						Payload: &chatv1.Payload{
 							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -375,7 +451,11 @@ func (s *MessageBusinessTestSuite) TestSendDifferentMessageTypes() {
 				},
 			}
 
-			acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			acks, sendErr := messageBusiness.SendEvents(
+				ctx,
+				msgReq,
+				&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+			)
 			require.NoError(t, sendErr)
 			s.Len(acks, 1)
 			s.NotEmpty(acks[0].GetEventId())

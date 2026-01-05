@@ -36,12 +36,22 @@ type RoomEventRepository interface {
 // RoomSubscriptionRepository defines the interface for room subscription data access operations.
 type RoomSubscriptionRepository interface {
 	datastore.BaseRepository[*models.RoomSubscription]
-	GetByContactLinkAndRooms(ctx context.Context, contactLink *commonv1.ContactLink, roomID ...string) ([]*models.RoomSubscription, error)
-	GetOneByRoomContactLinkAndIsActive(ctx context.Context, roomID string, contactLink *commonv1.ContactLink) (*models.RoomSubscription, error)
-	GetByRoomID(ctx context.Context, roomID string, activeOnly bool) ([]*models.RoomSubscription, error)
-	GetByRoomIDPaged(ctx context.Context, roomID string, lastID string, limit int) ([]*models.RoomSubscription, error)
-	GetByRoomIDAndContactLinks(ctx context.Context, roomID string, contactLink ...*commonv1.ContactLink) ([]*models.RoomSubscription, error)
-	GetByContactLink(ctx context.Context, contactLink *commonv1.ContactLink, activeOnly bool) ([]*models.RoomSubscription, error)
+	GetByContactLinkAndRooms(
+		ctx context.Context,
+		contactLink *commonv1.ContactLink,
+		roomID ...string,
+	) ([]*models.RoomSubscription, error)
+	GetByRoomID(ctx context.Context, roomID string, cursor *commonv1.PageCursor) ([]*models.RoomSubscription, error)
+	GetByRoomIDAndContactLinks(
+		ctx context.Context,
+		roomID string,
+		contactLink ...*commonv1.ContactLink,
+	) ([]*models.RoomSubscription, error)
+	GetByContactLink(
+		ctx context.Context,
+		contactLink *commonv1.ContactLink,
+		activeOnly bool,
+	) ([]*models.RoomSubscription, error)
 	GetMembersByRoomID(ctx context.Context, roomID string) ([]*commonv1.ContactLink, error)
 	GetByRole(ctx context.Context, roomID, role string) ([]*models.RoomSubscription, error)
 	UpdateRole(ctx context.Context, id, role string) error

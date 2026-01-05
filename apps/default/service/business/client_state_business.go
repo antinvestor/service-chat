@@ -65,7 +65,6 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 	typer *commonv1.ContactLink,
 	isTyping bool,
 ) error {
-
 	if !isTyping {
 		return nil
 	}
@@ -99,14 +98,11 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 	// Note: STATE_TYPING events don't have typed payload content
 	typingEvent := &eventsv1.Delivery{
 		Event: &eventsv1.Link{
-			EventId: util.IDString(),
-			RoomId:  roomID,
-			Source: &commonv1.ContactLink{
-				ProfileId: typer.GetProfileId(),
-				ContactId: typer.GetContactId(),
-			},
-			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
-			CreatedAt: timestamppb.Now(),
+			EventId:              util.IDString(),
+			RoomId:               roomID,
+			SourceSubscriptionId: subscription.GetID(),
+			EventType:            chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
+			CreatedAt:            timestamppb.Now(),
 		},
 		IsCompressed: false,
 		RetryCount:   0,
@@ -162,14 +158,11 @@ func (cb *connectBusiness) UpdateReadReceipt(
 	// Broadcast read receipt to other room members
 	receiptEvent := &eventsv1.Delivery{
 		Event: &eventsv1.Link{
-			EventId: eventID,
-			RoomId:  roomID,
-			Source: &commonv1.ContactLink{
-				ProfileId: recipient.GetProfileId(),
-				ContactId: recipient.GetContactId(),
-			},
-			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
-			CreatedAt: timestamppb.Now(),
+			EventId:              eventID,
+			RoomId:               roomID,
+			SourceSubscriptionId: subscription.GetID(),
+			EventType:            chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
+			CreatedAt:            timestamppb.Now(),
 		},
 		IsCompressed: false,
 		RetryCount:   0,
@@ -230,11 +223,11 @@ func (cb *connectBusiness) UpdateReadMarker(
 	// Broadcast read receipt to other room members
 	receiptEvents = append(receiptEvents, &eventsv1.Delivery{
 		Event: &eventsv1.Link{
-			EventId:   upToEventID,
-			RoomId:    roomID,
-			Source:    reader,
-			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
-			CreatedAt: timestamppb.Now(),
+			EventId:              upToEventID,
+			RoomId:               roomID,
+			SourceSubscriptionId: subscription.GetID(),
+			EventType:            chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
+			CreatedAt:            timestamppb.Now(),
 		},
 		IsCompressed: false,
 		RetryCount:   0,
@@ -245,7 +238,7 @@ func (cb *connectBusiness) UpdateReadMarker(
 
 func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayloads ...*eventsv1.Delivery) error {
 	// Get the subscriptions tied to the room
-	subs, err := cb.subRepo.GetByRoomID(ctx, roomID, true)
+	subs, err := cb.subRepo.GetByRoomID(ctx, roomID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}

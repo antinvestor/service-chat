@@ -87,7 +87,7 @@ func (mb *messageBusiness) SendEvents(
 	// Batch check access for all unique rooms
 	subscriptionMap := make(map[string]*models.RoomSubscription, len(accessMap))
 
-	for sub, _ := range accessMap {
+	for sub := range accessMap {
 		subscriptionMap[sub.RoomID] = sub
 	}
 
@@ -146,7 +146,7 @@ func (mb *messageBusiness) SendEvents(
 			RoomID:    reqEvt.GetRoomId(),
 			EventType: int32(reqEvt.GetType()),
 			Content:   content,
-			SenderID:  sentBy.GetProfileId(),
+			SenderID:  sub.GetID(),
 		}
 
 		if reqEvt.ParentId != nil {
@@ -189,14 +189,12 @@ func (mb *messageBusiness) SendEvents(
 
 		// Emit event to outbox for delivery
 		outboxEventLink := eventsv1.Link{
-			EventId: event.GetID(),
-			RoomId:  event.RoomID,
-			Source: &commonv1.ContactLink{
-				ProfileId: event.SenderID,
-			},
-			ParentId:  event.ParentID,
-			EventType: chatv1.RoomEventType(event.EventType),
-			CreatedAt: timestamppb.New(event.CreatedAt),
+			EventId:              event.GetID(),
+			RoomId:               event.RoomID,
+			SourceSubscriptionId: event.SenderID,
+			ParentId:             event.ParentID,
+			EventType:            chatv1.RoomEventType(event.EventType),
+			CreatedAt:            timestamppb.New(event.CreatedAt),
 		}
 
 		emitErr := mb.evtsManager.Emit(ctx, events.RoomOutboxLoggingEventName, &outboxEventLink)

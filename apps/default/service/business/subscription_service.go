@@ -2,6 +2,7 @@ package business
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
@@ -15,7 +16,11 @@ import (
 // SubscriptionService defines the interface for subscription-related operations.
 type SubscriptionService interface {
 	// HasAccess checks if a user has access to a room
-	HasAccess(ctx context.Context, contact *commonv1.ContactLink, roomID ...string) (map[*models.RoomSubscription]bool, error)
+	HasAccess(
+		ctx context.Context,
+		contact *commonv1.ContactLink,
+		roomID ...string,
+	) (map[*models.RoomSubscription]bool, error)
 
 	// HasRole checks if a user has a specific role in a room
 	HasRole(ctx context.Context, contact *commonv1.ContactLink, roomID, role string) (bool, error)
@@ -46,7 +51,11 @@ func NewSubscriptionService(
 	}
 }
 
-func (ss *subscriptionService) HasAccess(ctx context.Context, contact *commonv1.ContactLink, roomID ...string) (map[*models.RoomSubscription]bool, error) {
+func (ss *subscriptionService) HasAccess(
+	ctx context.Context,
+	contact *commonv1.ContactLink,
+	roomID ...string,
+) (map[*models.RoomSubscription]bool, error) {
 	if err := internal.IsValidContactLink(contact); err != nil {
 		return nil, err
 	}
@@ -68,7 +77,11 @@ func (ss *subscriptionService) HasAccess(ctx context.Context, contact *commonv1.
 	return subscMap, nil
 }
 
-func (ss *subscriptionService) HasRole(ctx context.Context, contact *commonv1.ContactLink, roomID, role string) (bool, error) {
+func (ss *subscriptionService) HasRole(
+	ctx context.Context,
+	contact *commonv1.ContactLink,
+	roomID, role string,
+) (bool, error) {
 	if err := internal.IsValidContactLink(contact); err != nil {
 		return false, err
 	}
@@ -95,11 +108,14 @@ func (ss *subscriptionService) HasRole(ctx context.Context, contact *commonv1.Co
 		return hasMinimumRole(sub.Role, role), nil
 	}
 
-	return false, fmt.Errorf("no subscription found")
-
+	return false, errors.New("no subscription found")
 }
 
-func (ss *subscriptionService) CanManageMembers(ctx context.Context, contact *commonv1.ContactLink, roomID string) (bool, error) {
+func (ss *subscriptionService) CanManageMembers(
+	ctx context.Context,
+	contact *commonv1.ContactLink,
+	roomID string,
+) (bool, error) {
 	// Admins and owners can manage members
 	isAdmin, err := ss.HasRole(ctx, contact, roomID, "admin")
 	if err != nil {
@@ -114,12 +130,19 @@ func (ss *subscriptionService) CanManageMembers(ctx context.Context, contact *co
 	return isAdmin || isOwner, nil
 }
 
-func (ss *subscriptionService) CanManageRoles(ctx context.Context, contact *commonv1.ContactLink, roomID string) (bool, error) {
+func (ss *subscriptionService) CanManageRoles(
+	ctx context.Context,
+	contact *commonv1.ContactLink,
+	roomID string,
+) (bool, error) {
 	// Only owners can manage roles
 	return ss.HasRole(ctx, contact, roomID, "owner")
 }
 
-func (ss *subscriptionService) GetSubscribedRoomIDs(ctx context.Context, contact *commonv1.ContactLink) ([]string, error) {
+func (ss *subscriptionService) GetSubscribedRoomIDs(
+	ctx context.Context,
+	contact *commonv1.ContactLink,
+) ([]string, error) {
 	if err := internal.IsValidContactLink(contact); err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ const (
 // RoomOutboxPayload wraps eventsv1.Link with pagination cursor for recursive processing.
 type RoomOutboxPayload struct {
 	Link   *eventsv1.Link
-	Cursor string // LastID for keyset pagination
+	Cursor *commonv1.PageCursor
 }
 
 type RoomOutboxLoggingQueue struct {
@@ -66,7 +66,7 @@ func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) erro
 
 func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) error {
 	var evtLink *eventsv1.Link
-	var cursor string
+	var cursor *commonv1.PageCursor
 
 	// Unwrap payload
 	switch p := payload.(type) {
@@ -75,7 +75,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		cursor = p.Cursor
 	case *eventsv1.Link:
 		evtLink = p
-		cursor = ""
+		cursor = nil
 	default:
 		return errors.New("invalid payload type")
 	}
@@ -88,14 +88,8 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	})
 	logger.Debug("handling outbox logging batch")
 
-	senderID := ""
-	source := evtLink.GetSource()
-	if source != nil {
-		senderID = source.GetProfileId()
-	}
-
 	// Fetch one batch of subscribers
-	subscriptions, err := csq.subscriptionRepo.GetByRoomIDPaged(ctx, roomID, cursor, defaultBatchSize)
+	subscriptions, err := csq.subscriptionRepo.GetByRoomID(ctx, roomID, cursor)
 	if err != nil {
 		logger.WithError(err).Error("failed to get room subscribers")
 		return err
@@ -106,20 +100,25 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		return nil
 	}
 
+	var source *commonv1.ContactLink
 	var destinations []*commonv1.ContactLink
 	for _, sub := range subscriptions {
-		if sub.ProfileID == senderID {
+		if sub.GetID() == evtLink.GetSourceSubscriptionId() {
+			source = sub.ToLink()
 			continue
 		}
-		destinations = append(destinations, &commonv1.ContactLink{
-			ProfileId: sub.ProfileID,
-		})
+
+		// Only broadcast messages to active subscriptions
+		if sub.IsActive() {
+			destinations = append(destinations, sub.ToLink())
+		}
 	}
 
 	// Emit broadcast for this batch
 	if len(destinations) > 0 {
 		eventBroadcast := eventsv1.Broadcast{
 			Event:        evtLink,
+			Source:       source,
 			Destinations: destinations,
 			Priority:     0,
 		}
@@ -134,8 +133,11 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	if len(subscriptions) >= defaultBatchSize {
 		nextCursor := subscriptions[len(subscriptions)-1].GetID()
 		nextPayload := &RoomOutboxPayload{
-			Link:   evtLink,
-			Cursor: nextCursor,
+			Link: evtLink,
+			Cursor: &commonv1.PageCursor{
+				Limit: defaultBatchSize,
+				Page:  nextCursor,
+			},
 		}
 		if err = csq.evtsManager.Emit(ctx, RoomOutboxLoggingEventName, nextPayload); err != nil {
 			logger.WithError(err).Error("failed to emit next batch job")

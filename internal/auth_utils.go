@@ -49,6 +49,7 @@ func IsValidContactLink(contactLink *commonv1.ContactLink) error {
 		)
 	}
 
+	// Contact is the primary identifier and should be sufficient
 	if contactLink.GetContactId() == "" && contactLink.GetDetail() == "" {
 		return connect.NewError(
 			connect.CodeInvalidArgument,
@@ -56,5 +57,5 @@ func IsValidContactLink(contactLink *commonv1.ContactLink) error {
 		)
 	}
 
-	return true
+	return nil
 }

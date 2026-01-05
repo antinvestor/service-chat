@@ -50,32 +50,51 @@ func (s *SubscriptionServiceTestSuite) TestHasAccess() {
 
 		// Create room
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 		nonMemberID := util.IDString()
+		nonMemberContactID := util.IDString()
 
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Creator should have access
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
+		accessMap, err := subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
 		// Member should have access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
 		// Non-member should not have access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.False(hasAccess)
+		s.Empty(accessMap)
 	})
 }
 
@@ -86,29 +105,50 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 
 		// Create room
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Creator should have owner role
-		hasRole, err := subscriptionSvc.HasRole(ctx, creatorID, room.GetId(), repository.RoleOwner)
+		hasRole, err := subscriptionSvc.HasRole(
+			ctx,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+			room.GetId(),
+			repository.RoleOwner,
+		)
 		require.NoError(t, err)
 		s.True(hasRole)
 
 		// Member should not have owner role
-		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleOwner)
+		hasRole, err = subscriptionSvc.HasRole(
+			ctx,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+			room.GetId(),
+			repository.RoleOwner,
+		)
 		require.NoError(t, err)
 		s.False(hasRole)
 
 		// Member should have member role
-		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleMember)
+		hasRole, err = subscriptionSvc.HasRole(
+			ctx,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+			room.GetId(),
+			repository.RoleMember,
+		)
 		require.NoError(t, err)
 		s.True(hasRole)
 	})
@@ -121,6 +161,7 @@ func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 
 		// Create multiple rooms
 		userID := util.IDString()
+		userContactID := util.IDString()
 		roomCount := 5
 
 		for range roomCount {
@@ -129,12 +170,19 @@ func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 				IsPrivate: false,
 			}
 
-			_, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: userID})
+			_, err := roomBusiness.CreateRoom(
+				ctx,
+				roomReq,
+				&commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
+			)
 			require.NoError(t, err)
 		}
 
 		// Get subscribed room IDs
-		roomIDs, err := subscriptionSvc.GetSubscribedRoomIDs(ctx, userID)
+		roomIDs, err := subscriptionSvc.GetSubscribedRoomIDs(
+			ctx,
+			&commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
+		)
 		require.NoError(t, err)
 		s.GreaterOrEqual(len(roomIDs), roomCount)
 	})
@@ -147,30 +195,49 @@ func (s *SubscriptionServiceTestSuite) TestIsRoomMemberViaHasAccess() {
 
 		// Create room
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 		nonMemberID := util.IDString()
+		nonMemberContactID := util.IDString()
 
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Check membership via HasAccess
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
+		accessMap, err := subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, nonMemberID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.False(hasAccess)
+		s.Empty(accessMap)
 	})
 }
 
@@ -181,27 +248,41 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 
 		// Create room with member
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 
 		roomReq := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, roomReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Verify member has access
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
+		accessMap, err := subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
 		// Get subscription ID
 		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
 			RoomId: room.GetId(),
 		}
-		searchResp, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		searchResp, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		var subscriptionID string
@@ -219,12 +300,20 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 			SubscriptionId: []string{subscriptionID},
 		}
 
-		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
+		err = roomBusiness.RemoveRoomSubscriptions(
+			ctx,
+			removeReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Verify member no longer has access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, memberID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.False(hasAccess)
+		s.Empty(accessMap)
 	})
 }

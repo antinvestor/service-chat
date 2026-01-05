@@ -199,6 +199,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationSuccess() {
 		roomBusiness := s.setupBusinessLayerWithProfileClient(ctx, svc, mockCli)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Validation Room",
 			IsPrivate: false,
@@ -207,7 +208,11 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationSuccess() {
 			},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.NotNil(room)
 
@@ -215,7 +220,11 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationSuccess() {
 		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
 			RoomId: room.GetId(),
 		}
-		subs, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		subs, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		found := false
@@ -248,6 +257,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationFailure_ProfileMisma
 		roomBusiness := s.setupBusinessLayerWithProfileClient(ctx, svc, mockCli)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Mismatch Room",
 			IsPrivate: false,
@@ -256,7 +266,11 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationFailure_ProfileMisma
 			},
 		}
 
-		_, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		_, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.Error(t, err)
 		s.Contains(err.Error(), "profile id mismatch")
 	})
@@ -277,6 +291,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationFailure_ContactNotFo
 		roomBusiness := s.setupBusinessLayerWithProfileClient(ctx, svc, mockCli)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Invalid Contact Room",
 			IsPrivate: false,
@@ -285,7 +300,11 @@ func (s *RoomBusinessTestSuite) TestCreateRoomWithValidationFailure_ContactNotFo
 			},
 		}
 
-		_, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		_, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.Error(t, err)
 		s.Contains(err.Error(), "contact validation failed")
 	})

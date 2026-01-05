@@ -55,7 +55,6 @@ func (rb *roomBusiness) CreateRoom(
 	req *chatv1.CreateRoomRequest,
 	createdBy *commonv1.ContactLink,
 ) (*chatv1.Room, error) {
-
 	if err := internal.IsValidContactLink(createdBy); err != nil {
 		return nil, err
 	}
@@ -107,8 +106,11 @@ func (rb *roomBusiness) CreateRoom(
 	return createdRoom.ToAPI(), nil
 }
 
-func (rb *roomBusiness) GetRoom(ctx context.Context, roomID string, searchedBy *commonv1.ContactLink) (*chatv1.Room, error) {
-
+func (rb *roomBusiness) GetRoom(
+	ctx context.Context,
+	roomID string,
+	searchedBy *commonv1.ContactLink,
+) (*chatv1.Room, error) {
 	if err := internal.IsValidContactLink(searchedBy); err != nil {
 		return nil, err
 	}
@@ -188,7 +190,11 @@ func (rb *roomBusiness) UpdateRoom(
 	return room.ToAPI(), nil
 }
 
-func (rb *roomBusiness) DeleteRoom(ctx context.Context, req *chatv1.DeleteRoomRequest, deletedBy *commonv1.ContactLink) error {
+func (rb *roomBusiness) DeleteRoom(
+	ctx context.Context,
+	req *chatv1.DeleteRoomRequest,
+	deletedBy *commonv1.ContactLink,
+) error {
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
 	}
@@ -449,7 +455,7 @@ func (rb *roomBusiness) SearchRoomSubscriptions(
 	}
 
 	// Get all active subscriptions for the room
-	subscriptions, err := rb.subRepo.GetByRoomID(ctx, req.GetRoomId(), true)
+	subscriptions, err := rb.subRepo.GetByRoomID(ctx, req.GetRoomId(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get room members: %w", err)
 	}
@@ -470,7 +476,7 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 	roleMap map[*commonv1.ContactLink]string,
 ) error {
 	// Get existing subscriptions to avoid duplicates
-	existingSubs, err := rb.subRepo.GetByRoomID(ctx, roomID, false)
+	existingSubs, err := rb.subRepo.GetByRoomID(ctx, roomID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check existing subscriptions: %w", err)
 	}

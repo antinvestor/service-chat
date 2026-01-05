@@ -4,7 +4,7 @@ go 1.25.2
 
 require (
 	buf.build/gen/go/antinvestor/chat/connectrpc/go v1.19.1-20260103185051-3c898530f15a.2
-	buf.build/gen/go/antinvestor/chat/protocolbuffers/go v1.36.11-20260103185051-3c898530f15a.1
+	buf.build/gen/go/antinvestor/chat/protocolbuffers/go v1.36.11-20260105064633-3273bbc3ddc9.1
 	buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.11-20260102104630-5c57561a771f.1
 	buf.build/gen/go/antinvestor/device/connectrpc/go v1.19.1-20251223175454-e698295a3dc7.2
 	buf.build/gen/go/antinvestor/device/protocolbuffers/go v1.36.11-20251223175454-e698295a3dc7.1
@@ -104,7 +104,6 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.12 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/testcontainers/testcontainers-go v0.40.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect

@@ -20,7 +20,7 @@ The following test files need to be updated for the new API changes:
    room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorID)
    
    // New:
-   creatorLink := &commonv1.ContactLink{ProfileId: creatorID}
+   creatorLink := &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID}
    room, err := roomBusiness.CreateRoom(ctx, roomReq, creatorLink)
    ```
 

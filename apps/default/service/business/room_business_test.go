@@ -49,6 +49,7 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:        "Test Room",
 			Description: "Test Description",
@@ -59,7 +60,11 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 			},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.NotNil(room)
 		s.Equal("Test Room", room.GetName())
@@ -88,16 +93,25 @@ func (s *RoomBusinessTestSuite) TestGetRoom() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Get the room
-		retrieved, err := roomBusiness.GetRoom(ctx, created.GetId(), creatorID)
+		retrieved, err := roomBusiness.GetRoom(
+			ctx,
+			created.GetId(),
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.Equal(created.GetId(), retrieved.GetId())
 		s.Equal(created.GetName(), retrieved.GetName())
@@ -110,18 +124,28 @@ func (s *RoomBusinessTestSuite) TestGetRoomAccessDenied() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		otherUserID := util.IDString()
+		otherUserContactID := util.IDString()
 
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Private Room",
 			IsPrivate: true,
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Try to get room as non-member
-		_, err = roomBusiness.GetRoom(ctx, created.GetId(), otherUserID)
+		_, err = roomBusiness.GetRoom(
+			ctx,
+			created.GetId(),
+			&commonv1.ContactLink{ProfileId: otherUserID, ContactId: otherUserContactID},
+		)
 		require.Error(t, err)
 	})
 }
@@ -132,12 +156,17 @@ func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Original Name",
 			IsPrivate: false,
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Update room
@@ -147,7 +176,11 @@ func (s *RoomBusinessTestSuite) TestUpdateRoom() {
 			Topic:  "Updated Description",
 		}
 
-		updated, err := roomBusiness.UpdateRoom(ctx, updateReq, creatorID)
+		updated, err := roomBusiness.UpdateRoom(
+			ctx,
+			updateReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.Equal("Updated Name", updated.GetName())
 		s.Equal("Updated Description", updated.GetDescription())
@@ -160,15 +193,21 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Try to update as non-admin member
@@ -177,7 +216,11 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 			Name:   "Hacked Name",
 		}
 
-		_, err = roomBusiness.UpdateRoom(ctx, updateReq, memberID)
+		_, err = roomBusiness.UpdateRoom(
+			ctx,
+			updateReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
 		require.Error(t, err)
 	})
 }
@@ -188,12 +231,17 @@ func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Room to Delete",
 			IsPrivate: false,
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Delete room
@@ -201,11 +249,19 @@ func (s *RoomBusinessTestSuite) TestDeleteRoom() {
 			RoomId: created.GetId(),
 		}
 
-		err = roomBusiness.DeleteRoom(ctx, deleteReq, creatorID)
+		err = roomBusiness.DeleteRoom(
+			ctx,
+			deleteReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = roomBusiness.GetRoom(ctx, created.GetId(), creatorID)
+		_, err = roomBusiness.GetRoom(
+			ctx,
+			created.GetId(),
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.Error(t, err)
 	})
 }
@@ -216,7 +272,9 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		newMemberID := util.IDString()
+		newMemberContactID := util.IDString()
 
 		// Create room
 		req := &chatv1.CreateRoomRequest{
@@ -224,7 +282,11 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 			IsPrivate: false,
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Add new member
@@ -232,20 +294,28 @@ func (s *RoomBusinessTestSuite) TestAddRoomSubscriptions() {
 			RoomId: created.GetId(),
 			Members: []*chatv1.RoomSubscription{
 				{
-					Member: &commonv1.ContactLink{ProfileId: newMemberID},
+					Member: &commonv1.ContactLink{ProfileId: newMemberID, ContactId: newMemberContactID},
 					Roles:  []string{"member"},
 				},
 			},
 		}
 
-		err = roomBusiness.AddRoomSubscriptions(ctx, addReq, creatorID)
+		err = roomBusiness.AddRoomSubscriptions(
+			ctx,
+			addReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Verify member added
 		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
 			RoomId: created.GetId(),
 		}
-		subs, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		subs, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.GreaterOrEqual(len(subs), 2) // Creator + new member
 	})
@@ -257,23 +327,33 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 
 		// Create room with member
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Get subscription ID
 		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
 			RoomId: created.GetId(),
 		}
-		searchResp, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		searchResp, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		var subscriptionID string
@@ -291,11 +371,19 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 			SubscriptionId: []string{subscriptionID},
 		}
 
-		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
+		err = roomBusiness.RemoveRoomSubscriptions(
+			ctx,
+			removeReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Verify member removed (should not have access)
-		_, err = roomBusiness.GetRoom(ctx, created.GetId(), memberID)
+		_, err = roomBusiness.GetRoom(
+			ctx,
+			created.GetId(),
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
 		require.Error(t, err)
 	})
 }
@@ -306,23 +394,33 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 
 		// Create room with member
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID}},
+			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
-		created, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: creatorID})
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Get subscription ID
 		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
 			RoomId: created.GetId(),
 		}
-		searchResp, err := roomBusiness.SearchRoomSubscriptions(ctx, searchReq, creatorID)
+		searchResp, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		var subscriptionID string
@@ -341,7 +439,11 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 			Roles:          []string{"admin"},
 		}
 
-		err = roomBusiness.UpdateSubscriptionRole(ctx, updateReq, creatorID)
+		err = roomBusiness.UpdateSubscriptionRole(
+			ctx,
+			updateReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// Verify role updated - member should now be able to update room
@@ -350,7 +452,11 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 			Name:   "Updated by Admin",
 		}
 
-		_, err = roomBusiness.UpdateRoom(ctx, roomUpdateReq, memberID)
+		_, err = roomBusiness.UpdateRoom(
+			ctx,
+			roomUpdateReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
 		require.NoError(t, err)
 	})
 }
@@ -361,6 +467,7 @@ func (s *RoomBusinessTestSuite) TestSearchRooms() {
 		roomBusiness := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
+		userContactID := util.IDString()
 
 		// Create multiple rooms
 		rooms := []string{"Alpha Room", "Beta Room", "Gamma Room"}
@@ -369,7 +476,11 @@ func (s *RoomBusinessTestSuite) TestSearchRooms() {
 				Name:      name,
 				IsPrivate: false,
 			}
-			_, err := roomBusiness.CreateRoom(ctx, req, &commonv1.ContactLink{ProfileId: userID})
+			_, err := roomBusiness.CreateRoom(
+				ctx,
+				req,
+				&commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
+			)
 			require.NoError(t, err)
 		}
 
@@ -378,7 +489,11 @@ func (s *RoomBusinessTestSuite) TestSearchRooms() {
 			Query: "Alpha",
 		}
 
-		results, err := roomBusiness.SearchRooms(ctx, searchReq, userID)
+		results, err := roomBusiness.SearchRooms(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
+		)
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(results), 1)
 

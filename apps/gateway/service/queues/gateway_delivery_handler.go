@@ -80,25 +80,25 @@ func (dq *GatewayEventsQueueHandler) toPayloadToEventData(
 	return eventDelivery, nil
 }
 
-func (dq *GatewayEventsQueueHandler) toStreamData(eventDelivery *eventsv1.Delivery) *chatv1.StreamResponse {
-	evt := eventDelivery.GetEvent()
+func (dq *GatewayEventsQueueHandler) toStreamData(dlr *eventsv1.Delivery) *chatv1.StreamResponse {
+	evt := dlr.GetEvent()
 
 	parentID := evt.GetParentId()
 
 	// Convert event type
-	eventType := chatv1.RoomEventType(eventDelivery.GetEvent().GetEventType().Number())
+	eventType := chatv1.RoomEventType(dlr.GetEvent().GetEventType().Number())
 
 	// Create RoomEvent with appropriate payload based on type
 	roomEvent := &chatv1.RoomEvent{
 		Id:       evt.GetEventId(),
 		ParentId: &parentID,
 		RoomId:   evt.GetRoomId(),
-		Source:   evt.GetSource(),
+		Source:   dlr.GetSource(),
 		Type:     eventType,
 		SentAt:   evt.GetCreatedAt(),
 		Edited:   false,
 		Redacted: false,
-		Payload:  eventDelivery.GetPayload(),
+		Payload:  dlr.GetPayload(),
 	}
 
 	data := &chatv1.StreamResponse{

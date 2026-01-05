@@ -50,6 +50,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 
 		// 1. Create room
 		creatorID := util.IDString()
+		creatorContactID := util.IDString()
 		member1ID := util.IDString()
 		member2ID := util.IDString()
 
@@ -63,18 +64,26 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			},
 		}
 
-		room, err := roomBusiness.CreateRoom(ctx, createReq, &commonv1.ContactLink{ProfileId: creatorID})
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			createReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.NotNil(room)
 
 		// 2. Verify all members have access
-		hasAccess, err := subscriptionSvc.HasAccess(ctx, creatorID, room.GetId())
+		accessMap, err := subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, member1ID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(ctx, &commonv1.ContactLink{ProfileId: member1ID}, room.GetId())
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
 		// 3. Send messages
 		for range 5 {
@@ -82,7 +91,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId: room.GetId(),
-						Source: &commonv1.ContactLink{ProfileId: creatorID},
+						Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 						Payload: &chatv1.Payload{
 							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -91,7 +100,11 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 				},
 			}
 
-			acks, sendErr := messageBusiness.SendEvents(ctx, msgReq, creatorID)
+			acks, sendErr := messageBusiness.SendEvents(
+				ctx,
+				msgReq,
+				&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+			)
 			require.NoError(t, sendErr)
 			s.Len(acks, 1)
 		}
@@ -102,7 +115,7 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
 		}
 
-		events, err := messageBusiness.GetHistory(ctx, historyReq, member1ID)
+		events, err := messageBusiness.GetHistory(ctx, historyReq, &commonv1.ContactLink{ProfileId: member1ID})
 		require.NoError(t, err)
 		s.GreaterOrEqual(len(events), 5)
 
@@ -113,29 +126,42 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			Topic:  "Updated Description",
 		}
 
-		updated, err := roomBusiness.UpdateRoom(ctx, updateReq, creatorID)
+		updated, err := roomBusiness.UpdateRoom(
+			ctx,
+			updateReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 		s.Equal("Updated Room Name", updated.GetName())
 
 		// 6. Add new member
 		newMemberID := util.IDString()
+		newMemberContactID := util.IDString()
 		addReq := &chatv1.AddRoomSubscriptionsRequest{
 			RoomId: room.GetId(),
 			Members: []*chatv1.RoomSubscription{
 				{
-					Member: &commonv1.ContactLink{ProfileId: newMemberID},
+					Member: &commonv1.ContactLink{ProfileId: newMemberID, ContactId: newMemberContactID},
 					Roles:  []string{"member"},
 				},
 			},
 		}
 
-		err = roomBusiness.AddRoomSubscriptions(ctx, addReq, creatorID)
+		err = roomBusiness.AddRoomSubscriptions(
+			ctx,
+			addReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// 7. Verify new member has access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, newMemberID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(
+			ctx,
+			&commonv1.ContactLink{ProfileId: newMemberID, ContactId: newMemberContactID},
+			room.GetId(),
+		)
 		require.NoError(t, err)
-		s.True(hasAccess)
+		s.NotEmpty(accessMap)
 
 		// 8. Remove member
 		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
@@ -143,24 +169,36 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			SubscriptionId: []string{member2ID},
 		}
 
-		err = roomBusiness.RemoveRoomSubscriptions(ctx, removeReq, creatorID)
+		err = roomBusiness.RemoveRoomSubscriptions(
+			ctx,
+			removeReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// 9. Verify removed member no longer has access
-		hasAccess, err = subscriptionSvc.HasAccess(ctx, member2ID, room.GetId())
+		accessMap, err = subscriptionSvc.HasAccess(ctx, &commonv1.ContactLink{ProfileId: member2ID}, room.GetId())
 		require.NoError(t, err)
-		s.False(hasAccess)
+		s.Empty(accessMap)
 
 		// 10. Delete room
 		deleteReq := &chatv1.DeleteRoomRequest{
 			RoomId: room.GetId(),
 		}
 
-		err = roomBusiness.DeleteRoom(ctx, deleteReq, creatorID)
+		err = roomBusiness.DeleteRoom(
+			ctx,
+			deleteReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.NoError(t, err)
 
 		// 11. Verify room is deleted
-		_, err = roomBusiness.GetRoom(ctx, room.GetId(), creatorID)
+		_, err = roomBusiness.GetRoom(
+			ctx,
+			room.GetId(),
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
 		require.Error(t, err)
 	})
 }
@@ -171,6 +209,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 		roomBusiness, messageBusiness, _ := s.setupBusinessLayer(ctx, svc)
 
 		userID := util.IDString()
+		userContactID := util.IDString()
 
 		// Create multiple rooms
 		rooms := []*chatv1.Room{}
@@ -180,7 +219,11 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 				IsPrivate: false,
 			}
 
-			room, err := roomBusiness.CreateRoom(ctx, createReq, &commonv1.ContactLink{ProfileId: userID})
+			room, err := roomBusiness.CreateRoom(
+				ctx,
+				createReq,
+				&commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
+			)
 			require.NoError(t, err)
 			rooms = append(rooms, room)
 		}
@@ -192,7 +235,7 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 					Event: []*chatv1.RoomEvent{
 						{
 							RoomId: room.GetId(),
-							Source: &commonv1.ContactLink{ProfileId: userID},
+							Source: &commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
 							Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 							Payload: &chatv1.Payload{
 								Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -201,7 +244,11 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 					},
 				}
 
-				_, err := messageBusiness.SendEvents(ctx, msgReq, userID)
+				_, err := messageBusiness.SendEvents(
+					ctx,
+					msgReq,
+					&commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
+				)
 				require.NoError(t, err)
 			}
 		}
@@ -213,7 +260,11 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 				Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
 			}
 
-			events, err := messageBusiness.GetHistory(ctx, historyReq, userID)
+			events, err := messageBusiness.GetHistory(
+				ctx,
+				historyReq,
+				&commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
+			)
 			require.NoError(t, err)
 			s.GreaterOrEqual(len(events), 3)
 
@@ -233,6 +284,7 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 		ownerID := util.IDString()
 		adminID := util.IDString()
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 
 		// Create room
 		createReq := &chatv1.CreateRoomRequest{
@@ -240,7 +292,7 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 			IsPrivate: false,
 			Members: []*commonv1.ContactLink{
 				&commonv1.ContactLink{ProfileId: adminID},
-				&commonv1.ContactLink{ProfileId: memberID},
+				&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 			},
 		}
 
@@ -254,19 +306,34 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 			Roles:          []string{"admin"},
 		}
 
-		err = roomBusiness.UpdateSubscriptionRole(ctx, updateRoleReq, ownerID)
+		err = roomBusiness.UpdateSubscriptionRole(ctx, updateRoleReq, &commonv1.ContactLink{ProfileId: ownerID})
 		require.NoError(t, err)
 
 		// Verify roles
-		hasRole, err := subscriptionSvc.HasRole(ctx, ownerID, room.GetId(), repository.RoleOwner)
+		hasRole, err := subscriptionSvc.HasRole(
+			ctx,
+			&commonv1.ContactLink{ProfileId: ownerID},
+			room.GetId(),
+			repository.RoleOwner,
+		)
 		require.NoError(t, err)
 		s.True(hasRole)
 
-		hasRole, err = subscriptionSvc.HasRole(ctx, adminID, room.GetId(), repository.RoleAdmin)
+		hasRole, err = subscriptionSvc.HasRole(
+			ctx,
+			&commonv1.ContactLink{ProfileId: adminID},
+			room.GetId(),
+			repository.RoleAdmin,
+		)
 		require.NoError(t, err)
 		s.True(hasRole)
 
-		hasRole, err = subscriptionSvc.HasRole(ctx, memberID, room.GetId(), repository.RoleMember)
+		hasRole, err = subscriptionSvc.HasRole(
+			ctx,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+			room.GetId(),
+			repository.RoleMember,
+		)
 		require.NoError(t, err)
 		s.True(hasRole)
 
@@ -276,12 +343,16 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 			Name:   "Updated by Admin",
 		}
 
-		_, err = roomBusiness.UpdateRoom(ctx, updateReq, adminID)
+		_, err = roomBusiness.UpdateRoom(ctx, updateReq, &commonv1.ContactLink{ProfileId: adminID})
 		require.NoError(t, err)
 
 		// Member should not be able to update room
 		updateReq.Name = "Updated by Member"
-		_, err = roomBusiness.UpdateRoom(ctx, updateReq, memberID)
+		_, err = roomBusiness.UpdateRoom(
+			ctx,
+			updateReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
 		require.Error(t, err)
 
 		// Only owner should be able to delete room
@@ -289,10 +360,10 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 			RoomId: room.GetId(),
 		}
 
-		err = roomBusiness.DeleteRoom(ctx, deleteReq, adminID)
+		err = roomBusiness.DeleteRoom(ctx, deleteReq, &commonv1.ContactLink{ProfileId: adminID})
 		require.Error(t, err) // Admin cannot delete
 
-		err = roomBusiness.DeleteRoom(ctx, deleteReq, ownerID)
+		err = roomBusiness.DeleteRoom(ctx, deleteReq, &commonv1.ContactLink{ProfileId: ownerID})
 		require.NoError(t, err) // Owner can delete
 	})
 }

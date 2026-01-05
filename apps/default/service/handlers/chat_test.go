@@ -228,11 +228,12 @@ func (s *ChatServerTestSuite) TestAddRoomSubscriptions() {
 
 		// Add member
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 		addReq := connect.NewRequest(&chatv1.AddRoomSubscriptionsRequest{
 			RoomId: roomID,
 			Members: []*chatv1.RoomSubscription{
 				{
-					Member: &commonv1.ContactLink{ProfileId: memberID},
+					Member: &commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 					Roles:  []string{"member"},
 				},
 			},
@@ -263,11 +264,12 @@ func (s *ChatServerTestSuite) TestRemoveRoomSubscriptions() {
 
 		// Add member
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 		addReq := connect.NewRequest(&chatv1.AddRoomSubscriptionsRequest{
 			RoomId: roomID,
 			Members: []*chatv1.RoomSubscription{
 				{
-					Member: &commonv1.ContactLink{ProfileId: memberID},
+					Member: &commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 					Roles:  []string{"member"},
 				},
 			},
@@ -323,11 +325,12 @@ func (s *ChatServerTestSuite) TestUpdateSubscriptionRole() {
 
 		// Add member
 		memberID := util.IDString()
+		memberContactID := util.IDString()
 		addReq := connect.NewRequest(&chatv1.AddRoomSubscriptionsRequest{
 			RoomId: roomID,
 			Members: []*chatv1.RoomSubscription{
 				{
-					Member: &commonv1.ContactLink{ProfileId: memberID},
+					Member: &commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 					Roles:  []string{"member"},
 				},
 			},
