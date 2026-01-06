@@ -97,7 +97,6 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 				Event: []*chatv1.RoomEvent{
 					{
 						RoomId: room.GetId(),
-						Source: &commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 						Payload: &chatv1.Payload{
 							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -214,10 +213,14 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 		)
 		require.NoError(t, err)
 
-		// Check that no subscriptions are active (all values should be false)
-		for _, hasAccess := range accessMap {
-			s.False(hasAccess, "Removed member should not have active access")
+		// Check that no subscriptions are active (filter out inactive ones)
+		activeSubscriptions := 0
+		for _, sub := range accessMap {
+			if sub.IsActive() {
+				activeSubscriptions++
+			}
 		}
+		s.Equal(0, activeSubscriptions, "Removed member should not have active access")
 
 		// 10. Delete room
 		deleteReq := &chatv1.DeleteRoomRequest{
@@ -273,7 +276,6 @@ func (s *IntegrationTestSuite) TestMultiRoomMessaging() {
 					Event: []*chatv1.RoomEvent{
 						{
 							RoomId: room.GetId(),
-							Source: &commonv1.ContactLink{ProfileId: userID, ContactId: userContactID},
 							Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 							Payload: &chatv1.Payload{
 								Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
@@ -382,28 +384,28 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 			ctx,
 			&commonv1.ContactLink{ProfileId: ownerID, ContactId: ownerContactID},
 			room.GetId(),
-			repository.RoleOwner,
+			3, // roleOwnerLevel
 		)
 		require.NoError(t, err)
-		s.True(hasRole)
+		s.NotNil(hasRole, "Owner should have owner role")
 
 		hasRole, err = subscriptionSvc.HasRole(
 			ctx,
 			&commonv1.ContactLink{ProfileId: adminID, ContactId: adminContactID},
 			room.GetId(),
-			repository.RoleAdmin,
+			2, // roleAdminLevel
 		)
 		require.NoError(t, err)
-		s.True(hasRole)
+		s.NotNil(hasRole, "Admin should have admin role")
 
 		hasRole, err = subscriptionSvc.HasRole(
 			ctx,
 			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 			room.GetId(),
-			repository.RoleMember,
+			1, // roleMemberLevel
 		)
 		require.NoError(t, err)
-		s.True(hasRole)
+		s.NotNil(hasRole, "Member should have member role")
 
 		// Admin should be able to update room
 		updateReq := &chatv1.UpdateRoomRequest{

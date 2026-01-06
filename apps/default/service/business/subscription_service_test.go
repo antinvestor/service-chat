@@ -133,30 +133,30 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 			ctx,
 			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
 			room.GetId(),
-			repository.RoleOwner,
+			3, // roleOwnerLevel
 		)
 		require.NoError(t, err)
-		s.True(hasRole)
+		s.NotNil(hasRole)
 
 		// Member should not have owner role
 		hasRole, err = subscriptionSvc.HasRole(
 			ctx,
 			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 			room.GetId(),
-			repository.RoleOwner,
+			3, // roleOwnerLevel
 		)
-		require.NoError(t, err)
-		s.False(hasRole)
+		s.Error(err)
+		s.Nil(hasRole)
 
 		// Member should have member role
 		hasRole, err = subscriptionSvc.HasRole(
 			ctx,
 			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 			room.GetId(),
-			repository.RoleMember,
+			1, // roleMemberLevel
 		)
 		require.NoError(t, err)
-		s.True(hasRole)
+		s.NotNil(hasRole)
 	})
 }
 
@@ -325,9 +325,13 @@ func (s *SubscriptionServiceTestSuite) TestAccessAfterRemoval() {
 		)
 		require.NoError(t, err)
 
-		// Check that no subscriptions are active (all values should be false)
-		for _, hasAccess := range accessMap {
-			s.False(hasAccess, "Removed member should not have active access")
+		// Check that no subscriptions are active (filter out inactive ones)
+		activeSubscriptions := 0
+		for _, sub := range accessMap {
+			if sub.IsActive() {
+				activeSubscriptions++
+			}
 		}
+		s.Equal(0, activeSubscriptions, "Removed member should not have active access")
 	})
 }
