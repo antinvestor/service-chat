@@ -117,7 +117,6 @@ func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 		eventDelivery := &eventsv1.Delivery{
 			Event:        eventLink,
 			Destination:  destination,
-			Source:       broadcast.GetSource(),
 			Payload:      eventPayload,
 			IsCompressed: false,
 			RetryCount:   0,
@@ -126,7 +125,7 @@ func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 		if pubErr := deliveryTopic.Publish(ctx, eventDelivery); pubErr != nil {
 			failCount++
 			logger.WithError(pubErr).
-				WithField("destination", destination.GetProfileId()).
+				WithField("subscription_id", destination.GetSubscriptionId()).
 				Warn("failed to publish delivery")
 		}
 	}

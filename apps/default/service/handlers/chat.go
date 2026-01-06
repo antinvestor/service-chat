@@ -63,7 +63,7 @@ func NewChatServer(
 	// Initialize business layers
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	connectBusiness := business.NewConnectBusiness(service, subRepo, eventRepo, subscriptionSvc)
+	connectBusiness := business.NewConnectBusiness(evtsMan, subRepo, eventRepo, subscriptionSvc)
 	roomBusiness := business.NewRoomBusiness(
 		service,
 		roomRepo,
@@ -436,13 +436,13 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 	}), nil
 }
 
-// UpdateClientState handles client state updates (typing indicators, presence, read receipts).
-func (ps *ChatServer) UpdateClientState(
+// Live handles client realtime updates (typing indicators, presence, read receipts).
+func (ps *ChatServer) Live(
 	ctx context.Context,
-	req *connect.Request[chatv1.UpdateClientStateRequest],
-) (*connect.Response[chatv1.UpdateClientStateResponse], error) {
+	req *connect.Request[chatv1.LiveRequest],
+) (*connect.Response[chatv1.LiveResponse], error) {
 	// Authentication check
-	authenticatedContact, err := internal.AuthContactLink(ctx)
+	authenticatedContact, err := internal.AuthContactLink(ctx, "system_internal")
 	if err != nil {
 		return nil, err
 	}
@@ -481,14 +481,14 @@ func (ps *ChatServer) UpdateClientState(
 		}
 
 		// Validate and process the client state
-		if processErr := ps.processClientState(ctx, clientState, authenticatedContact, req.Msg.GetRoomId()); processErr != nil {
+		if processErr := ps.processClientState(ctx, clientState, authenticatedContact); processErr != nil {
 			errorList = append(errorList, fmt.Sprintf("client state at index %d: %v", i, processErr))
 			continue
 		}
 	}
 
 	// Prepare response
-	response := &chatv1.UpdateClientStateResponse{}
+	response := &chatv1.LiveResponse{}
 
 	// If there were errorList, return first error
 	if len(errorList) > 0 {
@@ -508,14 +508,19 @@ func (ps *ChatServer) processClientState(
 	ctx context.Context,
 	clientCommand *chatv1.ClientCommand,
 	authenticatedContact *commonv1.ContactLink,
-	roomID string,
 ) error {
 	// Process different state types
 	switch state := clientCommand.GetState().(type) {
 	case *chatv1.ClientCommand_ReadMarker:
-		return ps.processReadMarkerState(ctx, state.ReadMarker, authenticatedContact, roomID)
+		return ps.processReadMarkerState(ctx, state.ReadMarker, authenticatedContact)
 	case *chatv1.ClientCommand_Event:
 		return ps.processRoomEventState(ctx, state.Event, authenticatedContact)
+	case *chatv1.ClientCommand_Receipt:
+		return ps.processDeliveryReceiptState(ctx, state.Receipt, authenticatedContact)
+	case *chatv1.ClientCommand_Typing:
+		return ps.processTypingState(ctx, state.Typing, authenticatedContact)
+	case *chatv1.ClientCommand_Presence:
+		return ps.processPresenceState(ctx, state.Presence, authenticatedContact)
 	default:
 		util.Log(ctx).WithFields(map[string]any{
 			"auth":       authenticatedContact,
@@ -525,28 +530,43 @@ func (ps *ChatServer) processClientState(
 	}
 }
 
+// processDeliveryReceiptState handles receipt acknowledgments.
+func (ps *ChatServer) processDeliveryReceiptState(
+	ctx context.Context,
+	receipt *chatv1.ReceiptEvent,
+	authenticatedContact *commonv1.ContactLink,
+) error {
+	if receipt == nil {
+		return errors.New("receipt event cannot be nil")
+	}
+
+	// Validate event_ids are provided
+	if len(receipt.GetEventId()) == 0 {
+		return errors.New("at least one event_id must be provided")
+	}
+
+	// Process delivery receipts for each event
+
+	err := ps.ConnectBusiness.UpdateDeliveryReceipt(ctx, receipt.GetRoomId(), authenticatedContact, receipt.GetEventId()...)
+	if err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"room_id":  receipt.GetRoomId(),
+			"event_id": receipt.GetEventId(),
+		}).Error("Failed to send delivery receipt")
+		return fmt.Errorf("failed to update delivery receipts for events: %w", err)
+	}
+
+	return nil
+}
+
 // processReadMarkerState handles read marker updates.
 func (ps *ChatServer) processReadMarkerState(
 	ctx context.Context,
 	readMarker *chatv1.ReadMarker,
 	authenticatedContact *commonv1.ContactLink,
-	roomID string,
 ) error {
 	if readMarker == nil {
 		return errors.New("read marker event cannot be nil")
-	}
-
-	// Validate and override profile_id
-	readMarker.SetSource(authenticatedContact)
-
-	// Use room_id from read marker if not provided in request
-	targetRoomID := roomID
-	if targetRoomID == "" {
-		targetRoomID = readMarker.GetRoomId()
-	}
-
-	if targetRoomID == "" {
-		return errors.New("room_id must be specified")
 	}
 
 	if readMarker.GetUpToEventId() == "" {
@@ -554,10 +574,10 @@ func (ps *ChatServer) processReadMarkerState(
 	}
 
 	// Mark messages as read up to the specified event
-	if err := ps.ConnectBusiness.UpdateReadMarker(ctx, targetRoomID, authenticatedContact, readMarker.GetUpToEventId()); err != nil {
+	if err := ps.ConnectBusiness.UpdateReadMarker(ctx, readMarker.GetRoomId(), authenticatedContact, readMarker.GetUpToEventId()); err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
 			"auth":           authenticatedContact,
-			"room_id":        targetRoomID,
+			"room_id":        readMarker.GetRoomId(),
 			"up_to_event_id": readMarker.GetUpToEventId(),
 		}).Error("Failed to mark messages as read")
 		return fmt.Errorf("failed to mark messages as read: %w", err)
@@ -566,7 +586,74 @@ func (ps *ChatServer) processReadMarkerState(
 	return nil
 }
 
-// processRoomEventState handles room events (messages, etc.).
+// processTypingState handles typing indicators.
+func (ps *ChatServer) processTypingState(
+	ctx context.Context,
+	typing *chatv1.TypingEvent,
+	authenticatedContact *commonv1.ContactLink,
+) error {
+	if typing == nil {
+		return errors.New("typing event cannot be nil")
+	}
+
+	if typing.GetRoomId() == "" {
+		return errors.New("room_id must be specified")
+	}
+
+	// Set timestamp if not provided
+	if typing.GetSince() == nil {
+		typing.Since = timestamppb.Now()
+	}
+
+	// Send typing indicator
+	if err := ps.ConnectBusiness.UpdateTypingIndicator(ctx, typing.GetRoomId(), authenticatedContact, typing.GetTyping()); err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"auth":    authenticatedContact,
+			"room_id": typing.GetRoomId(),
+			"typing":  typing.GetTyping(),
+		}).Error("Failed to send typing indicator")
+		return fmt.Errorf("failed to send typing indicator: %w", err)
+	}
+
+	return nil
+}
+
+// processPresenceState handles presence updates.
+func (ps *ChatServer) processPresenceState(
+	ctx context.Context,
+	presence *chatv1.PresenceEvent,
+	authenticatedContact *commonv1.ContactLink,
+) error {
+	if presence == nil {
+		return errors.New("presence event cannot be nil")
+	}
+
+	// Set timestamp if not provided
+	if presence.GetLastActive() == nil {
+		presence.LastActive = timestamppb.Now()
+	}
+
+	// Create presence event
+	presenceEvent := &chatv1.PresenceEvent{
+		Source:     authenticatedContact,
+		Status:     presence.GetStatus(),
+		StatusMsg:  presence.GetStatusMsg(),
+		LastActive: timestamppb.Now(),
+	}
+
+	// Send presence update
+	if err := ps.ConnectBusiness.UpdatePresence(ctx, presenceEvent); err != nil {
+		util.Log(ctx).WithError(err).WithFields(map[string]any{
+			"auth":   authenticatedContact,
+			"status": presence.GetStatus(),
+		}).Error("Failed to send presence update")
+		return fmt.Errorf("failed to send presence update: %w", err)
+	}
+
+	return nil
+}
+
+// processRoomEventState handles room events (messages, etc.)
 func (ps *ChatServer) processRoomEventState(
 	ctx context.Context,
 	roomEvent *chatv1.RoomEvent,

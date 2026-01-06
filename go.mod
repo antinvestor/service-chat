@@ -3,8 +3,8 @@ module github.com/antinvestor/service-chat
 go 1.25.2
 
 require (
-	buf.build/gen/go/antinvestor/chat/connectrpc/go v1.19.1-20260103185051-3c898530f15a.2
-	buf.build/gen/go/antinvestor/chat/protocolbuffers/go v1.36.11-20260105064633-3273bbc3ddc9.1
+	buf.build/gen/go/antinvestor/chat/connectrpc/go v1.19.1-20260106185444-4a02c52aa75d.2
+	buf.build/gen/go/antinvestor/chat/protocolbuffers/go v1.36.11-20260106185444-4a02c52aa75d.1
 	buf.build/gen/go/antinvestor/common/protocolbuffers/go v1.36.11-20260102104630-5c57561a771f.1
 	buf.build/gen/go/antinvestor/device/connectrpc/go v1.19.1-20251223175454-e698295a3dc7.2
 	buf.build/gen/go/antinvestor/device/protocolbuffers/go v1.36.11-20251223175454-e698295a3dc7.1
@@ -12,14 +12,13 @@ require (
 	buf.build/gen/go/antinvestor/profile/connectrpc/go v1.19.1-20260102123445-62e44f8dd82b.2
 	buf.build/gen/go/antinvestor/profile/protocolbuffers/go v1.36.11-20260102123445-62e44f8dd82b.1
 	connectrpc.com/connect v1.19.1
-	connectrpc.com/otelconnect v0.8.0
-	github.com/antinvestor/apis/go/chat v1.52.11
+	connectrpc.com/otelconnect v0.9.0
+	github.com/antinvestor/apis/go/chat v1.52.24
 	github.com/antinvestor/apis/go/common v1.51.10
 	github.com/antinvestor/apis/go/device v1.51.11
 	github.com/antinvestor/apis/go/notification v1.52.4
 	github.com/antinvestor/apis/go/profile v1.52.4
 	github.com/gojuno/minimock/v3 v3.4.7
-	github.com/golang/protobuf v1.5.4
 	github.com/pitabwire/frame v1.69.13
 	github.com/pitabwire/util v0.3.9
 	github.com/stretchr/testify v1.11.1
@@ -97,7 +96,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.67.4 // indirect
+	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/rs/xid v1.6.0 // indirect

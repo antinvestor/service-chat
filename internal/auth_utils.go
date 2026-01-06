@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"errors"
+	"slices"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"connectrpc.com/connect"
@@ -10,13 +11,22 @@ import (
 )
 
 // AuthContactLink extracts contact link from validated authentication claims.
-func AuthContactLink(ctx context.Context) (*commonv1.ContactLink, error) {
+func AuthContactLink(ctx context.Context, roles ...string) (*commonv1.ContactLink, error) {
 	authClaims := security.ClaimsFromContext(ctx)
 	if authClaims == nil {
 		return nil, connect.NewError(
 			connect.CodeUnauthenticated,
 			errors.New("request needs to be authenticated"),
 		)
+	}
+
+	for _, item := range roles {
+		if !slices.Contains(authClaims.GetRoles(), item) {
+			return nil, connect.NewError(
+				connect.CodeUnauthenticated,
+				errors.New("request not authorized"),
+			)
+		}
 	}
 
 	profileID, err := authClaims.GetSubject()

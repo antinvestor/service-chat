@@ -9,18 +9,20 @@ import (
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service"
+	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/internal"
-	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/cache"
+	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type connectBusiness struct {
-	service         *frame.Service
+	evtsManager frevents.Manager
+
 	subRepo         repository.RoomSubscriptionRepository
 	eventRepo       repository.RoomEventRepository
 	subscriptionSvc SubscriptionService
@@ -32,13 +34,13 @@ type connectBusiness struct {
 
 // NewConnectBusiness creates a new instance of ClientStateBusiness.
 func NewConnectBusiness(
-	service *frame.Service,
+	evtsManager frevents.Manager,
 	subRepo repository.RoomSubscriptionRepository,
 	eventRepo repository.RoomEventRepository,
 	subscriptionSvc SubscriptionService,
 ) ClientStateBusiness {
 	return &connectBusiness{
-		service:         service,
+		evtsManager:     evtsManager,
 		subRepo:         subRepo,
 		eventRepo:       eventRepo,
 		subscriptionSvc: subscriptionSvc,
@@ -77,15 +79,15 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 	}
 
 	// Check if user has access to the room
-	accessMap, err := cb.subscriptionSvc.HasAccess(ctx, typer, roomID)
+	accessList, err := cb.subscriptionSvc.HasAccess(ctx, typer, roomID)
 	if err != nil {
 		return fmt.Errorf("failed to check room access: %w", err)
 	}
 
 	var subscription *models.RoomSubscription
 	// Check if the user has access to the room
-	for sub, hasAccess := range accessMap {
-		if sub.RoomID == roomID && hasAccess {
+	for _, sub := range accessList {
+		if sub.RoomID == roomID && sub.IsActive() {
 			subscription = sub
 		}
 	}
@@ -96,27 +98,33 @@ func (cb *connectBusiness) UpdateTypingIndicator(
 
 	// Broadcast user is typing to other room members
 	// Note: STATE_TYPING events don't have typed payload content
-	typingEvent := &eventsv1.Delivery{
-		Event: &eventsv1.Link{
-			EventId:              util.IDString(),
-			RoomId:               roomID,
-			SourceSubscriptionId: subscription.GetID(),
-			EventType:            chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
-			CreatedAt:            timestamppb.Now(),
+	typingEvent := eventsv1.Link{
+		EventId: util.IDString(),
+		RoomId:  roomID,
+
+		Source: &eventsv1.Subscription{
+			SubscriptionId: subscription.GetID(),
+			ContactLink:    typer,
 		},
-		IsCompressed: false,
-		RetryCount:   0,
+		EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
+		CreatedAt: timestamppb.Now(),
 	}
 
-	return cb.broadCast(ctx, roomID, typingEvent)
+	emitErr := cb.evtsManager.Emit(ctx, events.RoomOutboxLoggingEventName, &typingEvent)
+	if emitErr != nil {
+		util.Log(ctx).WithError(emitErr).Error("failed to emit typing events to subscriptions")
+		return emitErr
+	}
+
+	return nil
 }
 
-// UpdateReadReceipt update read receipt and notifies room subscribers.
-func (cb *connectBusiness) UpdateReadReceipt(
+// UpdateDeliveryReceipt update read receipt and notifies room subscribers.
+func (cb *connectBusiness) UpdateDeliveryReceipt(
 	ctx context.Context,
 	roomID string,
 	recipient *commonv1.ContactLink,
-	eventID string,
+	eventIDList ...string,
 ) error {
 	if err := internal.IsValidContactLink(recipient); err != nil {
 		return err
@@ -126,15 +134,15 @@ func (cb *connectBusiness) UpdateReadReceipt(
 	}
 
 	// Check if user has access to the room
-	accessMap, err := cb.subscriptionSvc.HasAccess(ctx, recipient, roomID)
+	accessList, err := cb.subscriptionSvc.HasAccess(ctx, recipient, roomID)
 	if err != nil {
 		return fmt.Errorf("failed to check room access: %w", err)
 	}
 
 	var subscription *models.RoomSubscription
 	// Check if the user has access to the room
-	for sub, hasAccess := range accessMap {
-		if sub.RoomID == roomID && hasAccess {
+	for _, sub := range accessList {
+		if sub.RoomID == roomID && sub.IsActive() {
 			subscription = sub
 		}
 	}
@@ -143,32 +151,31 @@ func (cb *connectBusiness) UpdateReadReceipt(
 		return service.ErrRoomAccessDenied
 	}
 
-	// Update to the new event ID
-	// UnreadCount is now a generated column and will be automatically calculated
-	if subscription.LastReadEventID < eventID {
-		subscription.LastReadEventID = eventID
-		subscription.LastReadAt = time.Now().Unix()
+	// Broadcast delivery receipt to other room members
+	for _, eventID := range eventIDList {
 
-		_, err = cb.subRepo.Update(ctx, subscription)
-		if err != nil {
-			return fmt.Errorf("failed to update subscription: %w", err)
+		receiptEvents := eventsv1.Link{
+			EventId: util.IDString(),
+			RoomId:  roomID,
+
+			Source: &eventsv1.Subscription{
+				SubscriptionId: subscription.GetID(),
+				ContactLink:    subscription.ToLink(),
+			},
+			ParentId:  eventID,
+			EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_DELIVERED,
+			CreatedAt: timestamppb.Now(),
+		}
+
+		emitErr := cb.evtsManager.Emit(ctx, events.RoomOutboxLoggingEventName, &receiptEvents)
+		if emitErr != nil {
+			util.Log(ctx).WithError(emitErr).Error("failed to emit read marker to subscriptions")
+			return emitErr
 		}
 	}
 
-	// Broadcast read receipt to other room members
-	receiptEvent := &eventsv1.Delivery{
-		Event: &eventsv1.Link{
-			EventId:              eventID,
-			RoomId:               roomID,
-			SourceSubscriptionId: subscription.GetID(),
-			EventType:            chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
-			CreatedAt:            timestamppb.Now(),
-		},
-		IsCompressed: false,
-		RetryCount:   0,
-	}
+	return nil
 
-	return cb.broadCast(ctx, roomID, receiptEvent)
 }
 
 func (cb *connectBusiness) UpdateReadMarker(
@@ -185,15 +192,15 @@ func (cb *connectBusiness) UpdateReadMarker(
 	}
 
 	// Check if user has access to the room
-	accessMap, err := cb.subscriptionSvc.HasAccess(ctx, reader, roomID)
+	accessList, err := cb.subscriptionSvc.HasAccess(ctx, reader, roomID)
 	if err != nil {
 		return fmt.Errorf("failed to check room access: %w", err)
 	}
 
 	var subscription *models.RoomSubscription
 	// Check if the user has access to the room
-	for sub, hasAccess := range accessMap {
-		if sub.RoomID == roomID && hasAccess {
+	for _, sub := range accessList {
+		if sub.RoomID == roomID && sub.IsActive() {
 			subscription = sub
 		}
 	}
@@ -218,44 +225,24 @@ func (cb *connectBusiness) UpdateReadMarker(
 		}
 	}
 
-	var receiptEvents []*eventsv1.Delivery
-
 	// Broadcast read receipt to other room members
-	receiptEvents = append(receiptEvents, &eventsv1.Delivery{
-		Event: &eventsv1.Link{
-			EventId:              upToEventID,
-			RoomId:               roomID,
-			SourceSubscriptionId: subscription.GetID(),
-			EventType:            chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM,
-			CreatedAt:            timestamppb.Now(),
+	readEvents := eventsv1.Link{
+		EventId: util.IDString(),
+		RoomId:  roomID,
+
+		Source: &eventsv1.Subscription{
+			SubscriptionId: subscription.GetID(),
+			ContactLink:    subscription.ToLink(),
 		},
-		IsCompressed: false,
-		RetryCount:   0,
-	})
-
-	return cb.broadCast(ctx, roomID, receiptEvents...)
-}
-
-func (cb *connectBusiness) broadCast(ctx context.Context, roomID string, dlrPayloads ...*eventsv1.Delivery) error {
-	// Get the subscriptions tied to the room
-	subs, err := cb.subRepo.GetByRoomID(ctx, roomID, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get subscription: %w", err)
+		ParentId:  upToEventID,
+		EventType: chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
+		CreatedAt: timestamppb.Now(),
 	}
 
-	for _, sub := range subs {
-		for _, pl := range dlrPayloads {
-			pl.Destination = &commonv1.ContactLink{
-				ProfileId: sub.ProfileID,
-			}
-
-			err = cb.deliveryTopic.Publish(ctx, pl)
-			if err != nil {
-				util.Log(ctx).WithError(err).Error("failed to deliver receipt to subscriptions")
-				return err
-			}
-		}
+	emitErr := cb.evtsManager.Emit(ctx, events.RoomOutboxLoggingEventName, &readEvents)
+	if emitErr != nil {
+		util.Log(ctx).WithError(emitErr).Error("failed to emit read marker to subscriptions")
+		return emitErr
 	}
-
 	return nil
 }

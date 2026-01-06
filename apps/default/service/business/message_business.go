@@ -18,7 +18,6 @@ import (
 	"github.com/pitabwire/frame/data"
 	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/util"
-	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -27,6 +26,8 @@ type messageBusiness struct {
 	subRepo         repository.RoomSubscriptionRepository
 	subscriptionSvc SubscriptionService
 	evtsManager     frevents.Manager
+
+	payloadConverter *models.PayloadConverter
 }
 
 // NewMessageBusiness creates a new instance of MessageBusiness.
@@ -42,6 +43,8 @@ func NewMessageBusiness(
 		eventRepo:       eventRepo,
 		subRepo:         subRepo,
 		subscriptionSvc: subscriptionSvc,
+
+		payloadConverter: models.NewPayloadConverter(),
 	}
 }
 
@@ -50,7 +53,7 @@ func (mb *messageBusiness) SendEvents(
 	ctx context.Context,
 	req *chatv1.SendEventRequest,
 	sentBy *commonv1.ContactLink,
-) ([]*chatv1.EventAck, error) {
+) ([]*chatv1.AckEvent, error) {
 	// Validate request
 	if len(req.GetEvent()) == 0 {
 		return nil, service.ErrMessageContentRequired
@@ -63,7 +66,7 @@ func (mb *messageBusiness) SendEvents(
 	requestEvents := req.GetEvent()
 
 	// Pre-allocate response slice to maintain request order
-	responses := make([]*chatv1.EventAck, len(requestEvents))
+	responses := make([]*chatv1.AckEvent, len(requestEvents))
 	validEvents := make([]*models.RoomEvent, 0, len(requestEvents))
 	eventToIndex := make(map[string]int, len(requestEvents))
 
@@ -83,10 +86,11 @@ func (mb *messageBusiness) SendEvents(
 
 	// Check access for each room individually to handle non-existent rooms
 	subscriptionMap := make(map[string]*models.RoomSubscription)
-	accessMap := make(map[*models.RoomSubscription]bool)
+	subscriptionIDAccessMap := make(map[string]bool)
+	roomSubscriptionIDMap := make(map[string]string)
 
 	for _, roomID := range uniqueRoomIDList {
-		roomAccessMap, accessErr := mb.subscriptionSvc.HasAccess(ctx, sentBy, roomID)
+		roomAccessList, accessErr := mb.subscriptionSvc.HasAccess(ctx, sentBy, roomID)
 		if accessErr != nil {
 			// For non-existent rooms, create empty access map
 			connectError := &connect.Error{}
@@ -97,9 +101,10 @@ func (mb *messageBusiness) SendEvents(
 		}
 
 		// Add to combined maps
-		for sub, hasAccess := range roomAccessMap {
-			subscriptionMap[sub.RoomID] = sub
-			accessMap[sub] = hasAccess
+		for _, sub := range roomAccessList {
+			subscriptionMap[sub.GetID()] = sub
+			roomSubscriptionIDMap[sub.RoomID] = sub.GetID()
+			subscriptionIDAccessMap[sub.GetID()] = sub.IsActive()
 		}
 	}
 
@@ -115,40 +120,45 @@ func (mb *messageBusiness) SendEvents(
 
 		roomID := reqEvt.GetRoomId()
 
-		sub, subscribed := subscriptionMap[roomID]
-		if !subscribed {
-			errorD, _ := structpb.NewStruct(
-				map[string]any{"error": fmt.Sprintf("no subscription to room: %v", roomID)},
-			)
-			responses[i] = &chatv1.EventAck{
-				EventId:  reqEvt.GetId(),
-				AckAt:    timestamppb.Now(),
-				Metadata: errorD,
+		subscriptionID, ok := roomSubscriptionIDMap[roomID]
+		if !ok {
+
+			responses[i] = &chatv1.AckEvent{
+				EventId: []string{reqEvt.GetId()},
+				AckAt:   timestamppb.Now(),
+
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodeInternal),
+					Message: fmt.Sprintf("no subscription to room: %v", roomID),
+				},
 			}
 			continue
 		}
 
 		// Check if user has access to this room
-		hasAccess := accessMap[sub]
+		hasAccess := subscriptionIDAccessMap[subscriptionID]
 		if !hasAccess {
-			errorD, _ := structpb.NewStruct(map[string]any{"error": service.ErrMessageSendDenied.Error()})
-			responses[i] = &chatv1.EventAck{
-				EventId:  reqEvt.GetId(),
-				AckAt:    timestamppb.Now(),
-				Metadata: errorD,
+			responses[i] = &chatv1.AckEvent{
+				EventId: []string{reqEvt.GetId()},
+				AckAt:   timestamppb.Now(),
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodePermissionDenied),
+					Message: service.ErrMessageSendDenied.Error(),
+				},
 			}
 			continue
 		}
 
 		// Create the message event using PayloadConverter
-		converter := models.NewPayloadConverter()
-		content, err := converter.FromProto(reqEvt.GetPayload())
+		content, err := mb.payloadConverter.FromProto(reqEvt.GetPayload())
 		if err != nil {
-			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to convert event: %v", err)})
-			responses[i] = &chatv1.EventAck{
-				EventId:  reqEvt.GetId(),
-				AckAt:    timestamppb.Now(),
-				Metadata: errorD,
+			responses[i] = &chatv1.AckEvent{
+				EventId: []string{reqEvt.GetId()},
+				AckAt:   timestamppb.Now(),
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodeInternal),
+					Message: fmt.Sprintf("failed to convert event: %v", err),
+				},
 			}
 			continue
 		}
@@ -158,7 +168,7 @@ func (mb *messageBusiness) SendEvents(
 			RoomID:    reqEvt.GetRoomId(),
 			EventType: int32(reqEvt.GetType()),
 			Content:   content,
-			SenderID:  sub.GetID(),
+			SenderID:  subscriptionID,
 		}
 
 		if reqEvt.ParentId != nil {
@@ -188,44 +198,54 @@ func (mb *messageBusiness) SendEvents(
 
 		// Check if bulk save failed
 		if bulkCreateErr != nil {
-			errorD, _ := structpb.NewStruct(
-				map[string]any{"error": fmt.Sprintf("failed to save event: %v", bulkCreateErr)},
-			)
-			responses[responseIdx] = &chatv1.EventAck{
-				EventId:  event.GetID(),
-				AckAt:    timestamppb.Now(),
-				Metadata: errorD,
+			responses[responseIdx] = &chatv1.AckEvent{
+				EventId: []string{event.GetID()},
+				AckAt:   timestamppb.Now(),
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodeInternal),
+					Message: fmt.Sprintf("failed to save event: %v", bulkCreateErr),
+				},
 			}
+			continue
+		}
+
+		subscription, ok := subscriptionMap[event.SenderID]
+		if !ok {
+			util.Log(ctx).WithField("subscription_id", event.SenderID).Error("very unlikely, no such subscription exists")
 			continue
 		}
 
 		// Emit event to outbox for delivery
 		outboxEventLink := eventsv1.Link{
-			EventId:              event.GetID(),
-			RoomId:               event.RoomID,
-			SourceSubscriptionId: event.SenderID,
-			ParentId:             event.ParentID,
-			EventType:            chatv1.RoomEventType(event.EventType),
-			CreatedAt:            timestamppb.New(event.CreatedAt),
+			EventId: event.GetID(),
+			RoomId:  event.RoomID,
+
+			Source: &eventsv1.Subscription{
+				SubscriptionId: subscription.GetID(),
+				ContactLink:    subscription.ToLink(),
+			},
+			ParentId:  event.ParentID,
+			EventType: chatv1.RoomEventType(event.EventType),
+			CreatedAt: timestamppb.New(event.CreatedAt),
 		}
 
 		emitErr := mb.evtsManager.Emit(ctx, events.RoomOutboxLoggingEventName, &outboxEventLink)
 		if emitErr != nil {
-			errorD, _ := structpb.NewStruct(map[string]any{"error": fmt.Sprintf("failed to emit event: %v", emitErr)})
-			responses[responseIdx] = &chatv1.EventAck{
-				EventId:  event.GetID(),
-				AckAt:    timestamppb.Now(),
-				Metadata: errorD,
+			responses[responseIdx] = &chatv1.AckEvent{
+				EventId: []string{event.GetID()},
+				AckAt:   timestamppb.Now(),
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodeInternal),
+					Message: fmt.Sprintf("failed to emit event: %v", emitErr),
+				},
 			}
 			continue
 		}
 
 		// Success - event saved and emitted to outbox
-		success, _ := structpb.NewStruct(map[string]any{"status": "ok"})
-		responses[responseIdx] = &chatv1.EventAck{
-			EventId:  event.GetID(),
-			AckAt:    timestamppb.Now(),
-			Metadata: success,
+		responses[responseIdx] = &chatv1.AckEvent{
+			EventId: []string{event.GetID()},
+			AckAt:   timestamppb.Now(),
 		}
 	}
 
@@ -255,13 +275,13 @@ func (mb *messageBusiness) GetMessage(
 	}
 
 	// Check if the user has access to the room
-	accessMap, err := mb.subscriptionSvc.HasAccess(ctx, gottenBy, event.RoomID)
+	accessList, err := mb.subscriptionSvc.HasAccess(ctx, gottenBy, event.RoomID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check room access: %w", err)
 	}
 
-	for sub, hasAccess := range accessMap {
-		if sub.RoomID == event.RoomID && hasAccess {
+	for _, sub := range accessList {
+		if sub.RoomID == event.RoomID && sub.IsActive() {
 			return event, nil
 		}
 	}
@@ -283,13 +303,13 @@ func (mb *messageBusiness) GetHistory(
 	}
 
 	// Check if the user has access to the room
-	accessMap, err := mb.subscriptionSvc.HasAccess(ctx, gottenBy, req.GetRoomId())
+	accessList, err := mb.subscriptionSvc.HasAccess(ctx, gottenBy, req.GetRoomId())
 	if err != nil {
 		return nil, fmt.Errorf("failed to check room access: %w", err)
 	}
 
-	for sub, hasAccess := range accessMap {
-		if sub.RoomID != req.GetRoomId() || !hasAccess {
+	for _, sub := range accessList {
+		if sub.RoomID != req.GetRoomId() || !sub.IsActive() {
 			return nil, service.ErrRoomAccessDenied
 		}
 	}
@@ -345,12 +365,12 @@ func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, 
 
 	// Check if the user is the sender or an admin
 	isSender := event.SenderID == deletedBy.GetProfileId()
-	isAdmin, err := mb.subscriptionSvc.HasRole(ctx, deletedBy, event.RoomID, "admin")
+	admin, err := mb.subscriptionSvc.HasRole(ctx, deletedBy, event.RoomID, roleAdminLevel)
 	if err != nil {
 		return fmt.Errorf("failed to check admin status: %w", err)
 	}
 
-	if !isSender && !isAdmin {
+	if !isSender && admin != nil {
 		return service.ErrMessageDeleteDenied
 	}
 
@@ -377,15 +397,15 @@ func (mb *messageBusiness) MarkMessagesAsRead(
 	}
 
 	// Check if the user has access to the room
-	accessMap, err := mb.subscriptionSvc.HasAccess(ctx, markedBy, roomID)
+	accessList, err := mb.subscriptionSvc.HasAccess(ctx, markedBy, roomID)
 	if err != nil {
 		return fmt.Errorf("failed to check room access: %w", err)
 	}
 
 	var subscription *models.RoomSubscription
 	// Check if the user has access to the room
-	for sub, hasAccess := range accessMap {
-		if sub.RoomID == roomID && hasAccess {
+	for _, sub := range accessList {
+		if sub.RoomID == roomID && sub.IsActive() {
 			subscription = sub
 		}
 	}

@@ -90,7 +90,10 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	destination := eventDelivery.GetDestination()
 	profileID := ""
 	if destination != nil {
-		profileID = destination.GetProfileId()
+		contactLink := destination.GetContactLink()
+		if contactLink != nil {
+			profileID = contactLink.GetProfileId()
+		}
 	}
 
 	response, err := dq.deviceCli.Search(ctx, connect.NewRequest(&devicev1.SearchRequest{
@@ -188,7 +191,10 @@ func (dq *hotPathDeliveryQueueHandler) publishToOnlineDevice(
 	destination := msg.GetDestination()
 	profileID := ""
 	if destination != nil {
-		profileID = destination.GetProfileId()
+		contactLink := destination.GetContactLink()
+		if contactLink != nil {
+			profileID = contactLink.GetProfileId()
+		}
 	}
 	deviceID := dev.GetId()
 

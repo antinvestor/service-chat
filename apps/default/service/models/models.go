@@ -75,12 +75,10 @@ func (re *RoomEvent) ToAPI(_ context.Context, converter *PayloadConverter) *chat
 
 	// Use PayloadConverter for complete conversion with typed content
 	protoEvent := &chatv1.RoomEvent{
-		Id:     re.ID,
-		RoomId: re.RoomID,
-		Source: &commonv1.ContactLink{
-			ProfileId: re.SenderID,
-		},
-		Type: chatv1.RoomEventType(re.EventType),
+		Id:             re.ID,
+		RoomId:         re.RoomID,
+		SubscriptionId: re.SenderID,
+		Type:           chatv1.RoomEventType(re.EventType),
 	}
 
 	// Set timestamp if available

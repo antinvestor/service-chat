@@ -3,7 +3,9 @@ package events
 import (
 	"context"
 	"errors"
+	"slices"
 
+	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
@@ -21,6 +23,8 @@ const (
 type RoomOutboxLoggingQueue struct {
 	evtsManager      frevents.Manager
 	subscriptionRepo repository.RoomSubscriptionRepository
+
+	lowPriorityEventTypes []chatv1.RoomEventType
 }
 
 func NewRoomOutboxLoggingQueue(
@@ -32,6 +36,11 @@ func NewRoomOutboxLoggingQueue(
 	return &RoomOutboxLoggingQueue{
 		subscriptionRepo: repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan),
 		evtsManager:      evtsManager,
+		lowPriorityEventTypes: []chatv1.RoomEventType{
+			chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
+			chatv1.RoomEventType_ROOM_EVENT_TYPE_DELIVERED,
+			chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
+		},
 	}
 }
 
@@ -78,27 +87,27 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 		return nil
 	}
 
-	var source *commonv1.ContactLink
-	var destinations []*commonv1.ContactLink
+	var destinations []*eventsv1.Subscription
 	for _, sub := range subscriptions {
-		if sub.GetID() == evtLink.GetSourceSubscriptionId() {
-			source = sub.ToLink()
-			continue
-		}
 
 		// Only broadcast messages to active subscriptions
 		if sub.IsActive() {
-			destinations = append(destinations, sub.ToLink())
+			destinations = append(destinations, &eventsv1.Subscription{
+				SubscriptionId: sub.GetID(),
+				ContactLink:    sub.ToLink(),
+			})
 		}
 	}
 
 	// Emit broadcast for this batch
 	if len(destinations) > 0 {
+
+		broadCastPriority := csq.getBroadCastPriority(evtLink.EventType)
+
 		eventBroadcast := eventsv1.Broadcast{
 			Event:        evtLink,
-			Source:       source,
 			Destinations: destinations,
-			Priority:     0,
+			Priority:     broadCastPriority,
 		}
 		if err = csq.evtsManager.Emit(ctx, RoomFanoutEventName, &eventBroadcast); err != nil {
 			logger.WithError(err).Error("failed to publish event broadcast")
@@ -122,4 +131,18 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 	}
 
 	return nil
+}
+
+func (csq *RoomOutboxLoggingQueue) getBroadCastPriority(eventType chatv1.RoomEventType) eventsv1.Broadcast_Priority {
+
+	if eventType == chatv1.RoomEventType_ROOM_EVENT_TYPE_CALL {
+		return eventsv1.Broadcast_PRIORITY_HIGH
+	}
+
+	if slices.Contains(csq.lowPriorityEventTypes, eventType) {
+		return eventsv1.Broadcast_PRIORITY_UNSPECIFIED
+	}
+
+	return eventsv1.Broadcast_PRIORITY_NORMAL
+
 }

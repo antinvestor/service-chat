@@ -51,7 +51,10 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	destination := evtMsg.GetDestination()
 	targetID := ""
 	if destination != nil {
-		targetID = destination.GetProfileId()
+		contactLink := destination.GetContactLink()
+		if contactLink != nil {
+			targetID = contactLink.GetProfileId()
+		}
 	}
 
 	if targetID == "" {

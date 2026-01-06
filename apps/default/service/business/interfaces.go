@@ -72,7 +72,7 @@ type MessageBusiness interface {
 		ctx context.Context,
 		req *chatv1.SendEventRequest,
 		sentBy *commonv1.ContactLink,
-	) ([]*chatv1.EventAck, error)
+	) ([]*chatv1.AckEvent, error)
 
 	// GetHistory retrieves message history for a room with pagination
 	GetHistory(
@@ -95,7 +95,7 @@ type ClientStateBusiness interface {
 	UpdateTypingIndicator(ctx context.Context, roomID string, reader *commonv1.ContactLink, isTyping bool) error
 
 	// UpdateReadReceipt sends read receipts to room subscribers
-	UpdateReadReceipt(ctx context.Context, roomID string, reader *commonv1.ContactLink, eventID string) error
+	UpdateDeliveryReceipt(ctx context.Context, roomID string, reader *commonv1.ContactLink, eventID ...string) error
 
 	// UpdateReadMarker updates the read marker to room subscribers
 	UpdateReadMarker(ctx context.Context, roomID string, reader *commonv1.ContactLink, eventID string) error
