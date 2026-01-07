@@ -61,8 +61,8 @@ func (s *IntegrationTestSuite) TestCompleteRoomLifecycle() {
 			Description: "Testing complete workflow",
 			IsPrivate:   false,
 			Members: []*commonv1.ContactLink{
-				&commonv1.ContactLink{ProfileId: member1ID, ContactId: member1ContactID},
-				&commonv1.ContactLink{ProfileId: member2ID, ContactId: member2ContactID},
+				{ProfileId: member1ID, ContactId: member1ContactID},
+				{ProfileId: member2ID, ContactId: member2ContactID},
 			},
 		}
 
@@ -333,8 +333,8 @@ func (s *IntegrationTestSuite) TestRoleBasedPermissions() {
 			Name:      "Permission Test Room",
 			IsPrivate: false,
 			Members: []*commonv1.ContactLink{
-				&commonv1.ContactLink{ProfileId: adminID, ContactId: adminContactID},
-				&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+				{ProfileId: adminID, ContactId: adminContactID},
+				{ProfileId: memberID, ContactId: memberContactID},
 			},
 		}
 

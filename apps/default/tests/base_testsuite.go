@@ -2,12 +2,15 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
+	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
+	"connectrpc.com/connect"
 	devicemocks "github.com/antinvestor/apis/go/device/mocks"
 	notificationmocks "github.com/antinvestor/apis/go/notification/mocks"
 	profilemocks "github.com/antinvestor/apis/go/profile/mocks"
@@ -150,6 +153,12 @@ func (bs *BaseTestSuite) GetProfileCli(t *testing.T) profilev1connect.ProfileSer
 func (bs *BaseTestSuite) GetDevice(t *testing.T) devicev1connect.DeviceServiceClient {
 	ctrl := minimock.NewController(t)
 	mockSvc := devicemocks.NewDeviceServiceClientMock(ctrl)
+
+	// Configure the mock to expect Search calls and return no devices found error
+	mockSvc.SearchMock.Optional().
+		Set(func(_ context.Context, _ *connect.Request[devicev1.SearchRequest]) (*connect.ServerStreamForClient[devicev1.SearchResponse], error) {
+			return nil, errors.New("no devices found")
+		})
 
 	return mockSvc
 }

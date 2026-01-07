@@ -55,8 +55,8 @@ func (s *RoomBusinessTestSuite) TestCreateRoom() {
 			Description: "Test Description",
 			IsPrivate:   false,
 			Members: []*commonv1.ContactLink{
-				&commonv1.ContactLink{ProfileId: util.IDString()},
-				&commonv1.ContactLink{ProfileId: util.IDString()},
+				{ProfileId: util.IDString()},
+				{ProfileId: util.IDString()},
 			},
 		}
 
@@ -200,7 +200,7 @@ func (s *RoomBusinessTestSuite) TestUpdateRoomUnauthorized() {
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
 		created, err := roomBusiness.CreateRoom(
@@ -335,7 +335,7 @@ func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptions() {
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
 		created, err := roomBusiness.CreateRoom(
@@ -402,7 +402,7 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 		req := &chatv1.CreateRoomRequest{
 			Name:      "Test Room",
 			IsPrivate: false,
-			Members:   []*commonv1.ContactLink{&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID}},
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
 		}
 
 		created, err := roomBusiness.CreateRoom(
