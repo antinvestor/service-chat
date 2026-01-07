@@ -89,7 +89,6 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 
 	var destinations []*eventsv1.Subscription
 	for _, sub := range subscriptions {
-
 		// Only broadcast messages to active subscriptions
 		if sub.IsActive() {
 			destinations = append(destinations, &eventsv1.Subscription{
@@ -101,8 +100,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 
 	// Emit broadcast for this batch
 	if len(destinations) > 0 {
-
-		broadCastPriority := csq.getBroadCastPriority(evtLink.EventType)
+		broadCastPriority := csq.getBroadCastPriority(evtLink.GetEventType())
 
 		eventBroadcast := eventsv1.Broadcast{
 			Event:        evtLink,
@@ -134,7 +132,6 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 }
 
 func (csq *RoomOutboxLoggingQueue) getBroadCastPriority(eventType chatv1.RoomEventType) eventsv1.Broadcast_Priority {
-
 	if eventType == chatv1.RoomEventType_ROOM_EVENT_TYPE_CALL {
 		return eventsv1.Broadcast_PRIORITY_HIGH
 	}
@@ -144,5 +141,4 @@ func (csq *RoomOutboxLoggingQueue) getBroadCastPriority(eventType chatv1.RoomEve
 	}
 
 	return eventsv1.Broadcast_PRIORITY_NORMAL
-
 }

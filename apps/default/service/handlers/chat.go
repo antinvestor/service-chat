@@ -547,7 +547,11 @@ func (ps *ChatServer) processDeliveryReceiptState(
 
 	// Process delivery receipts for each event
 
-	err := ps.ConnectBusiness.UpdateDeliveryReceipt(ctx, receipt.GetRoomId(), authenticatedContact, receipt.GetEventId()...)
+	err := ps.ConnectBusiness.UpdateDeliveryReceipt(
+		ctx,
+		receipt.GetRoomId(),
+		authenticatedContact,
+		receipt.GetEventId()...)
 	if err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
 			"room_id":  receipt.GetRoomId(),

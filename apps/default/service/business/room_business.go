@@ -84,7 +84,14 @@ func (rb *roomBusiness) CreateRoom(
 	}
 
 	// Add creator as owner
-	ownerSubList, err := rb.addRoomMembers(ctx, createdRoom.GetID(), []*commonv1.ContactLink{createdBy}, roleOwner, "", createdBy)
+	ownerSubList, err := rb.addRoomMembers(
+		ctx,
+		createdRoom.GetID(),
+		[]*commonv1.ContactLink{createdBy},
+		roleOwner,
+		"",
+		createdBy,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add creator to room: %w", err)
 	}
@@ -95,7 +102,14 @@ func (rb *roomBusiness) CreateRoom(
 	// Add other members (excluding the creator)
 	members := req.GetMembers()
 	if len(members) > 0 {
-		newSubs, newSubErr := rb.addRoomMembers(ctx, createdRoom.GetID(), members, roleMember, ownerSub.GetID(), createdBy)
+		newSubs, newSubErr := rb.addRoomMembers(
+			ctx,
+			createdRoom.GetID(),
+			members,
+			roleMember,
+			ownerSub.GetID(),
+			createdBy,
+		)
 		if newSubErr != nil {
 			return nil, fmt.Errorf("failed to add members to room: %w", newSubErr)
 		}
@@ -576,7 +590,6 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 					},
 				},
 			})
-
 	}
 
 	return newSubs, nil

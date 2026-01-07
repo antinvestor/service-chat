@@ -136,7 +136,7 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 			3, // roleOwnerLevel
 		)
 		require.NoError(t, err)
-		s.NotNil(hasRole)
+		require.NotNil(t, hasRole)
 
 		// Member should not have owner role
 		hasRole, err = subscriptionSvc.HasRole(
@@ -145,8 +145,8 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 			room.GetId(),
 			3, // roleOwnerLevel
 		)
-		s.Error(err)
-		s.Nil(hasRole)
+		require.Error(t, err)
+		require.Nil(t, hasRole)
 
 		// Member should have member role
 		hasRole, err = subscriptionSvc.HasRole(
@@ -156,7 +156,7 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 			1, // roleMemberLevel
 		)
 		require.NoError(t, err)
-		s.NotNil(hasRole)
+		require.NotNil(t, hasRole)
 	})
 }
 

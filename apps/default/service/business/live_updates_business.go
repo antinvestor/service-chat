@@ -15,7 +15,6 @@ import (
 	"github.com/antinvestor/service-chat/internal"
 	"github.com/pitabwire/frame/cache"
 	frevents "github.com/pitabwire/frame/events"
-	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -28,8 +27,6 @@ type connectBusiness struct {
 	subscriptionSvc SubscriptionService
 
 	presenceCache cache.Cache[string, *chatv1.PresenceEvent]
-
-	deliveryTopic queue.Publisher
 }
 
 // NewConnectBusiness creates a new instance of ClientStateBusiness.
@@ -153,7 +150,6 @@ func (cb *connectBusiness) UpdateDeliveryReceipt(
 
 	// Broadcast delivery receipt to other room members
 	for _, eventID := range eventIDList {
-
 		receiptEvents := eventsv1.Link{
 			EventId: util.IDString(),
 			RoomId:  roomID,
@@ -175,7 +171,6 @@ func (cb *connectBusiness) UpdateDeliveryReceipt(
 	}
 
 	return nil
-
 }
 
 func (cb *connectBusiness) UpdateReadMarker(

@@ -38,10 +38,19 @@ type SubscriptionService interface {
 	) ([]*models.RoomSubscription, error)
 
 	// HasRole checks if a user has a specific role in a room
-	HasRole(ctx context.Context, contact *commonv1.ContactLink, roomID string, roleLvl roleLevel) (*models.RoomSubscription, error)
+	HasRole(
+		ctx context.Context,
+		contact *commonv1.ContactLink,
+		roomID string,
+		roleLvl roleLevel,
+	) (*models.RoomSubscription, error)
 
 	// CanManageMembers checks if a user can add/remove members from a room
-	CanManageMembers(ctx context.Context, contact *commonv1.ContactLink, roomID string) (*models.RoomSubscription, error)
+	CanManageMembers(
+		ctx context.Context,
+		contact *commonv1.ContactLink,
+		roomID string,
+	) (*models.RoomSubscription, error)
 
 	// CanManageRoles checks if a user can change member roles in a room
 	CanManageRoles(ctx context.Context, contact *commonv1.ContactLink, roomID string) (*models.RoomSubscription, error)
@@ -178,7 +187,6 @@ func (ss *subscriptionService) GetSubscribedRoomIDs(
 
 // hasMinimumRole checks if the user's role meets or exceeds the required role.
 func (ss *subscriptionService) hasMinimumRole(requiredRoleLevel roleLevel, userRoleList ...string) bool {
-
 	for _, role := range userRoleList {
 		// Default to lowest privilege if role is unknown
 		userLevel, ok := ss.roleHierarchy[role]

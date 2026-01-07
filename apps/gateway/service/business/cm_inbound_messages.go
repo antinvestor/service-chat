@@ -63,7 +63,6 @@ func (cm *connectionManager) processClientCommand(
 	ctx context.Context,
 	command *chatv1.ClientCommand,
 ) error {
-
 	if command == nil {
 		util.Log(ctx).Warn("Received nil command")
 		return nil
@@ -94,7 +93,6 @@ func (cm *connectionManager) processAcknowledgement(
 	ctx context.Context,
 	ack *chatv1.AckEvent,
 ) error {
-
 	if ack == nil {
 		util.Log(ctx).With(
 			"event_id", ack.GetEventId(),
@@ -131,7 +129,6 @@ func (cm *connectionManager) processReceiptEvent(
 	ctx context.Context,
 	receipt *chatv1.ReceiptEvent,
 ) error {
-
 	if receipt == nil {
 		util.Log(ctx).With(
 			"event_id", receipt.GetEventId(),
@@ -196,7 +193,6 @@ func (cm *connectionManager) processRoomEvent(
 	ctx context.Context,
 	event *chatv1.RoomEvent,
 ) error {
-
 	if event == nil {
 		util.Log(ctx).With(
 			"event_id", event.GetId(),
@@ -211,7 +207,7 @@ func (cm *connectionManager) processRoomEvent(
 	})
 }
 
-// processLiveRequest is a helper function to process live requests with common error handling and logging
+// processLiveRequest is a helper function to process live requests with common error handling and logging.
 func (cm *connectionManager) processLiveRequest(
 	ctx context.Context,
 	command *chatv1.ClientCommand,
@@ -242,7 +238,10 @@ func (cm *connectionManager) processLiveRequest(
 
 	clErr := resp.Msg.GetError()
 	if clErr != nil {
-		util.Log(ctx).WithField("code", clErr.GetCode()).WithField("message", clErr.GetMessage()).Error("live request error")
+		util.Log(ctx).
+			WithField("code", clErr.GetCode()).
+			WithField("message", clErr.GetMessage()).
+			Error("live request error")
 	}
 
 	return nil

@@ -59,6 +59,8 @@ func (c *PayloadConverter) FromProto(protoEvent *chatv1.Payload) (data.JSONMap, 
 	// Extract payload based on type
 	var payload interface{}
 	switch protoEvent.GetType() {
+	case chatv1.PayloadType_PAYLOAD_TYPE_MODERATION:
+		payload = protoEvent.GetModeration()
 	case chatv1.PayloadType_PAYLOAD_TYPE_TEXT:
 		payload = protoEvent.GetText()
 	case chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT:
@@ -112,6 +114,8 @@ func (c *PayloadConverter) setTypedContent(
 	}
 
 	switch payloadType {
+	case chatv1.PayloadType_PAYLOAD_TYPE_MODERATION:
+		return unmarshalAndSet(content, protoEvent.SetModeration)
 	case chatv1.PayloadType_PAYLOAD_TYPE_TEXT:
 		return unmarshalAndSet(content, protoEvent.SetText)
 	case chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT:

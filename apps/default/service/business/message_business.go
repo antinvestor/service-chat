@@ -122,7 +122,6 @@ func (mb *messageBusiness) SendEvents(
 
 		subscriptionID, ok := roomSubscriptionIDMap[roomID]
 		if !ok {
-
 			responses[i] = &chatv1.AckEvent{
 				EventId: []string{reqEvt.GetId()},
 				AckAt:   timestamppb.Now(),
@@ -211,7 +210,9 @@ func (mb *messageBusiness) SendEvents(
 
 		subscription, ok := subscriptionMap[event.SenderID]
 		if !ok {
-			util.Log(ctx).WithField("subscription_id", event.SenderID).Error("very unlikely, no such subscription exists")
+			util.Log(ctx).
+				WithField("subscription_id", event.SenderID).
+				Error("very unlikely, no such subscription exists")
 			continue
 		}
 
