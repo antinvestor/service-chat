@@ -364,17 +364,39 @@ func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, 
 		return fmt.Errorf("failed to get message: %w", err)
 	}
 
-	// Check if the user is the sender or an admin
-	isSender := event.SenderID == deletedBy.GetProfileId()
-	admin, err := mb.subscriptionSvc.HasRole(ctx, deletedBy, event.RoomID, roleAdminLevel)
+	// Get the sender's subscription to find their profile ID
+	// Note: event.SenderID contains subscription ID, not profile ID
+	senderSub, err := mb.subRepo.GetByID(ctx, event.SenderID)
 	if err != nil {
-		return fmt.Errorf("failed to check admin status: %w", err)
+		// If we can't find the sender subscription, check admin status only
+		util.Log(ctx).WithError(err).WithField("sender_id", event.SenderID).
+			Warn("could not find sender subscription for message deletion check")
+		senderSub = nil
 	}
 
-	if !isSender && admin != nil {
+	// Check if the user is the sender
+	var isSender bool
+	if senderSub != nil {
+		isSender = senderSub.ProfileID == deletedBy.GetProfileId()
+	}
+
+	// If user is the sender, allow deletion
+	if isSender {
+		err = mb.eventRepo.Delete(ctx, event.GetID())
+		if err != nil {
+			return fmt.Errorf("failed to delete message: %w", err)
+		}
+		return nil
+	}
+
+	// Check if the user is an admin or owner (can delete any message)
+	admin, err := mb.subscriptionSvc.HasRole(ctx, deletedBy, event.RoomID, roleAdminLevel)
+	if err != nil || admin == nil {
+		// User is not sender AND not admin - deny
 		return service.ErrMessageDeleteDenied
 	}
 
+	// User is admin, allow deletion
 	err = mb.eventRepo.Delete(ctx, event.GetID())
 	if err != nil {
 		return fmt.Errorf("failed to delete message: %w", err)

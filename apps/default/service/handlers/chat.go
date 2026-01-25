@@ -12,6 +12,7 @@ import (
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"connectrpc.com/connect"
+	"github.com/antinvestor/service-chat/apps/default/service/authz"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/internal"
@@ -51,7 +52,9 @@ func NewChatServer(
 	ctx context.Context,
 	service *frame.Service,
 	notificationCli notificationv1connect.NotificationServiceClient,
-	profileCli profilev1connect.ProfileServiceClient) *ChatServer {
+	profileCli profilev1connect.ProfileServiceClient,
+	authzMiddleware authz.AuthzMiddleware,
+) *ChatServer {
 	workMan := service.WorkManager()
 	evtsMan := service.EventsManager()
 	dbPool := service.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
@@ -72,6 +75,7 @@ func NewChatServer(
 		subscriptionSvc,
 		messageBusiness,
 		profileCli,
+		authzMiddleware,
 	)
 
 	return &ChatServer{

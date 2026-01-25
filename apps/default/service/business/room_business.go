@@ -12,6 +12,7 @@ import (
 	profilev1 "buf.build/gen/go/antinvestor/profile/protocolbuffers/go/profile/v1"
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/service"
+	"github.com/antinvestor/service-chat/apps/default/service/authz"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/internal"
@@ -28,6 +29,7 @@ type roomBusiness struct {
 	subscriptionSvc SubscriptionService
 	messageBusiness MessageBusiness
 	profileCli      profilev1connect.ProfileServiceClient
+	authzMiddleware authz.AuthzMiddleware
 }
 
 // NewRoomBusiness creates a new instance of RoomBusiness.
@@ -39,6 +41,7 @@ func NewRoomBusiness(
 	subscriptionSvc SubscriptionService,
 	messageBusiness MessageBusiness,
 	profileCli profilev1connect.ProfileServiceClient,
+	authzMiddleware authz.AuthzMiddleware,
 ) RoomBusiness {
 	return &roomBusiness{
 		service:         service,
@@ -48,6 +51,7 @@ func NewRoomBusiness(
 		subscriptionSvc: subscriptionSvc,
 		messageBusiness: messageBusiness,
 		profileCli:      profileCli,
+		authzMiddleware: authzMiddleware,
 	}
 }
 
@@ -462,13 +466,30 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 		return service.ErrRoomMemberNotFound
 	}
 
+	// Capture old role for authz update
+	oldRole := sub.Role
+
 	// Update roles (use first role or keep existing)
+	var newRole string
 	if len(req.GetRoles()) > 0 {
+		newRole = req.GetRoles()[0] // Primary role for authz
 		sub.Role = strings.Join(req.GetRoles(), ",")
 	}
 
 	if _, updateErr := rb.subRepo.Update(ctx, sub, "role"); updateErr != nil {
 		return fmt.Errorf("failed to update member role: %w", updateErr)
+	}
+
+	// Sync authorization tuple - update role in Keto
+	if rb.authzMiddleware != nil && newRole != "" {
+		if authzErr := rb.authzMiddleware.UpdateRoomMemberRole(ctx, req.GetRoomId(), sub.ProfileID, oldRole, newRole); authzErr != nil {
+			util.Log(ctx).WithError(authzErr).
+				WithField("room_id", req.GetRoomId()).
+				WithField("profile_id", sub.ProfileID).
+				WithField("old_role", oldRole).
+				WithField("new_role", newRole).
+				Warn("failed to update authorization tuple for role change")
+		}
 	}
 
 	// Send member role updated event using MessageBusiness
@@ -576,6 +597,17 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 		var newMembers []string
 		for _, sub := range newSubs {
 			newMembers = append(newMembers, sub.GetID())
+
+			// Sync authorization tuple to Keto
+			if rb.authzMiddleware != nil {
+				if authzErr := rb.authzMiddleware.AddRoomMember(ctx, roomID, sub.ProfileID, sub.Role); authzErr != nil {
+					util.Log(ctx).WithError(authzErr).
+						WithField("room_id", roomID).
+						WithField("profile_id", sub.ProfileID).
+						WithField("role", sub.Role).
+						Warn("failed to sync authorization tuple for new room member")
+				}
+			}
 		}
 
 		_ = rb.sendRoomEvent(ctx, roomID, actor,
@@ -650,10 +682,31 @@ func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
 	actorSubscriptionID string,
 	actor *commonv1.ContactLink,
 ) error {
+	// Get subscriptions to find profile IDs for authz cleanup
+	var profileIDsToRemove []string
+	for _, subID := range subscriptionIDs {
+		sub, subErr := rb.subRepo.GetByID(ctx, subID)
+		if subErr == nil && sub != nil {
+			profileIDsToRemove = append(profileIDsToRemove, sub.ProfileID)
+		}
+	}
+
 	// Deactivate subscriptions directly
 	err := rb.subRepo.Deactivate(ctx, subscriptionIDs...)
 	if err != nil {
 		return fmt.Errorf("failed to deactivate subscription: %w", err)
+	}
+
+	// Sync authorization tuples - remove from Keto
+	if rb.authzMiddleware != nil {
+		for _, profileID := range profileIDsToRemove {
+			if authzErr := rb.authzMiddleware.RemoveRoomMember(ctx, roomID, profileID); authzErr != nil {
+				util.Log(ctx).WithError(authzErr).
+					WithField("room_id", roomID).
+					WithField("profile_id", profileID).
+					Warn("failed to remove authorization tuple for removed room member")
+			}
+		}
 	}
 
 	// Send member removed event using MessageBusiness

@@ -26,7 +26,7 @@ func TestChatServerTestSuite(t *testing.T) {
 func (s *ChatServerTestSuite) TestCreateRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -49,7 +49,7 @@ func (s *ChatServerTestSuite) TestCreateRoom() {
 func (s *ChatServerTestSuite) TestCreateRoomUnauthenticated() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		req := connect.NewRequest(&chatv1.CreateRoomRequest{
 			Name:      "Test Room",
@@ -64,7 +64,7 @@ func (s *ChatServerTestSuite) TestCreateRoomUnauthenticated() {
 func (s *ChatServerTestSuite) TestUpdateRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -95,7 +95,7 @@ func (s *ChatServerTestSuite) TestUpdateRoom() {
 func (s *ChatServerTestSuite) TestDeleteRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -123,7 +123,7 @@ func (s *ChatServerTestSuite) TestDeleteRoom() {
 func (s *ChatServerTestSuite) TestSendEvent() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -162,7 +162,7 @@ func (s *ChatServerTestSuite) TestSendEvent() {
 func (s *ChatServerTestSuite) TestGetHistory() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -210,7 +210,7 @@ func (s *ChatServerTestSuite) TestGetHistory() {
 func (s *ChatServerTestSuite) TestAddRoomSubscriptions() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -246,7 +246,7 @@ func (s *ChatServerTestSuite) TestAddRoomSubscriptions() {
 func (s *ChatServerTestSuite) TestRemoveRoomSubscriptions() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -307,7 +307,7 @@ func (s *ChatServerTestSuite) TestRemoveRoomSubscriptions() {
 func (s *ChatServerTestSuite) TestUpdateSubscriptionRole() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)
@@ -369,7 +369,7 @@ func (s *ChatServerTestSuite) TestUpdateSubscriptionRole() {
 func (s *ChatServerTestSuite) TestSearchRoomSubscriptions() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 
 		profileID := util.IDString()
 		ctx = s.WithAuthClaims(ctx, profileID)

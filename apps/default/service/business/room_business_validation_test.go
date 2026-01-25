@@ -174,6 +174,7 @@ func (s *RoomBusinessTestSuite) setupBusinessLayerWithProfileClient(
 		subscriptionSvc,
 		messageBusiness,
 		profileCli,
+		nil, // authz middleware
 	)
 
 	return roomBusiness

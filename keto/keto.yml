@@ -1,0 +1,27 @@
+version: v0.12.0
+
+log:
+  level: info
+  format: json
+
+serve:
+  read:
+    host: 0.0.0.0
+    port: 4466
+  write:
+    host: 0.0.0.0
+    port: 4467
+  metrics:
+    host: 0.0.0.0
+    port: 4468
+
+# Database configuration - use environment variable DSN
+dsn: memory
+
+# Namespace configuration
+namespaces:
+  location: file:///home/ory/namespaces
+
+# Limits to prevent abuse
+limit:
+  max_read_depth: 5

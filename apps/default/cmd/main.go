@@ -16,6 +16,8 @@ import (
 	"github.com/antinvestor/apis/go/notification"
 	"github.com/antinvestor/apis/go/profile"
 	aconfig "github.com/antinvestor/service-chat/apps/default/config"
+	"github.com/antinvestor/service-chat/apps/default/service/authz"
+	"github.com/antinvestor/service-chat/apps/default/service/authz/keto"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/service/queues"
@@ -83,8 +85,11 @@ func runService(ctx context.Context) error {
 		return nil
 	}
 
+	// Setup Keto authorization service
+	authzMiddleware := setupAuthzMiddleware(ctx, cfg)
+
 	// Setup Connect server
-	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli)
+	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
 
 	// Setup HTTP handlers
 	// Start with datastore option
@@ -207,10 +212,34 @@ func setupDeviceClient(
 		common.WithAudiences("service_device"))
 }
 
+// setupAuthzMiddleware creates the authorization middleware with Keto adapter.
+func setupAuthzMiddleware(ctx context.Context, cfg aconfig.ChatConfig) authz.AuthzMiddleware {
+	ketoCfg := cfg.GetKetoConfig()
+
+	// Create audit logger
+	auditLogger := authz.NewAuditLogger(authz.AuditLoggerConfig{
+		Enabled:    cfg.AuthzAuditEnabled,
+		SampleRate: cfg.AuthzAuditSampleRate,
+	})
+
+	// Create Keto adapter
+	ketoAdapter, err := keto.NewKetoAdapter(ketoCfg, auditLogger)
+	if err != nil {
+		util.Log(ctx).WithError(err).Warn("failed to initialize Keto adapter, using permissive mode")
+		// Return nil middleware - the business layer will handle nil gracefully
+		return nil
+	}
+
+	// Create and return middleware
+	return authz.NewAuthzMiddleware(ketoAdapter, auditLogger)
+}
+
 // setupConnectServer initializes and configures the gRPC server.
 func setupConnectServer(ctx context.Context, svc *frame.Service,
 	notificationCli notificationv1connect.NotificationServiceClient,
-	profileCli profilev1connect.ProfileServiceClient) http.Handler {
+	profileCli profilev1connect.ProfileServiceClient,
+	authzMiddleware authz.AuthzMiddleware,
+) http.Handler {
 	securityMan := svc.SecurityManager()
 
 	otelInterceptor, err := otelconnect.NewInterceptor()
@@ -222,7 +251,7 @@ func setupConnectServer(ctx context.Context, svc *frame.Service,
 
 	authInterceptor := securityconnect.NewAuthInterceptor(securityMan.GetAuthenticator(ctx))
 
-	implementation := handlers.NewChatServer(ctx, svc, notificationCli, profileCli)
+	implementation := handlers.NewChatServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
 
 	_, serverHandler := chatv1connect.NewChatServiceHandler(
 		implementation, connect.WithInterceptors(authInterceptor, otelInterceptor, validateInterceptor))
