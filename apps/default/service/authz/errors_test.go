@@ -1,0 +1,94 @@
+package authz_test
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/antinvestor/service-chat/apps/default/service/authz"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestPermissionDeniedError(t *testing.T) {
+	err := authz.NewPermissionDeniedError(
+		authz.ObjectRef{Namespace: authz.NamespaceRoom, ID: "room123"},
+		authz.PermissionView,
+		authz.SubjectRef{Namespace: authz.NamespaceProfile, ID: "user456"},
+		"not a member",
+	)
+
+	// Test error message
+	assert.Contains(t, err.Error(), "permission denied")
+	assert.Contains(t, err.Error(), "user456")
+	assert.Contains(t, err.Error(), "view")
+	assert.Contains(t, err.Error(), "room:room123")
+	assert.Contains(t, err.Error(), "not a member")
+
+	// Test Is() method
+	assert.True(t, errors.Is(err, authz.ErrPermissionDenied))
+	assert.False(t, errors.Is(err, authz.ErrInvalidObject))
+
+	// Test Unwrap() method
+	assert.Equal(t, authz.ErrPermissionDenied, err.Unwrap())
+
+	// Test error fields
+	assert.Equal(t, authz.NamespaceRoom, err.Object.Namespace)
+	assert.Equal(t, "room123", err.Object.ID)
+	assert.Equal(t, authz.PermissionView, err.Permission)
+	assert.Equal(t, "user456", err.Subject.ID)
+	assert.Equal(t, "not a member", err.Reason)
+}
+
+func TestAuthzServiceError(t *testing.T) {
+	cause := errors.New("connection refused")
+	err := authz.NewAuthzServiceError("check", cause)
+
+	// Test error message
+	assert.Contains(t, err.Error(), "authz service error")
+	assert.Contains(t, err.Error(), "check")
+	assert.Contains(t, err.Error(), "connection refused")
+
+	// Test Is() method
+	assert.True(t, errors.Is(err, authz.ErrAuthzServiceDown))
+	assert.False(t, errors.Is(err, authz.ErrPermissionDenied))
+
+	// Test Unwrap() method
+	assert.Equal(t, cause, err.Unwrap())
+
+	// Test error fields
+	assert.Equal(t, "check", err.Operation)
+	assert.Equal(t, cause, err.Cause)
+}
+
+func TestStandardErrors(t *testing.T) {
+	// Test that all standard errors are distinct
+	errs := []error{
+		authz.ErrPermissionDenied,
+		authz.ErrInvalidObject,
+		authz.ErrInvalidSubject,
+		authz.ErrTupleNotFound,
+		authz.ErrTupleAlreadyExists,
+		authz.ErrAuthzServiceDown,
+		authz.ErrInvalidPermission,
+		authz.ErrInvalidRole,
+	}
+
+	for i, err1 := range errs {
+		for j, err2 := range errs {
+			if i == j {
+				assert.True(t, errors.Is(err1, err2))
+			} else {
+				assert.False(t, errors.Is(err1, err2), "error %d and %d should not match", i, j)
+			}
+		}
+	}
+
+	// Test error messages
+	assert.Equal(t, "permission denied", authz.ErrPermissionDenied.Error())
+	assert.Equal(t, "invalid object reference", authz.ErrInvalidObject.Error())
+	assert.Equal(t, "invalid subject reference", authz.ErrInvalidSubject.Error())
+	assert.Equal(t, "relationship tuple not found", authz.ErrTupleNotFound.Error())
+	assert.Equal(t, "relationship tuple already exists", authz.ErrTupleAlreadyExists.Error())
+	assert.Equal(t, "authorization service unavailable", authz.ErrAuthzServiceDown.Error())
+	assert.Equal(t, "invalid permission", authz.ErrInvalidPermission.Error())
+	assert.Equal(t, "invalid role", authz.ErrInvalidRole.Error())
+}
