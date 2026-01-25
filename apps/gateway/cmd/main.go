@@ -40,6 +40,12 @@ func main() {
 		return
 	}
 
+	// Validate configuration (fail-fast on invalid config)
+	if err := cfg.Validate(); err != nil {
+		util.Log(ctx).With("err", err).Error("invalid configuration")
+		return
+	}
+
 	if cfg.Name() == "" {
 		cfg.ServiceName = "service_chat_gateway"
 	}

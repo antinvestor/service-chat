@@ -39,6 +39,12 @@ func runService(ctx context.Context) error {
 		return err
 	}
 
+	// Validate configuration (fail-fast on invalid config)
+	if err := cfg.Validate(); err != nil {
+		util.Log(ctx).With("err", err).Error("invalid configuration")
+		return err
+	}
+
 	if cfg.Name() == "" {
 		cfg.ServiceName = "service_chat"
 	}
