@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -22,9 +23,11 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/service/queues"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/internal/health"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
+	"github.com/pitabwire/frame/datastore/pool"
 	"github.com/pitabwire/frame/security"
 	securityconnect "github.com/pitabwire/frame/security/interceptors/connect"
 	"github.com/pitabwire/frame/security/openid"
@@ -91,9 +94,18 @@ func runService(ctx context.Context) error {
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
 
+	// Setup health checks
+	healthHandler := setupHealthChecks(ctx, dbPool)
+
+	// Create multiplexer for HTTP handlers
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", healthHandler.LivenessHandler)
+	mux.HandleFunc("/readyz", healthHandler.ReadinessHandler)
+	mux.Handle("/", connectHandler)
+
 	// Setup HTTP handlers
 	// Start with datastore option
-	serviceOptions := []frame.Option{frame.WithHTTPHandler(connectHandler)}
+	serviceOptions := []frame.Option{frame.WithHTTPHandler(mux)}
 
 	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueDeviceEventDeliveryName,
@@ -151,6 +163,17 @@ func main() {
 	if err := runService(ctx); err != nil {
 		util.Log(ctx).WithError(err).Fatal("could not run service")
 	}
+}
+
+// setupHealthChecks creates the health check handler with database checker.
+func setupHealthChecks(_ context.Context, dbPool pool.Pool) *health.Handler {
+	handler := health.NewHandler()
+
+	// Add database health checker
+	dbChecker := health.NewDatabaseChecker(dbPool, 5*time.Second)
+	handler.AddChecker(dbChecker)
+
+	return handler
 }
 
 // handleDatabaseMigration performs database migration if configured to do so.

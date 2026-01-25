@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -15,6 +16,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/gateway/service/business"
 	"github.com/antinvestor/service-chat/apps/gateway/service/handlers"
 	"github.com/antinvestor/service-chat/apps/gateway/service/queues"
+	"github.com/antinvestor/service-chat/internal/health"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/cache"
 	"github.com/pitabwire/frame/cache/jetstreamkv"
@@ -91,14 +93,34 @@ func main() {
 	// Setup gateway server
 	gatewayHandler := setupGatewayServer(ctx, svc, chatServiceClient, connectionManager)
 
+	// Setup health checks with cache checker
+	healthHandler := setupHealthChecks(rawCache)
+
+	// Create multiplexer for HTTP handlers
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", healthHandler.LivenessHandler)
+	mux.HandleFunc("/readyz", healthHandler.ReadinessHandler)
+	mux.Handle("/", gatewayHandler)
+
 	// Initialize the service with all options
-	svc.Init(ctx, gatewayEventQueueSubscriber, offlineDeliveryQueuePublisher, frame.WithHTTPHandler(gatewayHandler))
+	svc.Init(ctx, gatewayEventQueueSubscriber, offlineDeliveryQueuePublisher, frame.WithHTTPHandler(mux))
 
 	// Start the service
 	err = svc.Run(ctx, "")
 	if err != nil {
 		log.WithError(err).Fatal("could not run Server")
 	}
+}
+
+// setupHealthChecks creates the health check handler with cache checker.
+func setupHealthChecks(rawCache cache.RawCache) *health.Handler {
+	handler := health.NewHandler()
+
+	// Add cache health checker
+	cacheChecker := health.NewCacheChecker(rawCache, 5*time.Second)
+	handler.AddChecker(cacheChecker)
+
+	return handler
 }
 
 func setupCache(_ context.Context, cfg gtwconfig.GatewayConfig) (cache.RawCache, error) {
