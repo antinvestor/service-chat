@@ -185,6 +185,43 @@ func (s *EventRepositoryTestSuite) TestEventTypes() {
 	})
 }
 
+func (s *EventRepositoryTestSuite) TestExistsByIDs() {
+	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		workMan, dbPool := s.GetRepoDeps(ctx, svc)
+		repo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
+
+		roomID := util.IDString()
+
+		// Create 3 events
+		var eventIDs []string
+		for range 3 {
+			event := &models.RoomEvent{
+				RoomID:    roomID,
+				SenderID:  util.IDString(),
+				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
+				Content:   data.JSONMap{"text": util.RandomString(10)},
+			}
+			event.GenID(ctx)
+			require.NoError(t, repo.Create(ctx, event))
+			eventIDs = append(eventIDs, event.GetID())
+		}
+
+		nonExistentID := util.IDString()
+		checkIDs := append(eventIDs, nonExistentID)
+
+		existsMap, err := repo.ExistsByIDs(ctx, checkIDs)
+		require.NoError(t, err)
+
+		// Existing IDs should return true
+		for _, id := range eventIDs {
+			s.True(existsMap[id], "event %s should exist", id)
+		}
+		// Non-existent ID should return false
+		s.False(existsMap[nonExistentID], "non-existent event should not exist")
+	})
+}
+
 func (s *EventRepositoryTestSuite) TestPagination() {
 	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
