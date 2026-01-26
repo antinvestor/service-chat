@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
@@ -9,6 +10,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/tests"
 	"github.com/pitabwire/frame/frametests/definition"
+	"github.com/pitabwire/frame/security"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -395,7 +397,145 @@ func (s *ChatServerTestSuite) TestSearchRoomSubscriptions() {
 	})
 }
 
-func (s *ChatServerTestSuite) TestUpdateClientCommand() {
-	s.T().Skip("Requires ProfileCli mock and API updates - skipping for now")
-	// TODO: Update this test when UpdateClientCommand API is finalized
+// withSystemAuth creates a context with system_internal role for Live API tests.
+func (s *ChatServerTestSuite) withSystemAuth(ctx context.Context, profileID string) context.Context {
+	claims := &security.AuthenticationClaims{
+		TenantID:  util.IDString(),
+		AccessID:  util.IDString(),
+		ContactID: profileID,
+		SessionID: util.IDString(),
+		DeviceID:  "test-device",
+		Roles:     []string{"system_internal"},
+	}
+	claims.Subject = profileID
+	return claims.ClaimsToContext(ctx)
+}
+
+func (s *ChatServerTestSuite) TestLive_TypingIndicator() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
+
+		profileID := util.IDString()
+		ctx = s.withSystemAuth(ctx, profileID)
+
+		// Create a room first
+		createReq := connect.NewRequest(&chatv1.CreateRoomRequest{
+			Name:      "Typing Test Room",
+			IsPrivate: false,
+		})
+
+		createResp, err := chatServer.CreateRoom(ctx, createReq)
+		require.NoError(t, err)
+		roomID := createResp.Msg.GetRoom().GetId()
+
+		// Send typing indicator via Live
+		liveReq := connect.NewRequest(&chatv1.LiveRequest{
+			ClientStates: []*chatv1.ClientCommand{
+				{
+					State: &chatv1.ClientCommand_Typing{
+						Typing: &chatv1.TypingEvent{
+							RoomId: roomID,
+							Typing: true,
+						},
+					},
+				},
+			},
+		})
+
+		resp, err := chatServer.Live(ctx, liveReq)
+		require.NoError(t, err)
+		s.NotNil(resp)
+	})
+}
+
+func (s *ChatServerTestSuite) TestLive_ReadMarker() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
+
+		profileID := util.IDString()
+		ctx = s.withSystemAuth(ctx, profileID)
+
+		// Create room and send a message
+		createReq := connect.NewRequest(&chatv1.CreateRoomRequest{
+			Name:      "ReadMarker Test Room",
+			IsPrivate: false,
+		})
+
+		createResp, err := chatServer.CreateRoom(ctx, createReq)
+		require.NoError(t, err)
+		roomID := createResp.Msg.GetRoom().GetId()
+
+		msgReq := connect.NewRequest(&chatv1.SendEventRequest{
+			Event: []*chatv1.RoomEvent{
+				{
+					RoomId:  roomID,
+					Type:    chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "hello"}}},
+				},
+			},
+		})
+
+		msgResp, err := chatServer.SendEvent(ctx, msgReq)
+		require.NoError(t, err)
+		eventID := msgResp.Msg.GetAck()[0].GetEventId()[0]
+
+		// Mark as read via Live
+		liveReq := connect.NewRequest(&chatv1.LiveRequest{
+			ClientStates: []*chatv1.ClientCommand{
+				{
+					State: &chatv1.ClientCommand_ReadMarker{
+						ReadMarker: &chatv1.ReadMarker{
+							RoomId:      &roomID,
+							UpToEventId: eventID,
+						},
+					},
+				},
+			},
+		})
+
+		resp, err := chatServer.Live(ctx, liveReq)
+		require.NoError(t, err)
+		s.NotNil(resp)
+	})
+}
+
+func (s *ChatServerTestSuite) TestLive_EmptyClientStates() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
+
+		profileID := util.IDString()
+		ctx = s.withSystemAuth(ctx, profileID)
+
+		liveReq := connect.NewRequest(&chatv1.LiveRequest{
+			ClientStates: []*chatv1.ClientCommand{},
+		})
+
+		_, err := chatServer.Live(ctx, liveReq)
+		require.Error(t, err)
+	})
+}
+
+func (s *ChatServerTestSuite) TestLive_Unauthenticated() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
+
+		liveReq := connect.NewRequest(&chatv1.LiveRequest{
+			ClientStates: []*chatv1.ClientCommand{
+				{
+					State: &chatv1.ClientCommand_Presence{
+						Presence: &chatv1.PresenceEvent{
+							Status: chatv1.PresenceStatus_PRESENCE_STATUS_ONLINE,
+						},
+					},
+				},
+			},
+		})
+
+		_, err := chatServer.Live(ctx, liveReq)
+		require.Error(t, err)
+	})
 }
