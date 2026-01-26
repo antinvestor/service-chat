@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/internal"
+	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
@@ -79,9 +80,14 @@ func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 	return deviceTopic, shardID, nil
 }
 
-func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
+func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) (err error) {
+	ctx, span := chattel.DeliveryTracer.Start(ctx, "HotPathDelivery")
+	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
+
+	chattel.DeliveryQueueProcessedCounter.Add(ctx, 1)
+
 	eventDelivery := &eventsv1.Delivery{}
-	err := proto.Unmarshal(payload, eventDelivery)
+	err = proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
 		return err
@@ -161,6 +167,7 @@ func (dq *hotPathDeliveryQueueHandler) deliver(
 	if dq.deviceIsOnline(ctx, dev) {
 		err := dq.publishToOnlineDevice(ctx, dev, msg)
 		if err == nil {
+			chattel.MessagesDeliveredCounter.Add(ctx, 1)
 			return nil
 		}
 		util.Log(ctx).WithError(err).WithField("device_id", dev.GetId()).

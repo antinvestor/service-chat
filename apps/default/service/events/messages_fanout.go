@@ -8,6 +8,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/datastore/pool"
 	"github.com/pitabwire/frame/queue"
@@ -69,7 +70,10 @@ func (feh *FanoutEventHandler) Validate(_ context.Context, payload any) error {
 	return nil
 }
 
-func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
+func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) (err error) {
+	ctx, span := chattel.EventTracer.Start(ctx, "Fanout")
+	defer func() { chattel.EventTracer.End(ctx, span, err) }()
+
 	broadcast, ok := payload.(*eventsv1.Broadcast)
 	if !ok {
 		return errors.New("invalid payload type, expected eventsv1.Broadcast{}")
@@ -131,7 +135,12 @@ func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 		}
 	}
 
+	successCount := int64(len(destinations)) - int64(failCount)
+	if successCount > 0 {
+		chattel.EventFanoutCounter.Add(ctx, successCount)
+	}
 	if failCount > 0 {
+		chattel.MessagesFailedCounter.Add(ctx, int64(failCount))
 		logger.WithField("fail_count", failCount).Warn("some deliveries failed")
 	}
 

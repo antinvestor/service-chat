@@ -15,6 +15,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/internal"
+	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 	"github.com/pitabwire/frame/data"
 	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/util"
@@ -53,7 +54,10 @@ func (mb *messageBusiness) SendEvents(
 	ctx context.Context,
 	req *chatv1.SendEventRequest,
 	sentBy *commonv1.ContactLink,
-) ([]*chatv1.AckEvent, error) {
+) (_ []*chatv1.AckEvent, err error) {
+	ctx, span := chattel.MessageTracer.Start(ctx, "SendEvents")
+	defer func() { chattel.MessageTracer.End(ctx, span, err) }()
+
 	// Validate request
 	if len(req.GetEvent()) == 0 {
 		return nil, service.ErrMessageContentRequired
@@ -224,6 +228,9 @@ func (mb *messageBusiness) SendEvents(
 	}
 
 	bulkCreateErr := mb.eventRepo.BulkCreate(ctx, validEvents)
+	if bulkCreateErr == nil {
+		chattel.MessagesSentCounter.Add(ctx, int64(len(validEvents)))
+	}
 
 	// Phase 3: Process each valid event - emit to outbox or report errors
 	for _, event := range validEvents {
@@ -328,7 +335,10 @@ func (mb *messageBusiness) GetHistory(
 	ctx context.Context,
 	req *chatv1.GetHistoryRequest,
 	gottenBy *commonv1.ContactLink,
-) ([]*chatv1.RoomEvent, error) {
+) (_ []*chatv1.RoomEvent, err error) {
+	ctx, span := chattel.MessageTracer.Start(ctx, "GetHistory")
+	defer func() { chattel.MessageTracer.End(ctx, span, err) }()
+
 	if req.GetRoomId() == "" {
 		return nil, service.ErrMessageRoomIDRequired
 	}
@@ -385,7 +395,10 @@ func (mb *messageBusiness) GetHistory(
 	return protoEvents, nil
 }
 
-func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, deletedBy *commonv1.ContactLink) error {
+func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, deletedBy *commonv1.ContactLink) (err error) {
+	ctx, span := chattel.MessageTracer.Start(ctx, "DeleteMessage")
+	defer func() { chattel.MessageTracer.End(ctx, span, err) }()
+
 	if messageID == "" {
 		return service.ErrUnspecifiedID
 	}

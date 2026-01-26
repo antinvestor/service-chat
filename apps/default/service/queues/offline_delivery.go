@@ -10,6 +10,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
+	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
@@ -36,9 +37,12 @@ func NewOfflineDeliveryQueueHandler(
 	}
 }
 
-func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) error {
+func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) (err error) {
+	ctx, span := chattel.DeliveryTracer.Start(ctx, "OfflineDelivery")
+	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
+
 	evtMsg := &eventsv1.Delivery{}
-	err := proto.Unmarshal(payload, evtMsg)
+	err = proto.Unmarshal(payload, evtMsg)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
 		return err
@@ -86,9 +90,11 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	}
 	resp, err := dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
 	if err != nil {
+		chattel.NotificationsFailedCounter.Add(ctx, 1)
 		return err
 	}
 
+	chattel.NotificationsSentCounter.Add(ctx, 1)
 	util.Log(ctx).WithField("resp", resp).Debug("fcm notification response successful")
 
 	return nil

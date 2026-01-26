@@ -9,6 +9,7 @@ import (
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 	"github.com/pitabwire/frame/datastore/pool"
 	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/frame/workerpool"
@@ -61,7 +62,10 @@ func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) erro
 	return nil
 }
 
-func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) error {
+func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) (err error) {
+	ctx, span := chattel.EventTracer.Start(ctx, "OutboxLogging")
+	defer func() { chattel.EventTracer.End(ctx, span, err) }()
+
 	// Unwrap payload
 	evtLink, ok := payload.(*eventsv1.Link)
 	if !ok {
@@ -112,6 +116,7 @@ func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) err
 			logger.WithError(err).Error("failed to publish event broadcast")
 			return err
 		}
+		chattel.OutboxEntriesCreatedCounter.Add(ctx, int64(len(destinations)))
 		logger.WithField("batch_size", len(destinations)).Debug("emitted broadcast batch")
 	}
 
