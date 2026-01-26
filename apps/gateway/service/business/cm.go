@@ -980,6 +980,48 @@ func (cm *connectionManager) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// DrainConnections sends a close notification to all connected clients
+// and waits for them to disconnect or until the context is cancelled.
+// This should be called before Shutdown to give clients time to reconnect
+// to another gateway instance.
+func (cm *connectionManager) DrainConnections(ctx context.Context) {
+	count := cm.connPool.size()
+	if count == 0 {
+		return
+	}
+
+	util.Log(ctx).WithField("active_connections", count).
+		Info("draining connections, waiting for clients to disconnect")
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			remaining := cm.connPool.size()
+			if remaining > 0 {
+				util.Log(ctx).WithField("remaining", remaining).
+					Warn("drain timeout reached, connections will be forcibly closed")
+			}
+			return
+		case <-ticker.C:
+			remaining := cm.connPool.size()
+			if remaining == 0 {
+				util.Log(ctx).Info("all connections drained successfully")
+				return
+			}
+			util.Log(ctx).WithField("remaining", remaining).
+				Debug("waiting for connections to drain")
+		}
+	}
+}
+
+// ActiveConnections returns the number of currently active connections.
+func (cm *connectionManager) ActiveConnections() int32 {
+	return cm.connPool.size()
+}
+
 // Cache helper methods
 
 // updatePresence updates the presence status of a device.

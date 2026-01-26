@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -77,6 +78,14 @@ func main() {
 		cfg.ConnectionTimeoutSec,
 		cfg.HeartbeatIntervalSec,
 	)
+	// Graceful shutdown: drain connections and stop background tasks.
+	// Defers run LIFO: connectionManager shuts down before svc.Stop.
+	defer func() {
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer drainCancel()
+		connectionManager.DrainConnections(drainCtx)
+		_ = connectionManager.Shutdown(drainCtx)
+	}()
 
 	offlineDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueOfflineEventDeliveryName,
