@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
@@ -12,6 +13,7 @@ import (
 	"buf.build/gen/go/antinvestor/notification/connectrpc/go/notification/v1/notificationv1connect"
 	"buf.build/gen/go/antinvestor/profile/connectrpc/go/profile/v1/profilev1connect"
 	"connectrpc.com/connect"
+	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/authz"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
@@ -362,10 +364,22 @@ func (ps *ChatServer) AddRoomSubscriptions(
 
 	err = ps.RoomBusiness.AddRoomSubscriptions(ctx, req.Msg, authenticatedContact)
 	if err != nil {
+		// Check for partial batch error - some members added, some failed
+		if pbe, ok := service.IsPartialBatchError(err); ok {
+			return connect.NewResponse(&chatv1.AddRoomSubscriptionsResponse{
+				RoomId: req.Msg.GetRoomId(),
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodeInternal),
+					Message: pbe.Error(),
+				},
+			}), nil
+		}
 		return nil, err
 	}
 
-	return connect.NewResponse(&chatv1.AddRoomSubscriptionsResponse{}), nil
+	return connect.NewResponse(&chatv1.AddRoomSubscriptionsResponse{
+		RoomId: req.Msg.GetRoomId(),
+	}), nil
 }
 
 func (ps *ChatServer) RemoveRoomSubscriptions(
@@ -387,10 +401,22 @@ func (ps *ChatServer) RemoveRoomSubscriptions(
 
 	err = ps.RoomBusiness.RemoveRoomSubscriptions(ctx, req.Msg, authenticatedContact)
 	if err != nil {
+		// Check for partial batch error - some removals succeeded, some failed lookup
+		if pbe, ok := service.IsPartialBatchError(err); ok {
+			return connect.NewResponse(&chatv1.RemoveRoomSubscriptionsResponse{
+				RoomId: req.Msg.GetRoomId(),
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodeInternal),
+					Message: pbe.Error(),
+				},
+			}), nil
+		}
 		return nil, err
 	}
 
-	return connect.NewResponse(&chatv1.RemoveRoomSubscriptionsResponse{}), nil
+	return connect.NewResponse(&chatv1.RemoveRoomSubscriptionsResponse{
+		RoomId: req.Msg.GetRoomId(),
+	}), nil
 }
 
 func (ps *ChatServer) UpdateSubscriptionRole(
@@ -500,15 +526,28 @@ func (ps *ChatServer) Live(
 		}
 	}
 
-	// Prepare response
+	// Prepare response with aggregated error details
 	response := &chatv1.LiveResponse{}
 
-	// If there were errorList, return first error
 	if len(errorList) > 0 {
-		return nil, connect.NewError(
-			connect.CodeInvalidArgument,
-			fmt.Errorf("failed to process client states: %s", errorList[0]),
-		)
+		total := len(req.Msg.GetClientStates())
+		failed := len(errorList)
+		succeeded := total - failed
+
+		response.Error = &commonv1.ErrorDetail{
+			Code: int32(connect.CodeInvalidArgument),
+			Message: fmt.Sprintf(
+				"partial batch failure: %d/%d client states failed: %s",
+				failed, total, strings.Join(errorList, "; ")),
+		}
+
+		// If all failed, return error via gRPC status
+		if succeeded == 0 {
+			return nil, connect.NewError(
+				connect.CodeInvalidArgument,
+				fmt.Errorf("all %d client states failed: %s", failed, strings.Join(errorList, "; ")),
+			)
+		}
 	}
 
 	return connect.NewResponse(response), nil

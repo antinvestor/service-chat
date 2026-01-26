@@ -427,9 +427,14 @@ func (rb *roomBusiness) AddRoomSubscriptions(
 		}
 	}
 
-	// Add members with their respective roles
+	// Add members with their respective roles.
+	// PartialBatchError is returned when some members were added successfully
+	// but others failed validation. Propagate it so the handler can report details.
 	_, err = rb.addRoomMembersWithRoles(ctx, req.GetRoomId(), roleMap, admin.GetID(), addedBy)
 	if err != nil {
+		if _, ok := service.IsPartialBatchError(err); ok {
+			return err
+		}
 		return fmt.Errorf("failed to add members to room: %w", err)
 	}
 
@@ -634,12 +639,24 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 		existingProfileMap[sub.ProfileID] = true
 	}
 
-	// Create new subscriptions for profiles that don't exist
+	// Create new subscriptions for profiles that don't exist.
+	// Continue processing after individual validation failures so that
+	// valid members are still added (partial success).
 	var newSubs []*models.RoomSubscription
+	var itemErrors []service.ItemError
+	itemIdx := 0
 	for link, role := range roleMap {
+		idx := itemIdx
+		itemIdx++
+
 		// Validate Contact and Profile ID via Profile Service
 		if validateErr := rb.validateContactProfile(ctx, link); validateErr != nil {
-			return nil, validateErr
+			itemErrors = append(itemErrors, service.ItemError{
+				Index:   idx,
+				ItemID:  link.GetProfileId(),
+				Message: validateErr.Error(),
+			})
+			continue
 		}
 
 		if !existingProfileMap[link.GetProfileId()] {
@@ -681,6 +698,16 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 			chatv1.RoomChangeAction_ROOM_CHANGE_ACTION_MEMBER_ADDED,
 			actorSubscriptionID, "Member(s) added to room",
 			newMembers...)
+	}
+
+	// If some members failed validation, return partial batch error
+	// alongside the successfully added subscriptions
+	if len(itemErrors) > 0 {
+		return newSubs, &service.PartialBatchError{
+			Succeeded: len(newSubs),
+			Failed:    len(itemErrors),
+			Errors:    itemErrors,
+		}
 	}
 
 	return newSubs, nil
@@ -741,13 +768,25 @@ func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
 	actorSubscriptionID string,
 	actor *commonv1.ContactLink,
 ) error {
-	// Get subscriptions to find profile IDs for authz cleanup
+	// Get subscriptions to find profile IDs for authz cleanup.
+	// Track lookup failures to report to the caller.
 	var profileIDsToRemove []string
-	for _, subID := range subscriptionIDs {
+	var lookupErrors []service.ItemError
+	for i, subID := range subscriptionIDs {
 		sub, subErr := rb.subRepo.GetByID(ctx, subID)
-		if subErr == nil && sub != nil {
-			profileIDsToRemove = append(profileIDsToRemove, sub.ProfileID)
+		if subErr != nil || sub == nil {
+			msg := "subscription not found"
+			if subErr != nil {
+				msg = subErr.Error()
+			}
+			lookupErrors = append(lookupErrors, service.ItemError{
+				Index:   i,
+				ItemID:  subID,
+				Message: msg,
+			})
+			continue
 		}
+		profileIDsToRemove = append(profileIDsToRemove, sub.ProfileID)
 	}
 
 	// Deactivate subscriptions directly
@@ -773,6 +812,15 @@ func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
 		chatv1.RoomChangeAction_ROOM_CHANGE_ACTION_MEMBER_REMOVED,
 		actorSubscriptionID, "Member(s) removed from room",
 		subscriptionIDs...)
+
+	// If some subscription lookups failed, return partial batch error
+	if len(lookupErrors) > 0 {
+		return &service.PartialBatchError{
+			Succeeded: len(subscriptionIDs) - len(lookupErrors),
+			Failed:    len(lookupErrors),
+			Errors:    lookupErrors,
+		}
+	}
 
 	return nil
 }

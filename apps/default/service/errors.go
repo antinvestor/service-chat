@@ -2,9 +2,45 @@ package service
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
 	"connectrpc.com/connect"
 )
+
+// PartialBatchError represents an error where some items in a batch
+// succeeded while others failed. This allows callers to distinguish
+// between total failures and partial successes.
+type PartialBatchError struct {
+	Succeeded int
+	Failed    int
+	Errors    []ItemError
+}
+
+// ItemError describes a failure for a specific item in a batch operation.
+type ItemError struct {
+	Index   int
+	ItemID  string
+	Message string
+}
+
+func (e *PartialBatchError) Error() string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "partial batch failure: %d succeeded, %d failed", e.Succeeded, e.Failed)
+	for _, ie := range e.Errors {
+		fmt.Fprintf(&sb, "; item %d (%s): %s", ie.Index, ie.ItemID, ie.Message)
+	}
+	return sb.String()
+}
+
+// IsPartialBatchError checks whether err is a PartialBatchError.
+func IsPartialBatchError(err error) (*PartialBatchError, bool) {
+	var pbe *PartialBatchError
+	if errors.As(err, &pbe) {
+		return pbe, true
+	}
+	return nil, false
+}
 
 var (
 	ErrUnspecifiedID      = connect.NewError(connect.CodeInvalidArgument, errors.New("no id was supplied"))
