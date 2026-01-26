@@ -96,26 +96,21 @@ func runService(ctx context.Context) error {
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
 
-	// Setup HTTP handlers and queue options
+	// Setup HTTP handlers and queue infrastructure
+	dlp := queues.NewDeadLetterPublisher(&cfg, queueMan)
+
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithRegisterPublisher(
-			cfg.QueueDeviceEventDeliveryName,
-			cfg.QueueDeviceEventDeliveryURI,
-		),
+		frame.WithRegisterPublisher(cfg.QueueDeadLetterName, cfg.QueueDeadLetterURI),
+		frame.WithRegisterPublisher(cfg.QueueDeviceEventDeliveryName, cfg.QueueDeviceEventDeliveryURI),
 		frame.WithRegisterSubscriber(
-			cfg.QueueDeviceEventDeliveryName,
-			cfg.QueueDeviceEventDeliveryURI,
-			queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli),
+			cfg.QueueDeviceEventDeliveryName, cfg.QueueDeviceEventDeliveryURI,
+			queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli, dlp),
 		),
-		frame.WithRegisterPublisher(
-			cfg.QueueOfflineEventDeliveryName,
-			cfg.QueueOfflineEventDeliveryURI,
-		),
+		frame.WithRegisterPublisher(cfg.QueueOfflineEventDeliveryName, cfg.QueueOfflineEventDeliveryURI),
 		frame.WithRegisterSubscriber(
-			cfg.QueueOfflineEventDeliveryName,
-			cfg.QueueOfflineEventDeliveryURI,
-			queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli),
+			cfg.QueueOfflineEventDeliveryName, cfg.QueueOfflineEventDeliveryURI,
+			queues.NewOfflineDeliveryQueueHandler(&cfg, queueMan, deviceCli, dlp),
 		),
 	}
 

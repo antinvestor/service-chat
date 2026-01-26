@@ -20,25 +20,31 @@ import (
 
 type offlineDeliveryQueueHandler struct {
 	cfg       *config.ChatConfig
+	qMan      queue.Manager
 	deviceCli devicev1connect.DeviceServiceClient
+	dlp       *DeadLetterPublisher
 
 	payloadConverter *models.PayloadConverter
 }
 
 func NewOfflineDeliveryQueueHandler(
 	cfg *config.ChatConfig,
+	qMan queue.Manager,
 	deviceCli devicev1connect.DeviceServiceClient,
+	dlp *DeadLetterPublisher,
 ) queue.SubscribeWorker {
 	return &offlineDeliveryQueueHandler{
 		cfg:       cfg,
+		qMan:      qMan,
 		deviceCli: deviceCli,
+		dlp:       dlp,
 
 		payloadConverter: models.NewPayloadConverter(),
 	}
 }
 
 //nolint:nonamedreturns // named return required for deferred tracing
-func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) (err error) {
+func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, headers map[string]string, payload []byte) (err error) {
 	ctx, span := chattel.DeliveryTracer.Start(ctx, "OfflineDelivery")
 	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
 
@@ -46,7 +52,17 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	err = proto.Unmarshal(payload, evtMsg)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
-		return err
+		// Non-retryable: send to DLQ
+		if dq.dlp != nil {
+			_ = dq.dlp.Publish(ctx, evtMsg, dq.cfg.QueueOfflineEventDeliveryName, err.Error(), headers)
+		}
+		return nil
+	}
+
+	// Check if delivery has exceeded max retries
+	if dq.dlp != nil && dq.dlp.ShouldDeadLetter(evtMsg.GetRetryCount()) {
+		return dq.dlp.Publish(ctx, evtMsg, dq.cfg.QueueOfflineEventDeliveryName,
+			"max retries exceeded", headers)
 	}
 
 	// Extract notification content
@@ -92,12 +108,45 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	resp, err := dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
 	if err != nil {
 		chattel.NotificationsFailedCounter.Add(ctx, 1)
-		return err
+		// Retryable: increment retry count and republish
+		return dq.retryOrDeadLetter(ctx, evtMsg, headers, err)
 	}
 
 	chattel.NotificationsSentCounter.Add(ctx, 1)
 	util.Log(ctx).WithField("resp", resp).Debug("fcm notification response successful")
 
+	return nil
+}
+
+// retryOrDeadLetter increments the retry count and republishes the delivery,
+// or sends it to the dead-letter queue if max retries have been exceeded.
+func (dq *offlineDeliveryQueueHandler) retryOrDeadLetter(
+	ctx context.Context,
+	delivery *eventsv1.Delivery,
+	headers map[string]string,
+	originalErr error,
+) error {
+	delivery.RetryCount++
+
+	if dq.dlp != nil && dq.dlp.ShouldDeadLetter(delivery.GetRetryCount()) {
+		return dq.dlp.Publish(ctx, delivery, dq.cfg.QueueOfflineEventDeliveryName,
+			originalErr.Error(), headers)
+	}
+
+	// Republish to the same queue for retry
+	topic, err := dq.qMan.GetPublisher(dq.cfg.QueueOfflineEventDeliveryName)
+	if err != nil {
+		util.Log(ctx).WithError(err).Error("failed to get publisher for retry")
+		return err
+	}
+
+	if pubErr := topic.Publish(ctx, delivery, headers); pubErr != nil {
+		util.Log(ctx).WithError(pubErr).Error("failed to republish for retry")
+		return pubErr
+	}
+
+	util.Log(ctx).WithField("retry_count", delivery.GetRetryCount()).
+		Debug("offline delivery republished for retry")
 	return nil
 }
 

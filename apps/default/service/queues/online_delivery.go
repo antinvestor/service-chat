@@ -30,6 +30,7 @@ type hotPathDeliveryQueueHandler struct {
 	workMan   workerpool.Manager
 	cfg       *config.ChatConfig
 	deviceCli devicev1connect.DeviceServiceClient
+	dlp       *DeadLetterPublisher
 }
 
 func NewHotPathDeliveryQueueHandler(
@@ -37,12 +38,14 @@ func NewHotPathDeliveryQueueHandler(
 	qMan queue.Manager,
 	workMan workerpool.Manager,
 	deviceCli devicev1connect.DeviceServiceClient,
+	dlp *DeadLetterPublisher,
 ) queue.SubscribeWorker {
 	return &hotPathDeliveryQueueHandler{
 		cfg:       cfg,
 		qMan:      qMan,
 		workMan:   workMan,
 		deviceCli: deviceCli,
+		dlp:       dlp,
 	}
 }
 
@@ -70,7 +73,7 @@ func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 
 	shardID := internal.ShardForKey(shardString, dq.cfg.ShardCount)
 
-	shardDeliveryQueueName := fmt.Sprintf(dq.cfg.QueueDeviceEventDeliveryName, shardID)
+	shardDeliveryQueueName := fmt.Sprintf(dq.cfg.QueueGatewayEventDeliveryName, shardID)
 
 	deviceTopic, err := dq.qMan.GetPublisher(shardDeliveryQueueName)
 	if err != nil {
@@ -81,7 +84,7 @@ func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 }
 
 //nolint:nonamedreturns // named return required for deferred tracing
-func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) (err error) {
+func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[string]string, payload []byte) (err error) {
 	ctx, span := chattel.DeliveryTracer.Start(ctx, "HotPathDelivery")
 	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
 
@@ -91,7 +94,17 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	err = proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
-		return err
+		// Non-retryable: send to DLQ
+		if dq.dlp != nil {
+			_ = dq.dlp.Publish(ctx, eventDelivery, dq.cfg.QueueDeviceEventDeliveryName, err.Error(), headers)
+		}
+		return nil
+	}
+
+	// Check if delivery has exceeded max retries
+	if dq.dlp != nil && dq.dlp.ShouldDeadLetter(eventDelivery.GetRetryCount()) {
+		return dq.dlp.Publish(ctx, eventDelivery, dq.cfg.QueueDeviceEventDeliveryName,
+			"max retries exceeded", headers)
 	}
 
 	destination := eventDelivery.GetDestination()
@@ -110,7 +123,8 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	}))
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to query user devices")
-		return err
+		// Retryable: increment retry count and republish
+		return dq.retryOrDeadLetter(ctx, eventDelivery, headers, err)
 	}
 
 	for response.Receive() {
@@ -135,6 +149,38 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 		}
 	}
 
+	return nil
+}
+
+// retryOrDeadLetter increments the retry count and republishes the delivery,
+// or sends it to the dead-letter queue if max retries have been exceeded.
+func (dq *hotPathDeliveryQueueHandler) retryOrDeadLetter(
+	ctx context.Context,
+	delivery *eventsv1.Delivery,
+	headers map[string]string,
+	originalErr error,
+) error {
+	delivery.RetryCount++
+
+	if dq.dlp != nil && dq.dlp.ShouldDeadLetter(delivery.GetRetryCount()) {
+		return dq.dlp.Publish(ctx, delivery, dq.cfg.QueueDeviceEventDeliveryName,
+			originalErr.Error(), headers)
+	}
+
+	// Republish to the same queue for retry
+	topic, err := dq.qMan.GetPublisher(dq.cfg.QueueDeviceEventDeliveryName)
+	if err != nil {
+		util.Log(ctx).WithError(err).Error("failed to get publisher for retry")
+		return err
+	}
+
+	if pubErr := topic.Publish(ctx, delivery, headers); pubErr != nil {
+		util.Log(ctx).WithError(pubErr).Error("failed to republish for retry")
+		return pubErr
+	}
+
+	util.Log(ctx).WithField("retry_count", delivery.GetRetryCount()).
+		Debug("delivery republished for retry")
 	return nil
 }
 
