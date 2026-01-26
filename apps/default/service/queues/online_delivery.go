@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/internal"
+	"github.com/antinvestor/service-chat/internal/resilience"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/frame/workerpool"
 	"github.com/pitabwire/util"
@@ -29,6 +30,7 @@ type hotPathDeliveryQueueHandler struct {
 	workMan   workerpool.Manager
 	cfg       *config.ChatConfig
 	deviceCli devicev1connect.DeviceServiceClient
+	deviceCB  *resilience.CircuitBreaker
 }
 
 func NewHotPathDeliveryQueueHandler(
@@ -36,12 +38,14 @@ func NewHotPathDeliveryQueueHandler(
 	qMan queue.Manager,
 	workMan workerpool.Manager,
 	deviceCli devicev1connect.DeviceServiceClient,
+	deviceCB *resilience.CircuitBreaker,
 ) queue.SubscribeWorker {
 	return &hotPathDeliveryQueueHandler{
 		cfg:       cfg,
 		qMan:      qMan,
 		workMan:   workMan,
 		deviceCli: deviceCli,
+		deviceCB:  deviceCB,
 	}
 }
 
@@ -96,11 +100,22 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 		}
 	}
 
-	response, err := dq.deviceCli.Search(ctx, connect.NewRequest(&devicev1.SearchRequest{
-		Query: profileID,
-		Page:  0,
-		Count: DeviceSearchPageSize,
-	}))
+	var response *connect.ServerStreamForClient[devicev1.SearchResponse]
+	searchFn := func() error {
+		var searchErr error
+		response, searchErr = dq.deviceCli.Search(ctx, connect.NewRequest(&devicev1.SearchRequest{
+			Query: profileID,
+			Page:  0,
+			Count: DeviceSearchPageSize,
+		}))
+		return searchErr
+	}
+
+	if dq.deviceCB != nil {
+		err = dq.deviceCB.Execute(searchFn)
+	} else {
+		err = searchFn()
+	}
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to query user devices")
 		return err

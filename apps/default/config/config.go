@@ -24,4 +24,9 @@ type ChatConfig struct {
 	QueueGatewayEventDeliveryURI  []string `envDefault:"mem://gateway.event.delivery.0,mem://gateway.event.delivery.1" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`
 
 	ShardCount int `envDefault:"1" env:"SHARD_COUNT"`
+
+	// Circuit Breaker Configuration
+	CBMaxFailures         int `envDefault:"5"  env:"CB_MAX_FAILURES"`
+	CBResetTimeoutSec     int `envDefault:"30" env:"CB_RESET_TIMEOUT_SEC"`
+	CBHalfOpenMaxRequests int `envDefault:"3"  env:"CB_HALF_OPEN_MAX_REQUESTS"`
 }

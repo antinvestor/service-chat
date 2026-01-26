@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -21,6 +22,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/service/queues"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
+	"github.com/antinvestor/service-chat/internal/resilience"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/config"
 	"github.com/pitabwire/frame/datastore"
@@ -90,6 +92,20 @@ func runService(ctx context.Context) error {
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
 
+	// Setup circuit breaker for device service calls
+	deviceCB := resilience.NewCircuitBreaker(resilience.Settings{
+		Name:                "device-service",
+		MaxFailures:         int64(cfg.CBMaxFailures),
+		ResetTimeout:        time.Duration(cfg.CBResetTimeoutSec) * time.Second,
+		HalfOpenMaxRequests: int64(cfg.CBHalfOpenMaxRequests),
+		OnStateChange: func(name string, from, to resilience.State) {
+			log.WithField("circuit_breaker", name).
+				WithField("from", from.String()).
+				WithField("to", to.String()).
+				Warn("circuit breaker state changed")
+		},
+	})
+
 	// Setup HTTP handlers
 	// Start with datastore option
 	serviceOptions := []frame.Option{frame.WithHTTPHandler(connectHandler)}
@@ -103,7 +119,7 @@ func runService(ctx context.Context) error {
 	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueDeviceEventDeliveryName,
 		cfg.QueueDeviceEventDeliveryURI,
-		queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli),
+		queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli, deviceCB),
 	)
 	serviceOptions = append(serviceOptions, eventDeliveryQueueSubscriber)
 
@@ -116,7 +132,7 @@ func runService(ctx context.Context) error {
 	offlineDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
 		cfg.QueueOfflineEventDeliveryName,
 		cfg.QueueOfflineEventDeliveryURI,
-		queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli),
+		queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli, deviceCB),
 	)
 	serviceOptions = append(serviceOptions, offlineDeliveryQueueSubscriber)
 

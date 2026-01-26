@@ -10,6 +10,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/models"
+	"github.com/antinvestor/service-chat/internal/resilience"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/frame/queue"
 	"github.com/pitabwire/util"
@@ -20,6 +21,7 @@ import (
 type offlineDeliveryQueueHandler struct {
 	cfg       *config.ChatConfig
 	deviceCli devicev1connect.DeviceServiceClient
+	deviceCB  *resilience.CircuitBreaker
 
 	payloadConverter *models.PayloadConverter
 }
@@ -27,10 +29,12 @@ type offlineDeliveryQueueHandler struct {
 func NewOfflineDeliveryQueueHandler(
 	cfg *config.ChatConfig,
 	deviceCli devicev1connect.DeviceServiceClient,
+	deviceCB *resilience.CircuitBreaker,
 ) queue.SubscribeWorker {
 	return &offlineDeliveryQueueHandler{
 		cfg:       cfg,
 		deviceCli: deviceCli,
+		deviceCB:  deviceCB,
 
 		payloadConverter: models.NewPayloadConverter(),
 	}
@@ -84,7 +88,18 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 		KeyType:       devicev1.KeyType_FCM_TOKEN,
 		Notifications: messages,
 	}
-	resp, err := dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
+	var resp *connect.Response[devicev1.NotifyResponse]
+	notifyFn := func() error {
+		var notifyErr error
+		resp, notifyErr = dq.deviceCli.Notify(ctx, connect.NewRequest(notification))
+		return notifyErr
+	}
+
+	if dq.deviceCB != nil {
+		err = dq.deviceCB.Execute(notifyFn)
+	} else {
+		err = notifyFn()
+	}
 	if err != nil {
 		return err
 	}
