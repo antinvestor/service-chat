@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/pitabwire/frame/config"
 )
 
@@ -24,4 +26,20 @@ type ChatConfig struct {
 	QueueGatewayEventDeliveryURI  []string `envDefault:"mem://gateway.event.delivery.0,mem://gateway.event.delivery.1" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`
 
 	ShardCount int `envDefault:"1" env:"SHARD_COUNT"`
+}
+
+// ValidateSharding checks that shard configuration is internally consistent.
+// ShardCount must be positive and must match the number of gateway queue URIs.
+func (c *ChatConfig) ValidateSharding() error {
+	if c.ShardCount <= 0 {
+		return fmt.Errorf("SHARD_COUNT must be > 0, got %d", c.ShardCount)
+	}
+
+	if len(c.QueueGatewayEventDeliveryURI) != c.ShardCount {
+		return fmt.Errorf(
+			"SHARD_COUNT (%d) must match number of QUEUE_GATEWAY_EVENT_DELIVERY_URI entries (%d)",
+			c.ShardCount, len(c.QueueGatewayEventDeliveryURI))
+	}
+
+	return nil
 }

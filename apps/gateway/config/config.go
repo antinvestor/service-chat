@@ -1,6 +1,10 @@
 package config
 
-import "github.com/pitabwire/frame/config"
+import (
+	"fmt"
+
+	"github.com/pitabwire/frame/config"
+)
 
 type GatewayConfig struct {
 	config.ConfigurationDefault
@@ -33,5 +37,28 @@ type GatewayConfig struct {
 	QueueGatewayEventDeliveryName string `envDefault:"gateway.event.delivery"       env:"QUEUE_GATEWAY_EVENT_DELIVERY_NAME"`
 	QueueGatewayEventDeliveryURI  string `envDefault:"mem://gateway.event.delivery" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`
 
-	ShardID int `envDefault:"0" env:"SHARD_ID"`
+	// Shard configuration - must be coordinated with the default service's ShardCount.
+	// ShardID identifies this gateway instance's shard (0-indexed).
+	// TotalShards must match the default service's ShardCount exactly.
+	ShardID     int `envDefault:"0" env:"SHARD_ID"`
+	TotalShards int `envDefault:"1" env:"TOTAL_SHARDS"`
+}
+
+// ValidateSharding checks that shard configuration is internally consistent.
+// TotalShards must be positive and ShardID must be within [0, TotalShards).
+// This must match the default service's ShardCount for correct message routing.
+func (c *GatewayConfig) ValidateSharding() error {
+	if c.TotalShards <= 0 {
+		return fmt.Errorf("TOTAL_SHARDS must be > 0, got %d", c.TotalShards)
+	}
+
+	if c.ShardID < 0 {
+		return fmt.Errorf("SHARD_ID must be >= 0, got %d", c.ShardID)
+	}
+
+	if c.ShardID >= c.TotalShards {
+		return fmt.Errorf("SHARD_ID (%d) must be < TOTAL_SHARDS (%d)", c.ShardID, c.TotalShards)
+	}
+
+	return nil
 }

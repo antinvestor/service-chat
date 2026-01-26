@@ -43,6 +43,11 @@ func runService(ctx context.Context) error {
 		cfg.ServiceName = "service_chat"
 	}
 
+	// Validate shard configuration at startup to catch mismatches early
+	if err := cfg.ValidateSharding(); err != nil {
+		util.Log(ctx).WithError(err).Fatal("invalid shard configuration")
+	}
+
 	// Create service
 	ctx, svc := frame.NewServiceWithContext(
 		ctx,
