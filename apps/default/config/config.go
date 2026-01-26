@@ -28,6 +28,11 @@ type ChatConfig struct {
 	QueueGatewayEventDeliveryURI  []string `envDefault:"mem://gateway.event.delivery.0,mem://gateway.event.delivery.1" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`
 
 	ShardCount int `envDefault:"1" env:"SHARD_COUNT"`
+
+	// Dead-letter queue for deliveries that exceed max retries
+	QueueDeadLetterName string `envDefault:"dead.letter.queue"       env:"QUEUE_DEAD_LETTER_NAME"`
+	QueueDeadLetterURI  string `envDefault:"mem://dead.letter.queue" env:"QUEUE_DEAD_LETTER_URI"`
+	MaxDeliveryRetries  int    `envDefault:"5"                       env:"MAX_DELIVERY_RETRIES"`
 }
 
 // Validate checks that the configuration is valid.
