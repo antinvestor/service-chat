@@ -9,54 +9,54 @@ import (
 	"github.com/pitabwire/frame/security/authorizer"
 )
 
-// authzMiddleware implements the AuthzMiddleware interface.
-type authzMiddleware struct {
+// middleware implements the Middleware interface.
+type middleware struct {
 	service security.Authorizer
 }
 
-// NewAuthzMiddleware creates a new AuthzMiddleware with the given service and audit logger.
-func NewAuthzMiddleware(service security.Authorizer) AuthzMiddleware {
-	return &authzMiddleware{
+// NewMiddleware creates a new Middleware with the given authorizer service.
+func NewMiddleware(service security.Authorizer) Middleware {
+	return &middleware{
 		service: service,
 	}
 }
 
 // CanViewRoom checks if the actor can view a room.
-func (m *authzMiddleware) CanViewRoom(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
+func (m *middleware) CanViewRoom(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
 	return m.checkRoomPermission(ctx, actor, roomID, PermissionView)
 }
 
 // CanSendMessage checks if the actor can send messages to a room.
-func (m *authzMiddleware) CanSendMessage(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
+func (m *middleware) CanSendMessage(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
 	return m.checkRoomPermission(ctx, actor, roomID, PermissionSendMessage)
 }
 
 // CanUpdateRoom checks if the actor can update a room.
-func (m *authzMiddleware) CanUpdateRoom(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
+func (m *middleware) CanUpdateRoom(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
 	return m.checkRoomPermission(ctx, actor, roomID, PermissionUpdate)
 }
 
 // CanDeleteRoom checks if the actor can delete a room.
-func (m *authzMiddleware) CanDeleteRoom(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
+func (m *middleware) CanDeleteRoom(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
 	return m.checkRoomPermission(ctx, actor, roomID, PermissionDelete)
 }
 
 // CanManageMembers checks if the actor can add/remove members from a room.
-func (m *authzMiddleware) CanManageMembers(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
+func (m *middleware) CanManageMembers(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
 	return m.checkRoomPermission(ctx, actor, roomID, PermissionManageMembers)
 }
 
 // CanManageRoles checks if the actor can change member roles in a room.
-func (m *authzMiddleware) CanManageRoles(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
+func (m *middleware) CanManageRoles(ctx context.Context, actor *commonv1.ContactLink, roomID string) error {
 	return m.checkRoomPermission(ctx, actor, roomID, PermissionManageRoles)
 }
 
 // CanDeleteMessage checks if the actor can delete a message.
 // Fast path: sender can always delete their own message.
-func (m *authzMiddleware) CanDeleteMessage(
+func (m *middleware) CanDeleteMessage(
 	ctx context.Context,
 	actor *commonv1.ContactLink,
-	messageID, senderProfileID, roomID string,
+	_, senderProfileID, roomID string,
 ) error {
 	profileID := actor.GetProfileId()
 
@@ -71,8 +71,8 @@ func (m *authzMiddleware) CanDeleteMessage(
 
 // CanEditMessage checks if the actor can edit a message.
 // Only the sender can edit their own message.
-func (m *authzMiddleware) CanEditMessage(
-	ctx context.Context,
+func (m *middleware) CanEditMessage(
+	_ context.Context,
 	actor *commonv1.ContactLink,
 	messageID, senderProfileID string,
 ) error {
@@ -93,7 +93,7 @@ func (m *authzMiddleware) CanEditMessage(
 
 // CanSendMessagesToRooms checks if the actor can send messages to multiple rooms.
 // Returns a map of room ID to allowed status.
-func (m *authzMiddleware) CanSendMessagesToRooms(
+func (m *middleware) CanSendMessagesToRooms(
 	ctx context.Context,
 	actor *commonv1.ContactLink,
 	roomIDs []string,
@@ -125,7 +125,7 @@ func (m *authzMiddleware) CanSendMessagesToRooms(
 }
 
 // AddRoomMember adds a member to a room with the specified role.
-func (m *authzMiddleware) AddRoomMember(ctx context.Context, roomID, profileID, role string) error {
+func (m *middleware) AddRoomMember(ctx context.Context, roomID, profileID, role string) error {
 	relation := RoleToRelation(role)
 	return m.service.WriteTuple(ctx, security.RelationTuple{
 		Object:   security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
@@ -135,7 +135,7 @@ func (m *authzMiddleware) AddRoomMember(ctx context.Context, roomID, profileID, 
 }
 
 // RemoveRoomMember removes all relations for a member from a room.
-func (m *authzMiddleware) RemoveRoomMember(ctx context.Context, roomID, profileID string) error {
+func (m *middleware) RemoveRoomMember(ctx context.Context, roomID, profileID string) error {
 	// Remove all relations for this member
 	tuples := make([]security.RelationTuple, len(ValidRelations()))
 	for i, rel := range ValidRelations() {
@@ -149,7 +149,7 @@ func (m *authzMiddleware) RemoveRoomMember(ctx context.Context, roomID, profileI
 }
 
 // UpdateRoomMemberRole updates a member's role in a room.
-func (m *authzMiddleware) UpdateRoomMemberRole(ctx context.Context, roomID, profileID, oldRole, newRole string) error {
+func (m *middleware) UpdateRoomMemberRole(ctx context.Context, roomID, profileID, oldRole, newRole string) error {
 	// Remove old relation if specified
 	if oldRole != "" {
 		_ = m.service.DeleteTuple(ctx, security.RelationTuple{
@@ -168,7 +168,7 @@ func (m *authzMiddleware) UpdateRoomMemberRole(ctx context.Context, roomID, prof
 }
 
 // SetMessageSender creates a sender relation for a message.
-func (m *authzMiddleware) SetMessageSender(ctx context.Context, messageID, senderProfileID, roomID string) error {
+func (m *middleware) SetMessageSender(ctx context.Context, messageID, senderProfileID, roomID string) error {
 	// Create sender relation
 	senderTuple := security.RelationTuple{
 		Object:   security.ObjectRef{Namespace: NamespaceMessage, ID: messageID},
@@ -187,7 +187,7 @@ func (m *authzMiddleware) SetMessageSender(ctx context.Context, messageID, sende
 }
 
 // checkRoomPermission is a helper that checks a room permission and returns an appropriate error.
-func (m *authzMiddleware) checkRoomPermission(
+func (m *middleware) checkRoomPermission(
 	ctx context.Context,
 	actor *commonv1.ContactLink,
 	roomID, permission string,

@@ -45,7 +45,8 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	}
 
 	// Extract notification content
-	messageTitle, messageBody := dq.extractMessageContent(evtMsg)
+	messageTitle := "Stawi message"
+	messageBody := dq.extractMessageBody(evtMsg)
 
 	// Convert typed payload to generic Struct for push notification data
 	payloadData, err := dq.payloadConverter.FromProto(evtMsg.GetPayload())
@@ -93,51 +94,53 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]
 	return nil
 }
 
-// extractMessageContent extracts notification content from typed payload.
-func (dq *offlineDeliveryQueueHandler) extractMessageContent(evtMsg *eventsv1.Delivery) (string, string) {
-	messageTitle := "Stawi message"
-	messageBody := ""
-
+// extractMessageBody extracts the notification body from typed payload.
+func (dq *offlineDeliveryQueueHandler) extractMessageBody(evtMsg *eventsv1.Delivery) string {
 	eventPayload := evtMsg.GetPayload()
-	if eventPayload != nil {
-		switch eventPayload.GetType() {
-		case chatv1.PayloadType_PAYLOAD_TYPE_MODERATION:
-			evt := eventPayload.GetModeration()
-			if evt != nil {
-				messageBody = evt.GetBody()
-			}
-		case chatv1.PayloadType_PAYLOAD_TYPE_TEXT:
-			text := eventPayload.GetText()
-			if text != nil {
-				messageBody = text.GetBody()
-			}
-		case chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT:
-			messageBody = "Sent an attachment"
-			attachment := eventPayload.GetAttachment()
-			if attachment != nil && attachment.GetCaption() != nil {
-				messageBody = attachment.GetCaption().GetBody()
-			}
-		case chatv1.PayloadType_PAYLOAD_TYPE_REACTION:
-			reaction := eventPayload.GetReaction()
-			if reaction != nil {
-				messageBody = "Reacted with " + reaction.GetReaction()
-			}
-		case chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED:
-			messageBody = "Sent an encrypted message"
-		case chatv1.PayloadType_PAYLOAD_TYPE_CALL:
-			messageBody = "Started a call"
-		case chatv1.PayloadType_PAYLOAD_TYPE_MOTION:
-			messageBody = "Created a motion"
-		case chatv1.PayloadType_PAYLOAD_TYPE_VOTE:
-			messageBody = "Voted"
-		case chatv1.PayloadType_PAYLOAD_TYPE_MOTION_TALLY:
-			messageBody = "Motion tally completed"
-		case chatv1.PayloadType_PAYLOAD_TYPE_VOTE_TALLY:
-			messageBody = "Vote tally completed"
-		case chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED:
-			// Handle unspecified payload type
-		}
+	if eventPayload == nil {
+		return ""
 	}
+	return dq.bodyFromPayload(eventPayload)
+}
 
-	return messageTitle, messageBody
+// bodyFromPayload extracts a human-readable body string from a typed payload.
+func (dq *offlineDeliveryQueueHandler) bodyFromPayload(eventPayload *chatv1.Payload) string {
+	switch eventPayload.GetType() {
+	case chatv1.PayloadType_PAYLOAD_TYPE_MODERATION:
+		if evt := eventPayload.GetModeration(); evt != nil {
+			return evt.GetBody()
+		}
+	case chatv1.PayloadType_PAYLOAD_TYPE_TEXT:
+		if text := eventPayload.GetText(); text != nil {
+			return text.GetBody()
+		}
+	case chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT:
+		if attachment := eventPayload.GetAttachment(); attachment != nil && attachment.GetCaption() != nil {
+			return attachment.GetCaption().GetBody()
+		}
+		return "Sent an attachment"
+	case chatv1.PayloadType_PAYLOAD_TYPE_REACTION:
+		if reaction := eventPayload.GetReaction(); reaction != nil {
+			return "Reacted with " + reaction.GetReaction()
+		}
+	case chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED:
+		return "Sent an encrypted message"
+	case chatv1.PayloadType_PAYLOAD_TYPE_CALL:
+		return "Started a call"
+	case chatv1.PayloadType_PAYLOAD_TYPE_MOTION:
+		return "Created a motion"
+	case chatv1.PayloadType_PAYLOAD_TYPE_VOTE:
+		return "Voted"
+	case chatv1.PayloadType_PAYLOAD_TYPE_MOTION_TALLY:
+		return "Motion tally completed"
+	case chatv1.PayloadType_PAYLOAD_TYPE_VOTE_TALLY:
+		return "Vote tally completed"
+	case chatv1.PayloadType_PAYLOAD_TYPE_ROOM_CHANGE:
+		if roomChange := eventPayload.GetRoomChange(); roomChange != nil {
+			return roomChange.GetBody()
+		}
+	case chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED:
+		// No body for unspecified type
+	}
+	return ""
 }

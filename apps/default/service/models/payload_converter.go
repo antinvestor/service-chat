@@ -79,6 +79,8 @@ func (c *PayloadConverter) FromProto(protoEvent *chatv1.Payload) (data.JSONMap, 
 		payload = protoEvent.GetMotionTally()
 	case chatv1.PayloadType_PAYLOAD_TYPE_VOTE_TALLY:
 		payload = protoEvent.GetVoteTally()
+	case chatv1.PayloadType_PAYLOAD_TYPE_ROOM_CHANGE:
+		payload = protoEvent.GetRoomChange()
 	case chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED:
 		payload = protoEvent.GetDefault()
 	default: // Covers unknown types
@@ -134,6 +136,8 @@ func (c *PayloadConverter) setTypedContent(
 		return unmarshalAndSet(content, protoEvent.SetMotionTally)
 	case chatv1.PayloadType_PAYLOAD_TYPE_VOTE_TALLY:
 		return unmarshalAndSet(content, protoEvent.SetVoteTally)
+	case chatv1.PayloadType_PAYLOAD_TYPE_ROOM_CHANGE:
+		return unmarshalAndSet(content, protoEvent.SetRoomChange)
 	case chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED:
 		return unmarshalAndSet(content, protoEvent.SetDefault)
 	default:

@@ -9,9 +9,9 @@ import (
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 )
 
-// AuthzMiddleware provides domain-specific authorization methods.
+// Middleware provides domain-specific authorization methods.
 // These translate business operations to authorization checks.
-type AuthzMiddleware interface {
+type Middleware interface {
 	// Room permissions
 	CanViewRoom(ctx context.Context, actor *commonv1.ContactLink, roomID string) error
 	CanSendMessage(ctx context.Context, actor *commonv1.ContactLink, roomID string) error

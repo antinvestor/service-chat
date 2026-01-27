@@ -37,12 +37,12 @@ const (
 )
 
 type ChatServer struct {
-	Service              *frame.Service
-	NotificationCli      notificationv1connect.NotificationServiceClient
-	ProfileCli           profilev1connect.ProfileServiceClient
-	ConnectBusiness      business.ClientStateBusiness
-	RoomBusiness         business.RoomBusiness
-	MessageBusiness      business.MessageBusiness
+	Service            *frame.Service
+	NotificationCli    notificationv1connect.NotificationServiceClient
+	ProfileCli         profilev1connect.ProfileServiceClient
+	ConnectBusiness    business.ClientStateBusiness
+	RoomBusiness       business.RoomBusiness
+	MessageBusiness    business.MessageBusiness
 	ProposalManagement business.ProposalManagement
 
 	chatv1connect.UnimplementedChatServiceHandler
@@ -54,7 +54,7 @@ func NewChatServer(
 	service *frame.Service,
 	notificationCli notificationv1connect.NotificationServiceClient,
 	profileCli profilev1connect.ProfileServiceClient,
-	authzMiddleware authz.AuthzMiddleware,
+	authzMiddleware authz.Middleware,
 ) *ChatServer {
 	workMan := service.WorkManager()
 	evtsMan := service.EventsManager()

@@ -71,8 +71,8 @@ var (
 	ErrRoleRequired         = connect.NewError(connect.CodeInvalidArgument, errors.New("subscription Role is required"))
 	ErrSubscriptionNotFound = connect.NewError(connect.CodeNotFound, errors.New("subscription not found"))
 
-	// Proposal errors.
-	ErrProposalNotFound = connect.NewError(connect.CodeNotFound, errors.New("proposal not found"))
+	// ErrProposalNotFound is returned when a proposal is not found.
+	ErrProposalNotFound   = connect.NewError(connect.CodeNotFound, errors.New("proposal not found"))
 	ErrProposalNotPending = connect.NewError(
 		connect.CodeFailedPrecondition,
 		errors.New("proposal is not in pending state"),

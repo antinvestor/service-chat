@@ -3,6 +3,7 @@ package business
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -23,6 +24,9 @@ import (
 	"github.com/pitabwire/util"
 )
 
+// proposalExpiryHours is the number of hours before a proposal expires.
+const proposalExpiryHours = 72
+
 type roomBusiness struct {
 	service         *frame.Service
 	roomRepo        repository.RoomRepository
@@ -32,7 +36,7 @@ type roomBusiness struct {
 	subscriptionSvc SubscriptionService
 	messageBusiness MessageBusiness
 	profileCli      profilev1connect.ProfileServiceClient
-	authzMiddleware authz.AuthzMiddleware
+	authzMiddleware authz.Middleware
 }
 
 // NewRoomBusiness creates a new instance of RoomBusiness.
@@ -45,7 +49,7 @@ func NewRoomBusiness(
 	subscriptionSvc SubscriptionService,
 	messageBusiness MessageBusiness,
 	profileCli profilev1connect.ProfileServiceClient,
-	authzMiddleware authz.AuthzMiddleware,
+	authzMiddleware authz.Middleware,
 ) RoomBusiness {
 	return &roomBusiness{
 		service:         service,
@@ -281,32 +285,9 @@ func (rb *roomBusiness) DeleteRoom(
 		return service.ErrProposalRequired
 	}
 
-	// Deactivate all subscriptions for the room before deleting
-	allSubs, subErr := rb.subRepo.GetByRoomID(ctx, roomID, nil)
-	if subErr != nil {
-		return fmt.Errorf("failed to get room subscriptions for cleanup: %w", subErr)
-	}
-
-	if len(allSubs) > 0 {
-		subIDs := make([]string, 0, len(allSubs))
-		for _, sub := range allSubs {
-			subIDs = append(subIDs, sub.GetID())
-		}
-		if deactivateErr := rb.subRepo.Deactivate(ctx, subIDs...); deactivateErr != nil {
-			return fmt.Errorf("failed to deactivate room subscriptions: %w", deactivateErr)
-		}
-
-		// Sync authz - remove all members from Keto
-		if rb.authzMiddleware != nil {
-			for _, sub := range allSubs {
-				if authzErr := rb.authzMiddleware.RemoveRoomMember(ctx, roomID, sub.ProfileID); authzErr != nil {
-					util.Log(ctx).WithError(authzErr).
-						WithField("room_id", roomID).
-						WithField("profile_id", sub.ProfileID).
-						Warn("failed to remove authorization tuple during room deletion")
-				}
-			}
-		}
+	// Deactivate all subscriptions and clean up authz
+	if cleanupErr := rb.deactivateAllRoomSubscriptions(ctx, roomID); cleanupErr != nil {
+		return cleanupErr
 	}
 
 	// Soft delete the room
@@ -796,6 +777,39 @@ func (rb *roomBusiness) removeRoomMembersBySubscriptionID(
 	return nil
 }
 
+// deactivateAllRoomSubscriptions deactivates all subscriptions for a room and removes authz tuples.
+func (rb *roomBusiness) deactivateAllRoomSubscriptions(ctx context.Context, roomID string) error {
+	allSubs, subErr := rb.subRepo.GetByRoomID(ctx, roomID, nil)
+	if subErr != nil {
+		return fmt.Errorf("failed to get room subscriptions for cleanup: %w", subErr)
+	}
+
+	if len(allSubs) == 0 {
+		return nil
+	}
+
+	subIDs := make([]string, 0, len(allSubs))
+	for _, sub := range allSubs {
+		subIDs = append(subIDs, sub.GetID())
+	}
+	if deactivateErr := rb.subRepo.Deactivate(ctx, subIDs...); deactivateErr != nil {
+		return fmt.Errorf("failed to deactivate room subscriptions: %w", deactivateErr)
+	}
+
+	if rb.authzMiddleware != nil {
+		for _, sub := range allSubs {
+			if authzErr := rb.authzMiddleware.RemoveRoomMember(ctx, roomID, sub.ProfileID); authzErr != nil {
+				util.Log(ctx).WithError(authzErr).
+					WithField("room_id", roomID).
+					WithField("profile_id", sub.ProfileID).
+					Warn("failed to remove authorization tuple during room deletion")
+			}
+		}
+	}
+
+	return nil
+}
+
 // sendRoomChangeEvent emits a RoomChangeContent event for room lifecycle changes.
 func (rb *roomBusiness) sendRoomChangeEvent(
 	ctx context.Context,
@@ -853,7 +867,7 @@ func (rb *roomBusiness) createProposal(
 	payload any,
 ) error {
 	if rb.proposalRepo == nil {
-		return fmt.Errorf("proposal repository not configured; cannot create approval requests")
+		return errors.New("proposal repository not configured; cannot create approval requests")
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -873,7 +887,7 @@ func (rb *roomBusiness) createProposal(
 		RequestedBy:  requestedBy,
 		Payload:      payloadMap,
 		State:        models.ProposalStatePending,
-		ExpiresAt:    time.Now().Add(72 * time.Hour), // 3-day expiry
+		ExpiresAt:    time.Now().Add(proposalExpiryHours * time.Hour),
 	}
 	proposal.GenID(ctx)
 

@@ -85,7 +85,7 @@ func runService(ctx context.Context) error {
 	}
 
 	// Setup Keto authorization service
-	authzMiddleware := authz.NewAuthzMiddleware(sm.GetAuthorizer(ctx))
+	authzMiddleware := authz.NewMiddleware(sm.GetAuthorizer(ctx))
 
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
@@ -215,7 +215,7 @@ func setupDeviceClient(
 func setupConnectServer(ctx context.Context, svc *frame.Service,
 	notificationCli notificationv1connect.NotificationServiceClient,
 	profileCli profilev1connect.ProfileServiceClient,
-	authzMiddleware authz.AuthzMiddleware,
+	authzMiddleware authz.Middleware,
 ) http.Handler {
 	securityMan := svc.SecurityManager()
 

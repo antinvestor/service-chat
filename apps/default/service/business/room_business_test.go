@@ -545,7 +545,10 @@ func (s *RoomBusinessTestSuite) TestDeleteRoomDeniedForNonOwner() {
 			&chatv1.AddRoomSubscriptionsRequest{
 				RoomId: created.GetId(),
 				Members: []*chatv1.RoomSubscription{
-					{Member: &commonv1.ContactLink{ProfileId: newMemberID, ContactId: newMemberContactID}, Roles: []string{"member"}},
+					{
+						Member: &commonv1.ContactLink{ProfileId: newMemberID, ContactId: newMemberContactID},
+						Roles:  []string{"member"},
+					},
 				},
 			},
 			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},

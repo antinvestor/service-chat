@@ -216,16 +216,16 @@ const (
 // kinds of proposals beyond room changes (e.g., org-level changes, policy votes).
 type Proposal struct {
 	data.BaseModel
-	ScopeType    string        `gorm:"type:varchar(50);index:idx_proposal_scope_state"`
-	ScopeID      string        `gorm:"type:varchar(50);index:idx_proposal_scope_state"`
-	ProposalType ProposalType  `gorm:"index:idx_proposal_type"`
-	RequestedBy  string        `gorm:"type:varchar(50)"`
+	ScopeType    string       `gorm:"type:varchar(50);index:idx_proposal_scope_state"`
+	ScopeID      string       `gorm:"type:varchar(50);index:idx_proposal_scope_state"`
+	ProposalType ProposalType `gorm:"index:idx_proposal_type"`
+	RequestedBy  string       `gorm:"type:varchar(50)"`
 	Payload      data.JSONMap
 	State        ProposalState `gorm:"index:idx_proposal_scope_state"`
 	ResolvedBy   string        `gorm:"type:varchar(50)"`
 	ResolvedAt   *time.Time
 	Reason       string
-	ExpiresAt    time.Time     `gorm:"index:idx_proposal_expires"`
+	ExpiresAt    time.Time `gorm:"index:idx_proposal_expires"`
 }
 
 // IsPending returns true if the proposal is still pending.
