@@ -94,9 +94,11 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 	err = proto.Unmarshal(payload, eventDelivery)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
-		// Non-retryable: send to DLQ
+		// Non-retryable: send raw payload to DLQ for diagnostics
 		if dq.dlp != nil {
-			_ = dq.dlp.Publish(ctx, eventDelivery, dq.cfg.QueueDeviceEventDeliveryName, err.Error(), headers)
+			if dlqErr := dq.dlp.Publish(ctx, payload, dq.cfg.QueueDeviceEventDeliveryName, err.Error(), headers); dlqErr != nil {
+				util.Log(ctx).WithError(dlqErr).Error("failed to publish unmarshalable message to DLQ")
+			}
 		}
 		return nil
 	}
@@ -124,7 +126,7 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to query user devices")
 		// Retryable: increment retry count and republish
-		return dq.retryOrDeadLetter(ctx, eventDelivery, headers, err)
+		return RetryOrDeadLetter(ctx, dq.qMan, dq.dlp, dq.cfg.QueueDeviceEventDeliveryName, eventDelivery, headers, err)
 	}
 
 	for response.Receive() {
@@ -149,38 +151,6 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 		}
 	}
 
-	return nil
-}
-
-// retryOrDeadLetter increments the retry count and republishes the delivery,
-// or sends it to the dead-letter queue if max retries have been exceeded.
-func (dq *hotPathDeliveryQueueHandler) retryOrDeadLetter(
-	ctx context.Context,
-	delivery *eventsv1.Delivery,
-	headers map[string]string,
-	originalErr error,
-) error {
-	delivery.RetryCount++
-
-	if dq.dlp != nil && dq.dlp.ShouldDeadLetter(delivery.GetRetryCount()) {
-		return dq.dlp.Publish(ctx, delivery, dq.cfg.QueueDeviceEventDeliveryName,
-			originalErr.Error(), headers)
-	}
-
-	// Republish to the same queue for retry
-	topic, err := dq.qMan.GetPublisher(dq.cfg.QueueDeviceEventDeliveryName)
-	if err != nil {
-		util.Log(ctx).WithError(err).Error("failed to get publisher for retry")
-		return err
-	}
-
-	if pubErr := topic.Publish(ctx, delivery, headers); pubErr != nil {
-		util.Log(ctx).WithError(pubErr).Error("failed to republish for retry")
-		return pubErr
-	}
-
-	util.Log(ctx).WithField("retry_count", delivery.GetRetryCount()).
-		Debug("delivery republished for retry")
 	return nil
 }
 

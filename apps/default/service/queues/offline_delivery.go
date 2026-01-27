@@ -52,9 +52,11 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 	err = proto.Unmarshal(payload, evtMsg)
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
-		// Non-retryable: send to DLQ
+		// Non-retryable: send raw payload to DLQ for diagnostics
 		if dq.dlp != nil {
-			_ = dq.dlp.Publish(ctx, evtMsg, dq.cfg.QueueOfflineEventDeliveryName, err.Error(), headers)
+			if dlqErr := dq.dlp.Publish(ctx, payload, dq.cfg.QueueOfflineEventDeliveryName, err.Error(), headers); dlqErr != nil {
+				util.Log(ctx).WithError(dlqErr).Error("failed to publish unmarshalable message to DLQ")
+			}
 		}
 		return nil
 	}
@@ -109,44 +111,12 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 	if err != nil {
 		chattel.NotificationsFailedCounter.Add(ctx, 1)
 		// Retryable: increment retry count and republish
-		return dq.retryOrDeadLetter(ctx, evtMsg, headers, err)
+		return RetryOrDeadLetter(ctx, dq.qMan, dq.dlp, dq.cfg.QueueOfflineEventDeliveryName, evtMsg, headers, err)
 	}
 
 	chattel.NotificationsSentCounter.Add(ctx, 1)
 	util.Log(ctx).WithField("resp", resp).Debug("fcm notification response successful")
 
-	return nil
-}
-
-// retryOrDeadLetter increments the retry count and republishes the delivery,
-// or sends it to the dead-letter queue if max retries have been exceeded.
-func (dq *offlineDeliveryQueueHandler) retryOrDeadLetter(
-	ctx context.Context,
-	delivery *eventsv1.Delivery,
-	headers map[string]string,
-	originalErr error,
-) error {
-	delivery.RetryCount++
-
-	if dq.dlp != nil && dq.dlp.ShouldDeadLetter(delivery.GetRetryCount()) {
-		return dq.dlp.Publish(ctx, delivery, dq.cfg.QueueOfflineEventDeliveryName,
-			originalErr.Error(), headers)
-	}
-
-	// Republish to the same queue for retry
-	topic, err := dq.qMan.GetPublisher(dq.cfg.QueueOfflineEventDeliveryName)
-	if err != nil {
-		util.Log(ctx).WithError(err).Error("failed to get publisher for retry")
-		return err
-	}
-
-	if pubErr := topic.Publish(ctx, delivery, headers); pubErr != nil {
-		util.Log(ctx).WithError(pubErr).Error("failed to republish for retry")
-		return pubErr
-	}
-
-	util.Log(ctx).WithField("retry_count", delivery.GetRetryCount()).
-		Debug("offline delivery republished for retry")
 	return nil
 }
 
