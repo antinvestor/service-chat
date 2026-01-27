@@ -10,17 +10,7 @@ import (
 func TestMetricsInitialization(t *testing.T) {
 	ctx := context.Background()
 
-	// Verify all counters can be incremented without panicking
-	counters := []struct {
-		name    string
-		counter interface{ Add(context.Context, int64, ...interface{ applyMeasurementOption() }) }
-	}{
-		// Can't directly test metric.Int64Counter.Add due to interface constraints,
-		// so we just call them and verify no panic.
-	}
-	_ = counters
-
-	// Smoke test: increment each metric
+	// Smoke test: increment each metric without panicking
 	chattel.MessagesSentCounter.Add(ctx, 1)
 	chattel.MessagesDeliveredCounter.Add(ctx, 1)
 	chattel.MessagesFailedCounter.Add(ctx, 1)
@@ -43,16 +33,7 @@ func TestMetricsInitialization(t *testing.T) {
 func TestTracersInitialization(t *testing.T) {
 	ctx := context.Background()
 
-	// Verify all tracers can create spans without panicking
-	tracers := []struct {
-		name   string
-		tracer interface {
-			Start(context.Context, string, ...interface{ applySpanStartOption() }) (context.Context, interface{ End(...interface{ applySpanEndOption() }) })
-		}
-	}{}
-	_ = tracers
-
-	// Smoke test: start and end spans
+	// Smoke test: start and end spans without panicking
 	ctx1, span1 := chattel.MessageTracer.Start(ctx, "test")
 	chattel.MessageTracer.End(ctx1, span1, nil)
 
