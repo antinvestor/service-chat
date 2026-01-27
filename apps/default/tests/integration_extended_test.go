@@ -36,10 +36,11 @@ func (s *ExtendedIntegrationTestSuite) setupBusiness(
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
 	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+	proposalRepo := repository.NewProposalRepository(ctx, dbPool, workMan)
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, nil, nil)
+	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, proposalRepo, subscriptionSvc, messageBusiness, nil, nil)
 
 	return svc, roomBusiness, messageBusiness, subscriptionSvc
 }
@@ -70,7 +71,7 @@ func (s *ExtendedIntegrationTestSuite) TestConcurrentRoomCreation() {
 			go func(idx int) {
 				defer wg.Done()
 				req := &chatv1.CreateRoomRequest{
-					Name:      "Concurrent Room " + util.RandomString(5),
+					Name:      "Concurrent Room " + util.IDString(),
 					IsPrivate: false,
 				}
 				rooms[idx], errs[idx] = roomBusiness.CreateRoom(ctx, req, creator)
@@ -120,7 +121,7 @@ func (s *ExtendedIntegrationTestSuite) TestConcurrentMessageSending() {
 						Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
 						Payload: &chatv1.Payload{
 							Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{
-								Body: "concurrent message " + util.RandomString(5),
+								Body: "concurrent message " + util.IDString(),
 							}},
 						},
 					}},
@@ -339,9 +340,9 @@ func (s *ExtendedIntegrationTestSuite) TestDuplicateMemberAddition() {
 	})
 }
 
-// TestSubscriptionPagination verifies that subscription search supports
-// pagination with many members.
-func (s *ExtendedIntegrationTestSuite) TestSubscriptionPagination() {
+// TestSearchAllSubscriptionsInRoom verifies that subscription search
+// returns all members in a room.
+func (s *ExtendedIntegrationTestSuite) TestSearchAllSubscriptionsInRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
 		_, roomBusiness, _, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
@@ -440,7 +441,7 @@ func (s *ExtendedIntegrationTestSuite) TestMultipleMemberRoleEscalation() {
 		require.NoError(t, err)
 
 		// Verify admin role
-		hasAdmin, err := subscriptionSvc.HasRole(ctx, user, room.GetId(), 2)
+		hasAdmin, err := subscriptionSvc.HasRole(ctx, user, room.GetId(), business.RoleAdminLevel)
 		require.NoError(t, err)
 		s.NotNil(hasAdmin, "user should have admin role after escalation")
 
@@ -453,7 +454,7 @@ func (s *ExtendedIntegrationTestSuite) TestMultipleMemberRoleEscalation() {
 		require.NoError(t, err)
 
 		// Verify back to member level
-		hasMember, err := subscriptionSvc.HasRole(ctx, user, room.GetId(), 1)
+		hasMember, err := subscriptionSvc.HasRole(ctx, user, room.GetId(), business.RoleMemberLevel)
 		require.NoError(t, err)
 		s.NotNil(hasMember, "user should have member role after downgrade")
 	})
@@ -489,5 +490,12 @@ func (s *ExtendedIntegrationTestSuite) TestRoomDeletionCleansSubscriptions() {
 		// Verify room is gone
 		_, err = roomBusiness.GetRoom(ctx, room.GetId(), owner)
 		require.Error(t, err)
+
+		// Verify subscriptions are no longer accessible
+		accessMap, err = subscriptionSvc.HasAccess(ctx, member, room.GetId())
+		if err == nil {
+			s.Empty(accessMap, "subscriptions should be cleaned up after room deletion")
+		}
+		// If error is returned, that also confirms access is denied
 	})
 }

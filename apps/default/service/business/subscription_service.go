@@ -13,13 +13,24 @@ import (
 	"github.com/pitabwire/frame"
 )
 
+// RoleLevel represents the hierarchy level of a room role.
+type RoleLevel = roleLevel
+
 type roleLevel int
 
+// Exported role level constants for use in tests and external code.
 const (
-	roleOwnerLevel  roleLevel = 3
-	roleAdminLevel  roleLevel = 2
-	roleMemberLevel roleLevel = 1
-	roleGuestLevel  roleLevel = 0
+	RoleOwnerLevel  RoleLevel = 3
+	RoleAdminLevel  RoleLevel = 2
+	RoleMemberLevel RoleLevel = 1
+	RoleGuestLevel  RoleLevel = 0
+)
+
+const (
+	roleOwnerLevel  roleLevel = RoleOwnerLevel
+	roleAdminLevel  roleLevel = RoleAdminLevel
+	roleMemberLevel roleLevel = RoleMemberLevel
+	roleGuestLevel  roleLevel = RoleGuestLevel
 
 	roleOwner  = "owner"
 	roleAdmin  = "admin"
