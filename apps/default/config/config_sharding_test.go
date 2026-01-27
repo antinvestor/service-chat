@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,7 +104,7 @@ func TestChatConfig_ValidateSharding_DefaultConfig(t *testing.T) {
 func TestChatConfig_ValidateSharding_LargeShardCount(t *testing.T) {
 	uris := make([]string, 16)
 	for i := range uris {
-		uris[i] = "mem://gateway.event.delivery." + string(rune('0'+i))
+		uris[i] = "mem://gateway.event.delivery." + strconv.Itoa(i)
 	}
 
 	cfg := ChatConfig{
