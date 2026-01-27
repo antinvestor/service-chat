@@ -412,8 +412,8 @@ func (rb *roomBusiness) AddRoomSubscriptions(
 		return service.ErrProposalRequired
 	}
 
-	// Extract ContactLinks and roles from members
-	roleMap := make(map[*commonv1.ContactLink]string)
+	// Extract ContactLinks and roles from members, preserving request order
+	var membersWithRoles []memberWithRole
 
 	for _, member := range req.GetMembers() {
 		// Use first role or default to "member"
@@ -421,16 +421,18 @@ func (rb *roomBusiness) AddRoomSubscriptions(
 		if len(member.GetRoles()) > 0 {
 			role = member.GetRoles()[0]
 		}
-		// Use ContactLink directly as key
 		if member.GetMember() != nil {
-			roleMap[member.GetMember()] = role
+			membersWithRoles = append(membersWithRoles, memberWithRole{
+				Link: member.GetMember(),
+				Role: role,
+			})
 		}
 	}
 
 	// Add members with their respective roles.
 	// PartialBatchError is returned when some members were added successfully
 	// but others failed validation. Propagate it so the handler can report details.
-	_, err = rb.addRoomMembersWithRoles(ctx, req.GetRoomId(), roleMap, admin.GetID(), addedBy)
+	_, err = rb.addRoomMembersWithRoles(ctx, req.GetRoomId(), membersWithRoles, admin.GetID(), addedBy)
 	if err != nil {
 		if _, ok := service.IsPartialBatchError(err); ok {
 			return err
@@ -619,11 +621,17 @@ func (rb *roomBusiness) SearchRoomSubscriptions(
 	return protoSubs, nil
 }
 
+// memberWithRole pairs a contact link with a role, preserving request order.
+type memberWithRole struct {
+	Link *commonv1.ContactLink
+	Role string
+}
+
 // Helper function to add members to a room with specific roles.
 func (rb *roomBusiness) addRoomMembersWithRoles(
 	ctx context.Context,
 	roomID string,
-	roleMap map[*commonv1.ContactLink]string,
+	members []memberWithRole,
 	actorSubscriptionID string,
 	actor *commonv1.ContactLink,
 ) ([]*models.RoomSubscription, error) {
@@ -644,28 +652,24 @@ func (rb *roomBusiness) addRoomMembersWithRoles(
 	// valid members are still added (partial success).
 	var newSubs []*models.RoomSubscription
 	var itemErrors []service.ItemError
-	itemIdx := 0
-	for link, role := range roleMap {
-		idx := itemIdx
-		itemIdx++
-
+	for idx, mwr := range members {
 		// Validate Contact and Profile ID via Profile Service
-		if validateErr := rb.validateContactProfile(ctx, link); validateErr != nil {
+		if validateErr := rb.validateContactProfile(ctx, mwr.Link); validateErr != nil {
 			itemErrors = append(itemErrors, service.ItemError{
 				Index:   idx,
-				ItemID:  link.GetProfileId(),
+				ItemID:  mwr.Link.GetProfileId(),
 				Message: validateErr.Error(),
 			})
 			continue
 		}
 
-		if !existingProfileMap[link.GetProfileId()] {
+		if !existingProfileMap[mwr.Link.GetProfileId()] {
 			sub := &models.RoomSubscription{
 				RoomID:            roomID,
-				ProfileID:         link.GetProfileId(),
-				ContactID:         link.GetContactId(),
+				ProfileID:         mwr.Link.GetProfileId(),
+				ContactID:         mwr.Link.GetContactId(),
 				SubscriptionState: models.RoomSubscriptionStateActive,
-				Role:              role,
+				Role:              mwr.Role,
 			}
 			newSubs = append(newSubs, sub)
 		}
@@ -723,13 +727,13 @@ func (rb *roomBusiness) addRoomMembers(
 	actorSubscriptionID string,
 	actor *commonv1.ContactLink,
 ) ([]*models.RoomSubscription, error) {
-	roleMap := make(map[*commonv1.ContactLink]string)
+	var membersWithRoles []memberWithRole
 	for _, member := range members {
 		if member != nil {
-			roleMap[member] = role
+			membersWithRoles = append(membersWithRoles, memberWithRole{Link: member, Role: role})
 		}
 	}
-	return rb.addRoomMembersWithRoles(ctx, roomID, roleMap, actorSubscriptionID, actor)
+	return rb.addRoomMembersWithRoles(ctx, roomID, membersWithRoles, actorSubscriptionID, actor)
 }
 
 // validateContactProfile validates contact and profile ID via Profile Service.

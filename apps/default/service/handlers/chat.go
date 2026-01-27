@@ -369,7 +369,7 @@ func (ps *ChatServer) AddRoomSubscriptions(
 			return connect.NewResponse(&chatv1.AddRoomSubscriptionsResponse{
 				RoomId: req.Msg.GetRoomId(),
 				Error: &commonv1.ErrorDetail{
-					Code:    int32(connect.CodeInternal),
+					Code:    int32(connect.CodeInvalidArgument),
 					Message: pbe.Error(),
 				},
 			}), nil
@@ -406,7 +406,7 @@ func (ps *ChatServer) RemoveRoomSubscriptions(
 			return connect.NewResponse(&chatv1.RemoveRoomSubscriptionsResponse{
 				RoomId: req.Msg.GetRoomId(),
 				Error: &commonv1.ErrorDetail{
-					Code:    int32(connect.CodeInternal),
+					Code:    int32(connect.CodeInvalidArgument),
 					Message: pbe.Error(),
 				},
 			}), nil
