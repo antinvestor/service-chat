@@ -411,13 +411,17 @@ func (s *ChatServerTestSuite) withSystemAuth(ctx context.Context, profileID stri
 	return claims.ClaimsToContext(ctx)
 }
 
+func (s *ChatServerTestSuite) setupLiveTest(t *testing.T, dep *definition.DependencyOption) (context.Context, *handlers.ChatServer) {
+	ctx, svc := s.CreateService(t, dep)
+	chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
+	profileID := util.IDString()
+	ctx = s.withSystemAuth(ctx, profileID)
+	return ctx, chatServer
+}
+
 func (s *ChatServerTestSuite) TestLive_TypingIndicator() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
-
-		profileID := util.IDString()
-		ctx = s.withSystemAuth(ctx, profileID)
+		ctx, chatServer := s.setupLiveTest(t, dep)
 
 		// Create a room first
 		createReq := connect.NewRequest(&chatv1.CreateRoomRequest{
@@ -451,11 +455,7 @@ func (s *ChatServerTestSuite) TestLive_TypingIndicator() {
 
 func (s *ChatServerTestSuite) TestLive_ReadMarker() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
-
-		profileID := util.IDString()
-		ctx = s.withSystemAuth(ctx, profileID)
+		ctx, chatServer := s.setupLiveTest(t, dep)
 
 		// Create room and send a message
 		createReq := connect.NewRequest(&chatv1.CreateRoomRequest{
@@ -503,11 +503,7 @@ func (s *ChatServerTestSuite) TestLive_ReadMarker() {
 
 func (s *ChatServerTestSuite) TestLive_EmptyClientStates() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
-
-		profileID := util.IDString()
-		ctx = s.withSystemAuth(ctx, profileID)
+		ctx, chatServer := s.setupLiveTest(t, dep)
 
 		liveReq := connect.NewRequest(&chatv1.LiveRequest{
 			ClientStates: []*chatv1.ClientCommand{},
