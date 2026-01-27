@@ -5,19 +5,19 @@ import (
 	"fmt"
 
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/security/authorizer"
 )
 
 // authzMiddleware implements the AuthzMiddleware interface.
 type authzMiddleware struct {
-	service     AuthzService
-	auditLogger AuditLogger
+	service security.Authorizer
 }
 
 // NewAuthzMiddleware creates a new AuthzMiddleware with the given service and audit logger.
-func NewAuthzMiddleware(service AuthzService, auditLogger AuditLogger) AuthzMiddleware {
+func NewAuthzMiddleware(service security.Authorizer) AuthzMiddleware {
 	return &authzMiddleware{
-		service:     service,
-		auditLogger: auditLogger,
+		service: service,
 	}
 }
 
@@ -75,10 +75,10 @@ func (m *authzMiddleware) CanEditMessage(ctx context.Context, actor *commonv1.Co
 		return nil
 	}
 
-	return NewPermissionDeniedError(
-		ObjectRef{Namespace: NamespaceMessage, ID: messageID},
+	return authorizer.NewPermissionDeniedError(
+		security.ObjectRef{Namespace: NamespaceMessage, ID: messageID},
 		PermissionEdit,
-		SubjectRef{Namespace: NamespaceProfile, ID: profileID},
+		security.SubjectRef{Namespace: NamespaceProfile, ID: profileID},
 		"only the message sender can edit the message",
 	)
 }
@@ -91,12 +91,12 @@ func (m *authzMiddleware) CanSendMessagesToRooms(ctx context.Context, actor *com
 	}
 
 	profileID := actor.GetProfileId()
-	requests := make([]CheckRequest, len(roomIDs))
+	requests := make([]security.CheckRequest, len(roomIDs))
 	for i, roomID := range roomIDs {
-		requests[i] = CheckRequest{
-			Object:     ObjectRef{Namespace: NamespaceRoom, ID: roomID},
+		requests[i] = security.CheckRequest{
+			Object:     security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
 			Permission: PermissionSendMessage,
-			Subject:    SubjectRef{Namespace: NamespaceProfile, ID: profileID},
+			Subject:    security.SubjectRef{Namespace: NamespaceProfile, ID: profileID},
 		}
 	}
 
@@ -115,22 +115,22 @@ func (m *authzMiddleware) CanSendMessagesToRooms(ctx context.Context, actor *com
 // AddRoomMember adds a member to a room with the specified role.
 func (m *authzMiddleware) AddRoomMember(ctx context.Context, roomID, profileID, role string) error {
 	relation := RoleToRelation(role)
-	return m.service.WriteTuple(ctx, RelationTuple{
-		Object:   ObjectRef{Namespace: NamespaceRoom, ID: roomID},
+	return m.service.WriteTuple(ctx, security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
 		Relation: relation,
-		Subject:  SubjectRef{Namespace: NamespaceProfile, ID: profileID},
+		Subject:  security.SubjectRef{Namespace: NamespaceProfile, ID: profileID},
 	})
 }
 
 // RemoveRoomMember removes all relations for a member from a room.
 func (m *authzMiddleware) RemoveRoomMember(ctx context.Context, roomID, profileID string) error {
 	// Remove all relations for this member
-	tuples := make([]RelationTuple, len(ValidRelations()))
+	tuples := make([]security.RelationTuple, len(ValidRelations()))
 	for i, rel := range ValidRelations() {
-		tuples[i] = RelationTuple{
-			Object:   ObjectRef{Namespace: NamespaceRoom, ID: roomID},
+		tuples[i] = security.RelationTuple{
+			Object:   security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
 			Relation: rel,
-			Subject:  SubjectRef{Namespace: NamespaceProfile, ID: profileID},
+			Subject:  security.SubjectRef{Namespace: NamespaceProfile, ID: profileID},
 		}
 	}
 	return m.service.DeleteTuples(ctx, tuples)
@@ -140,51 +140,51 @@ func (m *authzMiddleware) RemoveRoomMember(ctx context.Context, roomID, profileI
 func (m *authzMiddleware) UpdateRoomMemberRole(ctx context.Context, roomID, profileID, oldRole, newRole string) error {
 	// Remove old relation if specified
 	if oldRole != "" {
-		_ = m.service.DeleteTuple(ctx, RelationTuple{
-			Object:   ObjectRef{Namespace: NamespaceRoom, ID: roomID},
+		_ = m.service.DeleteTuple(ctx, security.RelationTuple{
+			Object:   security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
 			Relation: RoleToRelation(oldRole),
-			Subject:  SubjectRef{Namespace: NamespaceProfile, ID: profileID},
+			Subject:  security.SubjectRef{Namespace: NamespaceProfile, ID: profileID},
 		})
 	}
 
 	// Add new relation
-	return m.service.WriteTuple(ctx, RelationTuple{
-		Object:   ObjectRef{Namespace: NamespaceRoom, ID: roomID},
+	return m.service.WriteTuple(ctx, security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
 		Relation: RoleToRelation(newRole),
-		Subject:  SubjectRef{Namespace: NamespaceProfile, ID: profileID},
+		Subject:  security.SubjectRef{Namespace: NamespaceProfile, ID: profileID},
 	})
 }
 
 // SetMessageSender creates a sender relation for a message.
 func (m *authzMiddleware) SetMessageSender(ctx context.Context, messageID, senderProfileID, roomID string) error {
 	// Create sender relation
-	senderTuple := RelationTuple{
-		Object:   ObjectRef{Namespace: NamespaceMessage, ID: messageID},
+	senderTuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: NamespaceMessage, ID: messageID},
 		Relation: RelationSender,
-		Subject:  SubjectRef{Namespace: NamespaceProfile, ID: senderProfileID},
+		Subject:  security.SubjectRef{Namespace: NamespaceProfile, ID: senderProfileID},
 	}
 
 	// Create room relation
-	roomTuple := RelationTuple{
-		Object:   ObjectRef{Namespace: NamespaceMessage, ID: messageID},
+	roomTuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: NamespaceMessage, ID: messageID},
 		Relation: RelationRoom,
-		Subject:  SubjectRef{Namespace: NamespaceRoom, ID: roomID},
+		Subject:  security.SubjectRef{Namespace: NamespaceRoom, ID: roomID},
 	}
 
-	return m.service.WriteTuples(ctx, []RelationTuple{senderTuple, roomTuple})
+	return m.service.WriteTuples(ctx, []security.RelationTuple{senderTuple, roomTuple})
 }
 
 // checkRoomPermission is a helper that checks a room permission and returns an appropriate error.
 func (m *authzMiddleware) checkRoomPermission(ctx context.Context, actor *commonv1.ContactLink, roomID, permission string) error {
 	profileID := actor.GetProfileId()
 	if profileID == "" {
-		return ErrInvalidSubject
+		return authorizer.ErrInvalidSubject
 	}
 
-	req := CheckRequest{
-		Object:     ObjectRef{Namespace: NamespaceRoom, ID: roomID},
+	req := security.CheckRequest{
+		Object:     security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
 		Permission: permission,
-		Subject:    SubjectRef{Namespace: NamespaceProfile, ID: profileID},
+		Subject:    security.SubjectRef{Namespace: NamespaceProfile, ID: profileID},
 	}
 
 	result, err := m.service.Check(ctx, req)
@@ -193,7 +193,7 @@ func (m *authzMiddleware) checkRoomPermission(ctx context.Context, actor *common
 	}
 
 	if !result.Allowed {
-		return NewPermissionDeniedError(
+		return authorizer.NewPermissionDeniedError(
 			req.Object,
 			permission,
 			req.Subject,

@@ -17,7 +17,6 @@ import (
 	"github.com/antinvestor/apis/go/profile"
 	aconfig "github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/authz"
-	"github.com/antinvestor/service-chat/apps/default/service/authz/keto"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/service/handlers"
 	"github.com/antinvestor/service-chat/apps/default/service/queues"
@@ -86,7 +85,7 @@ func runService(ctx context.Context) error {
 	}
 
 	// Setup Keto authorization service
-	authzMiddleware := setupAuthzMiddleware(ctx, cfg)
+	authzMiddleware := authz.NewAuthzMiddleware(sm.GetAuthorizer(ctx))
 
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
@@ -210,28 +209,6 @@ func setupDeviceClient(
 		common.WithTokenPassword(clHolder.JwtClientSecret()),
 		common.WithScopes(openid.ConstSystemScopeInternal),
 		common.WithAudiences("service_device"))
-}
-
-// setupAuthzMiddleware creates the authorization middleware with Keto adapter.
-func setupAuthzMiddleware(ctx context.Context, cfg aconfig.ChatConfig) authz.AuthzMiddleware {
-	ketoCfg := cfg.GetKetoConfig()
-
-	// Create audit logger
-	auditLogger := authz.NewAuditLogger(authz.AuditLoggerConfig{
-		Enabled:    cfg.AuthzAuditEnabled,
-		SampleRate: cfg.AuthzAuditSampleRate,
-	})
-
-	// Create Keto adapter
-	ketoAdapter, err := keto.NewKetoAdapter(ketoCfg, auditLogger)
-	if err != nil {
-		util.Log(ctx).WithError(err).Warn("failed to initialize Keto adapter, using permissive mode")
-		// Return nil middleware - the business layer will handle nil gracefully
-		return nil
-	}
-
-	// Create and return middleware
-	return authz.NewAuthzMiddleware(ketoAdapter, auditLogger)
 }
 
 // setupConnectServer initializes and configures the gRPC server.

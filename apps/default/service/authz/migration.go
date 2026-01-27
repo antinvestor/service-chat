@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
+	"github.com/pitabwire/frame/security"
 	"github.com/pitabwire/util"
 )
 
@@ -53,7 +54,7 @@ type MigrationError struct {
 func MigrateSubscriptionsToKeto(
 	ctx context.Context,
 	subFetcher SubscriptionFetcher,
-	authzService AuthzService,
+	authzService security.Authorizer,
 	config MigrationConfig,
 ) (*MigrationResult, error) {
 	if subFetcher == nil {
@@ -84,7 +85,7 @@ func MigrateSubscriptionsToKeto(
 		end := min(i+config.BatchSize, len(subs))
 
 		batch := subs[i:end]
-		tuples := make([]RelationTuple, 0, len(batch))
+		tuples := make([]security.RelationTuple, 0, len(batch))
 
 		for _, sub := range batch {
 			if sub.ProfileID == "" || sub.RoomID == "" {
@@ -97,10 +98,10 @@ func MigrateSubscriptionsToKeto(
 				role = RoleMember
 			}
 
-			tuple := RelationTuple{
-				Object:   ObjectRef{Namespace: NamespaceRoom, ID: sub.RoomID},
+			tuple := security.RelationTuple{
+				Object:   security.ObjectRef{Namespace: NamespaceRoom, ID: sub.RoomID},
 				Relation: RoleToRelation(role),
-				Subject:  SubjectRef{Namespace: NamespaceProfile, ID: sub.ProfileID},
+				Subject:  security.SubjectRef{Namespace: NamespaceProfile, ID: sub.ProfileID},
 			}
 
 			tuples = append(tuples, tuple)
@@ -163,13 +164,13 @@ func SyncRoomSubscriptions(
 	ctx context.Context,
 	roomID string,
 	subscriptions []*models.RoomSubscription,
-	authzService AuthzService,
+	authzService security.Authorizer,
 ) error {
 	if authzService == nil {
 		return nil // No-op if authz service not configured
 	}
 
-	tuples := make([]RelationTuple, 0, len(subscriptions))
+	tuples := make([]security.RelationTuple, 0, len(subscriptions))
 
 	for _, sub := range subscriptions {
 		if !sub.IsActive() || sub.ProfileID == "" {
@@ -181,10 +182,10 @@ func SyncRoomSubscriptions(
 			role = RoleMember
 		}
 
-		tuples = append(tuples, RelationTuple{
-			Object:   ObjectRef{Namespace: NamespaceRoom, ID: roomID},
+		tuples = append(tuples, security.RelationTuple{
+			Object:   security.ObjectRef{Namespace: NamespaceRoom, ID: roomID},
 			Relation: RoleToRelation(role),
-			Subject:  SubjectRef{Namespace: NamespaceProfile, ID: sub.ProfileID},
+			Subject:  security.SubjectRef{Namespace: NamespaceProfile, ID: sub.ProfileID},
 		})
 	}
 

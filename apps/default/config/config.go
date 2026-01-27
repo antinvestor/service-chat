@@ -1,9 +1,6 @@
 package config
 
 import (
-	"time"
-
-	"github.com/antinvestor/service-chat/apps/default/service/authz/keto"
 	"github.com/pitabwire/frame/config"
 )
 
@@ -38,16 +35,4 @@ type ChatConfig struct {
 	// Audit Logging Configuration
 	AuthzAuditEnabled    bool    `envDefault:"true" env:"AUTHZ_AUDIT_ENABLED"`
 	AuthzAuditSampleRate float64 `envDefault:"1.0"  env:"AUTHZ_AUDIT_SAMPLE_RATE"`
-}
-
-// GetKetoConfig returns the Keto configuration derived from chat config.
-func (c *ChatConfig) GetKetoConfig() keto.Config {
-	return keto.Config{
-		ReadURL:       c.KetoReadURL,
-		WriteURL:      c.KetoWriteURL,
-		Timeout:       time.Duration(c.KetoTimeoutMs) * time.Millisecond,
-		RetryAttempts: c.KetoRetryAttempts,
-		RetryDelay:    100 * time.Millisecond,
-		Enabled:       c.KetoEnabled,
-	}
 }
