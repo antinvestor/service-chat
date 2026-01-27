@@ -75,5 +75,5 @@ func validateQueueURI(uri, name string) error {
 		}
 	}
 
-	return fmt.Errorf("%s has invalid scheme (must be one of: mem://, redis://, amqp://, nats://, kafka://): %s", name, uri)
+	return fmt.Errorf("%s has invalid scheme (must be one of: %s): %s", name, strings.Join(validSchemes, ", "), uri)
 }

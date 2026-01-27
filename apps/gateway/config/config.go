@@ -122,7 +122,7 @@ func validateCacheURI(uri, name string) error {
 		}
 	}
 
-	return fmt.Errorf("%s has invalid scheme (must be one of: redis://, nats://, mem://): %s", name, uri)
+	return fmt.Errorf("%s has invalid scheme (must be one of: %s): %s", name, strings.Join(validSchemes, ", "), uri)
 }
 
 // validateQueueURI checks that a queue URI has a valid scheme.
@@ -138,5 +138,5 @@ func validateQueueURI(uri, name string) error {
 		}
 	}
 
-	return fmt.Errorf("%s has invalid scheme (must be one of: mem://, redis://, amqp://, nats://, kafka://): %s", name, uri)
+	return fmt.Errorf("%s has invalid scheme (must be one of: %s): %s", name, strings.Join(validSchemes, ", "), uri)
 }
