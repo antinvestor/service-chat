@@ -195,7 +195,10 @@ func TestPayloadConverter_ReactionContent(t *testing.T) {
 		require.NoError(t, err)
 
 		contentBytes := result[ContentField].([]byte)
-		assert.Contains(t, string(contentBytes), "🎉")
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "🎉")
+		assert.Contains(t, contentStr, "msg123")
+		assert.Contains(t, contentStr, "true")
 	})
 }
 
@@ -253,7 +256,9 @@ func TestPayloadConverter_CallContent(t *testing.T) {
 		require.NoError(t, err)
 
 		contentBytes := result[ContentField].([]byte)
-		assert.Contains(t, string(contentBytes), "test-sdp-data")
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "test-sdp-data")
+		assert.Contains(t, contentStr, `"type"`)
 	})
 }
 
@@ -313,7 +318,10 @@ func TestPayloadConverter_EncryptedContent(t *testing.T) {
 		require.NoError(t, err)
 
 		contentBytes := result[ContentField].([]byte)
-		assert.Contains(t, string(contentBytes), "aes-256")
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "aes-256")
+		assert.Contains(t, contentStr, "ciphertext")
+		assert.Contains(t, contentStr, "sess789")
 	})
 }
 
@@ -354,8 +362,10 @@ func TestPayloadConverter_ModerationContent(t *testing.T) {
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_MODERATION.Number(), content[PayloadTypeField])
 		contentBytes := content[ContentField].([]byte)
-		assert.Contains(t, string(contentBytes), "Room deleted")
-		assert.Contains(t, string(contentBytes), "admin123")
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "Room deleted")
+		assert.Contains(t, contentStr, "admin123")
+		assert.Contains(t, contentStr, "member456")
 	})
 }
 
@@ -373,6 +383,11 @@ func TestPayloadConverter_MotionContent(t *testing.T) {
 		require.NotNil(t, payload)
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_MOTION, payload.GetType())
+
+		motion := payload.GetMotion()
+		require.NotNil(t, motion)
+		assert.Equal(t, "Proposal", motion.GetTitle())
+		assert.Equal(t, "Test proposal", motion.GetDescription())
 	})
 
 	t.Run("FromProto - Motion Content", func(t *testing.T) {
@@ -390,7 +405,10 @@ func TestPayloadConverter_MotionContent(t *testing.T) {
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_MOTION.Number(), content[PayloadTypeField])
 		contentBytes := content[ContentField].([]byte)
-		assert.Contains(t, string(contentBytes), "Test Motion")
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "motion123")
+		assert.Contains(t, contentStr, "Test Motion")
+		assert.Contains(t, contentStr, "A test motion description")
 	})
 }
 
