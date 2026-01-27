@@ -53,7 +53,11 @@ func (m *authzMiddleware) CanManageRoles(ctx context.Context, actor *commonv1.Co
 
 // CanDeleteMessage checks if the actor can delete a message.
 // Fast path: sender can always delete their own message.
-func (m *authzMiddleware) CanDeleteMessage(ctx context.Context, actor *commonv1.ContactLink, messageID, senderProfileID, roomID string) error {
+func (m *authzMiddleware) CanDeleteMessage(
+	ctx context.Context,
+	actor *commonv1.ContactLink,
+	messageID, senderProfileID, roomID string,
+) error {
 	profileID := actor.GetProfileId()
 
 	// Fast path: sender can always delete their own message
@@ -67,7 +71,11 @@ func (m *authzMiddleware) CanDeleteMessage(ctx context.Context, actor *commonv1.
 
 // CanEditMessage checks if the actor can edit a message.
 // Only the sender can edit their own message.
-func (m *authzMiddleware) CanEditMessage(ctx context.Context, actor *commonv1.ContactLink, messageID, senderProfileID string) error {
+func (m *authzMiddleware) CanEditMessage(
+	ctx context.Context,
+	actor *commonv1.ContactLink,
+	messageID, senderProfileID string,
+) error {
 	profileID := actor.GetProfileId()
 
 	// Only sender can edit their own message
@@ -85,7 +93,11 @@ func (m *authzMiddleware) CanEditMessage(ctx context.Context, actor *commonv1.Co
 
 // CanSendMessagesToRooms checks if the actor can send messages to multiple rooms.
 // Returns a map of room ID to allowed status.
-func (m *authzMiddleware) CanSendMessagesToRooms(ctx context.Context, actor *commonv1.ContactLink, roomIDs []string) (map[string]bool, error) {
+func (m *authzMiddleware) CanSendMessagesToRooms(
+	ctx context.Context,
+	actor *commonv1.ContactLink,
+	roomIDs []string,
+) (map[string]bool, error) {
 	if len(roomIDs) == 0 {
 		return map[string]bool{}, nil
 	}
@@ -175,7 +187,11 @@ func (m *authzMiddleware) SetMessageSender(ctx context.Context, messageID, sende
 }
 
 // checkRoomPermission is a helper that checks a room permission and returns an appropriate error.
-func (m *authzMiddleware) checkRoomPermission(ctx context.Context, actor *commonv1.ContactLink, roomID, permission string) error {
+func (m *authzMiddleware) checkRoomPermission(
+	ctx context.Context,
+	actor *commonv1.ContactLink,
+	roomID, permission string,
+) error {
 	profileID := actor.GetProfileId()
 	if profileID == "" {
 		return authorizer.ErrInvalidSubject

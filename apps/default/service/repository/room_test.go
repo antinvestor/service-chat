@@ -110,7 +110,7 @@ func (s *RoomRepositoryTestSuite) TestSearchRooms() {
 		for range 3 {
 			room := &models.Room{
 				RoomType: "group",
-				Name:     util.RandomString(10),
+				Name:     util.RandomAlphaNumericString(10),
 				IsPublic: true,
 			}
 			room.GenID(ctx)

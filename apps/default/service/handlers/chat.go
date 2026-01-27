@@ -582,7 +582,12 @@ func (ps *ChatServer) processReadMarkerState(
 	}
 
 	// Mark messages as read up to the specified event
-	if err := ps.ConnectBusiness.UpdateReadMarker(ctx, readMarker.GetRoomId(), authenticatedContact, readMarker.GetUpToEventId()); err != nil {
+	if err := ps.ConnectBusiness.UpdateReadMarker(
+		ctx,
+		readMarker.GetRoomId(),
+		authenticatedContact,
+		readMarker.GetUpToEventId(),
+	); err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
 			"auth":           authenticatedContact,
 			"room_id":        readMarker.GetRoomId(),
@@ -614,7 +619,12 @@ func (ps *ChatServer) processTypingState(
 	}
 
 	// Send typing indicator
-	if err := ps.ConnectBusiness.UpdateTypingIndicator(ctx, typing.GetRoomId(), authenticatedContact, typing.GetTyping()); err != nil {
+	if err := ps.ConnectBusiness.UpdateTypingIndicator(
+		ctx,
+		typing.GetRoomId(),
+		authenticatedContact,
+		typing.GetTyping(),
+	); err != nil {
 		util.Log(ctx).WithError(err).WithFields(map[string]any{
 			"auth":    authenticatedContact,
 			"room_id": typing.GetRoomId(),

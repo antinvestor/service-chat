@@ -64,7 +64,7 @@ func (s *EventRepositoryTestSuite) TestGetHistory() {
 				RoomID:    roomID,
 				SenderID:  senderID,
 				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
-				Content:   data.JSONMap{"text": util.RandomString(10)},
+				Content:   data.JSONMap{"text": util.RandomAlphaNumericString(10)},
 			}
 			event.GenID(ctx)
 			require.NoError(t, repo.Create(ctx, event))
@@ -198,7 +198,7 @@ func (s *EventRepositoryTestSuite) TestPagination() {
 				RoomID:    roomID,
 				SenderID:  util.IDString(),
 				EventType: int32(chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE.Number()),
-				Content:   data.JSONMap{"text": util.RandomString(10)},
+				Content:   data.JSONMap{"text": util.RandomAlphaNumericString(10)},
 			}
 			event.GenID(ctx)
 			require.NoError(t, repo.Create(ctx, event))

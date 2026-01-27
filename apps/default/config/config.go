@@ -24,15 +24,4 @@ type ChatConfig struct {
 	QueueGatewayEventDeliveryURI  []string `envDefault:"mem://gateway.event.delivery.0,mem://gateway.event.delivery.1" env:"QUEUE_GATEWAY_EVENT_DELIVERY_URI"`
 
 	ShardCount int `envDefault:"1" env:"SHARD_COUNT"`
-
-	// Keto Authorization Service Configuration
-	KetoReadURL       string `envDefault:"http://localhost:4466" env:"KETO_READ_URL"`
-	KetoWriteURL      string `envDefault:"http://localhost:4467" env:"KETO_WRITE_URL"`
-	KetoTimeoutMs     int    `envDefault:"5000"                  env:"KETO_TIMEOUT_MS"`
-	KetoRetryAttempts int    `envDefault:"3"                     env:"KETO_RETRY_ATTEMPTS"`
-	KetoEnabled       bool   `envDefault:"true"                  env:"KETO_ENABLED"`
-
-	// Audit Logging Configuration
-	AuthzAuditEnabled    bool    `envDefault:"true" env:"AUTHZ_AUDIT_ENABLED"`
-	AuthzAuditSampleRate float64 `envDefault:"1.0"  env:"AUTHZ_AUDIT_SAMPLE_RATE"`
 }

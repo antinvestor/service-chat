@@ -40,7 +40,16 @@ func (s *SubscriptionServiceTestSuite) setupBusinessLayer(
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, nil, nil)
+	roomBusiness := business.NewRoomBusiness(
+		svc,
+		roomRepo,
+		eventRepo,
+		subRepo,
+		subscriptionSvc,
+		messageBusiness,
+		nil,
+		nil,
+	)
 
 	return subscriptionSvc, roomBusiness
 }
@@ -172,7 +181,7 @@ func (s *SubscriptionServiceTestSuite) TestGetSubscribedRoomIDs() {
 
 		for range roomCount {
 			roomReq := &chatv1.CreateRoomRequest{
-				Name:      util.RandomString(10),
+				Name:      util.RandomAlphaNumericString(10),
 				IsPrivate: false,
 			}
 

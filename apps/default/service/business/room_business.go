@@ -482,7 +482,13 @@ func (rb *roomBusiness) UpdateSubscriptionRole(
 
 	// Sync authorization tuple - update role in Keto
 	if rb.authzMiddleware != nil && newRole != "" {
-		if authzErr := rb.authzMiddleware.UpdateRoomMemberRole(ctx, req.GetRoomId(), sub.ProfileID, oldRole, newRole); authzErr != nil {
+		if authzErr := rb.authzMiddleware.UpdateRoomMemberRole(
+			ctx,
+			req.GetRoomId(),
+			sub.ProfileID,
+			oldRole,
+			newRole,
+		); authzErr != nil {
 			util.Log(ctx).WithError(authzErr).
 				WithField("room_id", req.GetRoomId()).
 				WithField("profile_id", sub.ProfileID).

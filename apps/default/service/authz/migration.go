@@ -2,6 +2,7 @@ package authz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/antinvestor/service-chat/apps/default/service/models"
@@ -58,10 +59,10 @@ func MigrateSubscriptionsToKeto(
 	config MigrationConfig,
 ) (*MigrationResult, error) {
 	if subFetcher == nil {
-		return nil, fmt.Errorf("subscription fetcher is required")
+		return nil, errors.New("subscription fetcher is required")
 	}
 	if authzService == nil {
-		return nil, fmt.Errorf("authz service is required")
+		return nil, errors.New("authz service is required")
 	}
 
 	log := util.Log(ctx)

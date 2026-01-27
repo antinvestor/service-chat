@@ -21,7 +21,13 @@ type AuthzMiddleware interface {
 	CanManageRoles(ctx context.Context, actor *commonv1.ContactLink, roomID string) error
 
 	// Message permissions
-	CanDeleteMessage(ctx context.Context, actor *commonv1.ContactLink, messageID string, senderProfileID string, roomID string) error
+	CanDeleteMessage(
+		ctx context.Context,
+		actor *commonv1.ContactLink,
+		messageID string,
+		senderProfileID string,
+		roomID string,
+	) error
 	CanEditMessage(ctx context.Context, actor *commonv1.ContactLink, messageID string, senderProfileID string) error
 
 	// Batch operations (for efficiency in hot paths)

@@ -38,7 +38,16 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, subscriptionSvc, messageBusiness, nil, nil)
+	roomBusiness := business.NewRoomBusiness(
+		svc,
+		roomRepo,
+		eventRepo,
+		subRepo,
+		subscriptionSvc,
+		messageBusiness,
+		nil,
+		nil,
+	)
 
 	return roomBusiness
 }
