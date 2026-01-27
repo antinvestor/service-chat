@@ -84,7 +84,9 @@ func main() {
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer drainCancel()
 		connectionManager.DrainConnections(drainCtx)
-		_ = connectionManager.Shutdown(drainCtx)
+		if err := connectionManager.Shutdown(drainCtx); err != nil {
+			util.Log(drainCtx).WithError(err).Error("connection manager shutdown error")
+		}
 	}()
 
 	offlineDeliveryQueuePublisher := frame.WithRegisterPublisher(

@@ -980,10 +980,9 @@ func (cm *connectionManager) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// DrainConnections sends a close notification to all connected clients
-// and waits for them to disconnect or until the context is cancelled.
-// This should be called before Shutdown to give clients time to reconnect
-// to another gateway instance.
+// DrainConnections waits for all active connections to disconnect or until
+// the context is cancelled. This should be called before Shutdown to give
+// clients time to reconnect to another gateway instance.
 func (cm *connectionManager) DrainConnections(ctx context.Context) {
 	count := cm.connPool.size()
 	if count == 0 {
