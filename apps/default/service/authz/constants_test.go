@@ -51,59 +51,67 @@ func TestRelationToRole(t *testing.T) {
 
 func TestValidRoles(t *testing.T) {
 	roles := authz.ValidRoles()
-	assert.Contains(t, roles, authz.RoleOwner)
-	assert.Contains(t, roles, authz.RoleAdmin)
-	assert.Contains(t, roles, authz.RoleMember)
-	assert.Contains(t, roles, authz.RoleGuest)
-	assert.Len(t, roles, 4)
+	assert.ElementsMatch(t, []string{authz.RoleOwner, authz.RoleAdmin, authz.RoleMember, authz.RoleGuest}, roles)
 }
 
 func TestValidRelations(t *testing.T) {
 	relations := authz.ValidRelations()
-	assert.Contains(t, relations, authz.RelationOwner)
-	assert.Contains(t, relations, authz.RelationAdmin)
-	assert.Contains(t, relations, authz.RelationMember)
-	assert.Contains(t, relations, authz.RelationViewer)
-	assert.Len(t, relations, 4)
+	assert.ElementsMatch(t, []string{authz.RelationOwner, authz.RelationAdmin, authz.RelationMember, authz.RelationViewer}, relations)
 }
 
 func TestIsValidRole(t *testing.T) {
-	assert.True(t, authz.IsValidRole(authz.RoleOwner))
-	assert.True(t, authz.IsValidRole(authz.RoleAdmin))
-	assert.True(t, authz.IsValidRole(authz.RoleMember))
-	assert.True(t, authz.IsValidRole(authz.RoleGuest))
-	assert.False(t, authz.IsValidRole("invalid"))
-	assert.False(t, authz.IsValidRole(""))
+	tests := []struct {
+		role     string
+		expected bool
+	}{
+		{authz.RoleOwner, true},
+		{authz.RoleAdmin, true},
+		{authz.RoleMember, true},
+		{authz.RoleGuest, true},
+		{"invalid", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.role, func(t *testing.T) {
+			assert.Equal(t, tt.expected, authz.IsValidRole(tt.role))
+		})
+	}
 }
 
 func TestConstants(t *testing.T) {
-	// Verify namespace constants
-	assert.Equal(t, "room", authz.NamespaceRoom)
-	assert.Equal(t, "message", authz.NamespaceMessage)
-	assert.Equal(t, "profile", authz.NamespaceProfile)
+	testCases := []struct {
+		name     string
+		actual   string
+		expected string
+	}{
+		{"NamespaceRoom", authz.NamespaceRoom, "room"},
+		{"NamespaceMessage", authz.NamespaceMessage, "message"},
+		{"NamespaceProfile", authz.NamespaceProfile, "profile"},
+		{"RelationOwner", authz.RelationOwner, "owner"},
+		{"RelationAdmin", authz.RelationAdmin, "admin"},
+		{"RelationMember", authz.RelationMember, "member"},
+		{"RelationViewer", authz.RelationViewer, "viewer"},
+		{"RelationSender", authz.RelationSender, "sender"},
+		{"RelationRoom", authz.RelationRoom, "room"},
+		{"PermissionView", authz.PermissionView, "view"},
+		{"PermissionSendMessage", authz.PermissionSendMessage, "send_message"},
+		{"PermissionDeleteAnyMessage", authz.PermissionDeleteAnyMessage, "delete_any_message"},
+		{"PermissionUpdate", authz.PermissionUpdate, "update"},
+		{"PermissionDelete", authz.PermissionDelete, "delete"},
+		{"PermissionManageMembers", authz.PermissionManageMembers, "manage_members"},
+		{"PermissionManageRoles", authz.PermissionManageRoles, "manage_roles"},
+		{"PermissionEdit", authz.PermissionEdit, "edit"},
+		{"PermissionReact", authz.PermissionReact, "react"},
+		{"RoleOwner", authz.RoleOwner, "owner"},
+		{"RoleAdmin", authz.RoleAdmin, "admin"},
+		{"RoleMember", authz.RoleMember, "member"},
+		{"RoleGuest", authz.RoleGuest, "guest"},
+	}
 
-	// Verify relation constants
-	assert.Equal(t, "owner", authz.RelationOwner)
-	assert.Equal(t, "admin", authz.RelationAdmin)
-	assert.Equal(t, "member", authz.RelationMember)
-	assert.Equal(t, "viewer", authz.RelationViewer)
-	assert.Equal(t, "sender", authz.RelationSender)
-	assert.Equal(t, "room", authz.RelationRoom)
-
-	// Verify permission constants
-	assert.Equal(t, "view", authz.PermissionView)
-	assert.Equal(t, "send_message", authz.PermissionSendMessage)
-	assert.Equal(t, "delete_any_message", authz.PermissionDeleteAnyMessage)
-	assert.Equal(t, "update", authz.PermissionUpdate)
-	assert.Equal(t, "delete", authz.PermissionDelete)
-	assert.Equal(t, "manage_members", authz.PermissionManageMembers)
-	assert.Equal(t, "manage_roles", authz.PermissionManageRoles)
-	assert.Equal(t, "edit", authz.PermissionEdit)
-	assert.Equal(t, "react", authz.PermissionReact)
-
-	// Verify role constants
-	assert.Equal(t, "owner", authz.RoleOwner)
-	assert.Equal(t, "admin", authz.RoleAdmin)
-	assert.Equal(t, "member", authz.RoleMember)
-	assert.Equal(t, "guest", authz.RoleGuest)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.actual)
+		})
+	}
 }

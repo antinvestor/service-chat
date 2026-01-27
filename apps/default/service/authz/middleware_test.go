@@ -8,6 +8,8 @@ import (
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/service/authz"
 	"github.com/antinvestor/service-chat/apps/default/service/authz/mock"
+	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/security/authorizer"
 	"github.com/pitabwire/util"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -16,7 +18,7 @@ import (
 type MiddlewareTestSuite struct {
 	suite.Suite
 	mockService *mock.MockAuthzService
-	middleware  authz.AuthzMiddleware
+	middleware  authz.Middleware
 }
 
 func TestMiddlewareTestSuite(t *testing.T) {
@@ -25,7 +27,7 @@ func TestMiddlewareTestSuite(t *testing.T) {
 
 func (s *MiddlewareTestSuite) SetupTest() {
 	s.mockService = mock.NewMockAuthzService()
-	s.middleware = authz.NewAuthzMiddleware(s.mockService, nil)
+	s.middleware = authz.NewMiddleware(s.mockService)
 }
 
 func (s *MiddlewareTestSuite) TearDownTest() {
@@ -40,65 +42,41 @@ func (s *MiddlewareTestSuite) actor(profileID string) *commonv1.ContactLink {
 }
 
 // CanViewRoom tests
-func (s *MiddlewareTestSuite) TestCanViewRoom_MemberCanView() {
-	ctx := context.Background()
-	roomID := util.IDString()
-	profileID := util.IDString()
+func (s *MiddlewareTestSuite) TestCanViewRoom() {
+	testCases := []struct {
+		name            string
+		role            string
+		addMembership   bool
+		shouldBeAllowed bool
+	}{
+		{"MemberCanView", authz.RoleMember, true, true},
+		{"AdminCanView", authz.RoleAdmin, true, true},
+		{"OwnerCanView", authz.RoleOwner, true, true},
+		{"GuestCanView", authz.RoleGuest, true, true},
+		{"NonMemberDenied", "", false, false},
+	}
 
-	// Add member to room
-	err := s.mockService.AddRoomMember(roomID, profileID, authz.RoleMember)
-	require.NoError(s.T(), err)
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			ctx := context.Background()
+			roomID := util.IDString()
+			profileID := util.IDString()
 
-	// Member should be able to view
-	err = s.middleware.CanViewRoom(ctx, s.actor(profileID), roomID)
-	require.NoError(s.T(), err)
-}
+			if tc.addMembership {
+				err := s.mockService.AddRoomMember(roomID, profileID, tc.role)
+				s.Require().NoError(err)
+			}
 
-func (s *MiddlewareTestSuite) TestCanViewRoom_AdminCanView() {
-	ctx := context.Background()
-	roomID := util.IDString()
-	profileID := util.IDString()
+			err := s.middleware.CanViewRoom(ctx, s.actor(profileID), roomID)
 
-	err := s.mockService.AddRoomMember(roomID, profileID, authz.RoleAdmin)
-	require.NoError(s.T(), err)
-
-	err = s.middleware.CanViewRoom(ctx, s.actor(profileID), roomID)
-	require.NoError(s.T(), err)
-}
-
-func (s *MiddlewareTestSuite) TestCanViewRoom_OwnerCanView() {
-	ctx := context.Background()
-	roomID := util.IDString()
-	profileID := util.IDString()
-
-	err := s.mockService.AddRoomMember(roomID, profileID, authz.RoleOwner)
-	require.NoError(s.T(), err)
-
-	err = s.middleware.CanViewRoom(ctx, s.actor(profileID), roomID)
-	require.NoError(s.T(), err)
-}
-
-func (s *MiddlewareTestSuite) TestCanViewRoom_GuestCanView() {
-	ctx := context.Background()
-	roomID := util.IDString()
-	profileID := util.IDString()
-
-	err := s.mockService.AddRoomMember(roomID, profileID, authz.RoleGuest)
-	require.NoError(s.T(), err)
-
-	err = s.middleware.CanViewRoom(ctx, s.actor(profileID), roomID)
-	require.NoError(s.T(), err)
-}
-
-func (s *MiddlewareTestSuite) TestCanViewRoom_NonMemberDenied() {
-	ctx := context.Background()
-	roomID := util.IDString()
-	profileID := util.IDString()
-
-	// No membership added
-	err := s.middleware.CanViewRoom(ctx, s.actor(profileID), roomID)
-	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+			if tc.shouldBeAllowed {
+				s.Require().NoError(err)
+			} else {
+				s.Require().Error(err)
+				s.Require().True(errors.Is(err, authorizer.ErrPermissionDenied))
+			}
+		})
+	}
 }
 
 func (s *MiddlewareTestSuite) TestCanViewRoom_EmptyProfileIDDenied() {
@@ -107,7 +85,7 @@ func (s *MiddlewareTestSuite) TestCanViewRoom_EmptyProfileIDDenied() {
 
 	err := s.middleware.CanViewRoom(ctx, s.actor(""), roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrInvalidSubject))
+	require.True(s.T(), errors.Is(err, authorizer.ErrInvalidSubject))
 }
 
 // CanSendMessage tests
@@ -158,7 +136,7 @@ func (s *MiddlewareTestSuite) TestCanSendMessage_GuestCannotSend() {
 
 	err = s.middleware.CanSendMessage(ctx, s.actor(profileID), roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 func (s *MiddlewareTestSuite) TestCanSendMessage_NonMemberDenied() {
@@ -168,7 +146,7 @@ func (s *MiddlewareTestSuite) TestCanSendMessage_NonMemberDenied() {
 
 	err := s.middleware.CanSendMessage(ctx, s.actor(profileID), roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 // CanUpdateRoom tests
@@ -206,7 +184,7 @@ func (s *MiddlewareTestSuite) TestCanUpdateRoom_MemberCannotUpdate() {
 
 	err = s.middleware.CanUpdateRoom(ctx, s.actor(profileID), roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 // CanDeleteRoom tests
@@ -232,7 +210,7 @@ func (s *MiddlewareTestSuite) TestCanDeleteRoom_AdminCannotDelete() {
 
 	err = s.middleware.CanDeleteRoom(ctx, s.actor(profileID), roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 // CanManageMembers tests
@@ -270,7 +248,7 @@ func (s *MiddlewareTestSuite) TestCanManageMembers_MemberCannotManage() {
 
 	err = s.middleware.CanManageMembers(ctx, s.actor(profileID), roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 // CanManageRoles tests
@@ -296,7 +274,7 @@ func (s *MiddlewareTestSuite) TestCanManageRoles_AdminCannotManage() {
 
 	err = s.middleware.CanManageRoles(ctx, s.actor(profileID), roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 // CanDeleteMessage tests
@@ -352,7 +330,7 @@ func (s *MiddlewareTestSuite) TestCanDeleteMessage_MemberCannotDeleteOthers() {
 
 	err = s.middleware.CanDeleteMessage(ctx, s.actor(memberID), messageID, senderID, roomID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 // CanEditMessage tests
@@ -375,7 +353,7 @@ func (s *MiddlewareTestSuite) TestCanEditMessage_OthersCannotEdit() {
 	// Others cannot edit (even admin/owner)
 	err := s.middleware.CanEditMessage(ctx, s.actor(profileID), messageID, senderID)
 	require.Error(s.T(), err)
-	require.True(s.T(), errors.Is(err, authz.ErrPermissionDenied))
+	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
 // CanSendMessagesToRooms tests
@@ -420,10 +398,10 @@ func (s *MiddlewareTestSuite) TestAddRoomMember_CreatesMemberTuple() {
 	require.NoError(s.T(), err)
 
 	// Verify tuple was created
-	tuple := authz.RelationTuple{
-		Object:   authz.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
+	tuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
 		Relation: authz.RelationMember,
-		Subject:  authz.SubjectRef{Namespace: authz.NamespaceProfile, ID: profileID},
+		Subject:  security.SubjectRef{Namespace: authz.NamespaceProfile, ID: profileID},
 	}
 	s.True(s.mockService.HasTuple(tuple))
 }
@@ -436,10 +414,10 @@ func (s *MiddlewareTestSuite) TestAddRoomMember_CreatesOwnerTuple() {
 	err := s.middleware.AddRoomMember(ctx, roomID, profileID, authz.RoleOwner)
 	require.NoError(s.T(), err)
 
-	tuple := authz.RelationTuple{
-		Object:   authz.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
+	tuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
 		Relation: authz.RelationOwner,
-		Subject:  authz.SubjectRef{Namespace: authz.NamespaceProfile, ID: profileID},
+		Subject:  security.SubjectRef{Namespace: authz.NamespaceProfile, ID: profileID},
 	}
 	s.True(s.mockService.HasTuple(tuple))
 }
@@ -482,12 +460,20 @@ func (s *MiddlewareTestSuite) TestUpdateRoomMemberRole_UpdatesRole() {
 	require.NoError(s.T(), err)
 
 	// Verify new admin tuple exists
-	adminTuple := authz.RelationTuple{
-		Object:   authz.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
+	adminTuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
 		Relation: authz.RelationAdmin,
-		Subject:  authz.SubjectRef{Namespace: authz.NamespaceProfile, ID: profileID},
+		Subject:  security.SubjectRef{Namespace: authz.NamespaceProfile, ID: profileID},
 	}
 	s.True(s.mockService.HasTuple(adminTuple))
+
+	// Verify old member tuple is removed
+	memberTuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
+		Relation: authz.RelationMember,
+		Subject:  security.SubjectRef{Namespace: authz.NamespaceProfile, ID: profileID},
+	}
+	s.False(s.mockService.HasTuple(memberTuple), "old member role should be removed")
 }
 
 // SetMessageSender tests
@@ -501,18 +487,18 @@ func (s *MiddlewareTestSuite) TestSetMessageSender_CreatesTuples() {
 	require.NoError(s.T(), err)
 
 	// Verify sender tuple
-	senderTuple := authz.RelationTuple{
-		Object:   authz.ObjectRef{Namespace: authz.NamespaceMessage, ID: messageID},
+	senderTuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: authz.NamespaceMessage, ID: messageID},
 		Relation: authz.RelationSender,
-		Subject:  authz.SubjectRef{Namespace: authz.NamespaceProfile, ID: senderID},
+		Subject:  security.SubjectRef{Namespace: authz.NamespaceProfile, ID: senderID},
 	}
 	s.True(s.mockService.HasTuple(senderTuple))
 
 	// Verify room tuple
-	roomTuple := authz.RelationTuple{
-		Object:   authz.ObjectRef{Namespace: authz.NamespaceMessage, ID: messageID},
+	roomTuple := security.RelationTuple{
+		Object:   security.ObjectRef{Namespace: authz.NamespaceMessage, ID: messageID},
 		Relation: authz.RelationRoom,
-		Subject:  authz.SubjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
+		Subject:  security.SubjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
 	}
 	s.True(s.mockService.HasTuple(roomTuple))
 }
@@ -524,8 +510,8 @@ func (s *MiddlewareTestSuite) TestCanViewRoom_ServiceError() {
 	profileID := util.IDString()
 
 	// Configure mock to return error
-	s.mockService.CheckFunc = func(ctx context.Context, req authz.CheckRequest) (authz.CheckResult, error) {
-		return authz.CheckResult{}, errors.New("service unavailable")
+	s.mockService.CheckFunc = func(ctx context.Context, req security.CheckRequest) (security.CheckResult, error) {
+		return security.CheckResult{}, errors.New("service unavailable")
 	}
 
 	err := s.middleware.CanViewRoom(ctx, s.actor(profileID), roomID)

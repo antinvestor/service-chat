@@ -5,14 +5,16 @@ import (
 	"testing"
 
 	"github.com/antinvestor/service-chat/apps/default/service/authz"
+	"github.com/pitabwire/frame/security"
+	"github.com/pitabwire/frame/security/authorizer"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPermissionDeniedError(t *testing.T) {
-	err := authz.NewPermissionDeniedError(
-		authz.ObjectRef{Namespace: authz.NamespaceRoom, ID: "room123"},
+	err := authorizer.NewPermissionDeniedError(
+		security.ObjectRef{Namespace: authz.NamespaceRoom, ID: "room123"},
 		authz.PermissionView,
-		authz.SubjectRef{Namespace: authz.NamespaceProfile, ID: "user456"},
+		security.SubjectRef{Namespace: authz.NamespaceProfile, ID: "user456"},
 		"not a member",
 	)
 
@@ -24,11 +26,11 @@ func TestPermissionDeniedError(t *testing.T) {
 	assert.Contains(t, err.Error(), "not a member")
 
 	// Test Is() method
-	assert.True(t, errors.Is(err, authz.ErrPermissionDenied))
-	assert.False(t, errors.Is(err, authz.ErrInvalidObject))
+	assert.True(t, errors.Is(err, authorizer.ErrPermissionDenied))
+	assert.False(t, errors.Is(err, authorizer.ErrInvalidObject))
 
 	// Test Unwrap() method
-	assert.Equal(t, authz.ErrPermissionDenied, err.Unwrap())
+	assert.Equal(t, authorizer.ErrPermissionDenied, err.Unwrap())
 
 	// Test error fields
 	assert.Equal(t, authz.NamespaceRoom, err.Object.Namespace)
@@ -40,7 +42,7 @@ func TestPermissionDeniedError(t *testing.T) {
 
 func TestAuthzServiceError(t *testing.T) {
 	cause := errors.New("connection refused")
-	err := authz.NewAuthzServiceError("check", cause)
+	err := authorizer.NewAuthzServiceError("check", cause)
 
 	// Test error message
 	assert.Contains(t, err.Error(), "authz service error")
@@ -48,8 +50,8 @@ func TestAuthzServiceError(t *testing.T) {
 	assert.Contains(t, err.Error(), "connection refused")
 
 	// Test Is() method
-	assert.True(t, errors.Is(err, authz.ErrAuthzServiceDown))
-	assert.False(t, errors.Is(err, authz.ErrPermissionDenied))
+	assert.True(t, errors.Is(err, authorizer.ErrAuthzServiceDown))
+	assert.False(t, errors.Is(err, authorizer.ErrPermissionDenied))
 
 	// Test Unwrap() method
 	assert.Equal(t, cause, err.Unwrap())
@@ -62,14 +64,14 @@ func TestAuthzServiceError(t *testing.T) {
 func TestStandardErrors(t *testing.T) {
 	// Test that all standard errors are distinct
 	errs := []error{
-		authz.ErrPermissionDenied,
-		authz.ErrInvalidObject,
-		authz.ErrInvalidSubject,
-		authz.ErrTupleNotFound,
-		authz.ErrTupleAlreadyExists,
-		authz.ErrAuthzServiceDown,
-		authz.ErrInvalidPermission,
-		authz.ErrInvalidRole,
+		authorizer.ErrPermissionDenied,
+		authorizer.ErrInvalidObject,
+		authorizer.ErrInvalidSubject,
+		authorizer.ErrTupleNotFound,
+		authorizer.ErrTupleAlreadyExists,
+		authorizer.ErrAuthzServiceDown,
+		authorizer.ErrInvalidPermission,
+		authorizer.ErrInvalidRole,
 	}
 
 	for i, err1 := range errs {
@@ -83,12 +85,12 @@ func TestStandardErrors(t *testing.T) {
 	}
 
 	// Test error messages
-	assert.Equal(t, "permission denied", authz.ErrPermissionDenied.Error())
-	assert.Equal(t, "invalid object reference", authz.ErrInvalidObject.Error())
-	assert.Equal(t, "invalid subject reference", authz.ErrInvalidSubject.Error())
-	assert.Equal(t, "relationship tuple not found", authz.ErrTupleNotFound.Error())
-	assert.Equal(t, "relationship tuple already exists", authz.ErrTupleAlreadyExists.Error())
-	assert.Equal(t, "authorization service unavailable", authz.ErrAuthzServiceDown.Error())
-	assert.Equal(t, "invalid permission", authz.ErrInvalidPermission.Error())
-	assert.Equal(t, "invalid role", authz.ErrInvalidRole.Error())
+	assert.Equal(t, "permission denied", authorizer.ErrPermissionDenied.Error())
+	assert.Equal(t, "invalid object reference", authorizer.ErrInvalidObject.Error())
+	assert.Equal(t, "invalid subject reference", authorizer.ErrInvalidSubject.Error())
+	assert.Equal(t, "relationship tuple not found", authorizer.ErrTupleNotFound.Error())
+	assert.Equal(t, "relationship tuple already exists", authorizer.ErrTupleAlreadyExists.Error())
+	assert.Equal(t, "authorization service unavailable", authorizer.ErrAuthzServiceDown.Error())
+	assert.Equal(t, "invalid permission", authorizer.ErrInvalidPermission.Error())
+	assert.Equal(t, "invalid role", authorizer.ErrInvalidRole.Error())
 }
