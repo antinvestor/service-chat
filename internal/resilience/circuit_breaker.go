@@ -81,14 +81,15 @@ type CircuitBreaker struct {
 
 // NewCircuitBreaker creates a new circuit breaker with the given settings.
 func NewCircuitBreaker(settings Settings) *CircuitBreaker {
+	defaults := DefaultSettings(settings.Name)
 	if settings.MaxFailures <= 0 {
-		settings.MaxFailures = 5
+		settings.MaxFailures = defaults.MaxFailures
 	}
 	if settings.ResetTimeout <= 0 {
-		settings.ResetTimeout = 30 * time.Second
+		settings.ResetTimeout = defaults.ResetTimeout
 	}
 	if settings.HalfOpenMaxRequests <= 0 {
-		settings.HalfOpenMaxRequests = 3
+		settings.HalfOpenMaxRequests = defaults.HalfOpenMaxRequests
 	}
 
 	return &CircuitBreaker{
@@ -235,6 +236,6 @@ func (cb *CircuitBreaker) setState(newState State) {
 	cb.lastStateChange = time.Now()
 
 	if cb.settings.OnStateChange != nil {
-		cb.settings.OnStateChange(cb.settings.Name, oldState, newState)
+		go cb.settings.OnStateChange(cb.settings.Name, oldState, newState)
 	}
 }

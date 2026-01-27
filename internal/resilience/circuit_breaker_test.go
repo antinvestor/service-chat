@@ -225,6 +225,7 @@ func TestCircuitBreaker_Metrics_WithRejected(t *testing.T) {
 func TestCircuitBreaker_StateChangeCallback(t *testing.T) {
 	var transitions []struct{ from, to State }
 	var mu sync.Mutex
+	transitionCh := make(chan struct{}, 10)
 
 	cb := NewCircuitBreaker(Settings{
 		Name:         "test",
@@ -234,6 +235,7 @@ func TestCircuitBreaker_StateChangeCallback(t *testing.T) {
 			mu.Lock()
 			transitions = append(transitions, struct{ from, to State }{from, to})
 			mu.Unlock()
+			transitionCh <- struct{}{}
 		},
 	})
 
@@ -241,9 +243,15 @@ func TestCircuitBreaker_StateChangeCallback(t *testing.T) {
 	_ = cb.Execute(func() error { return errService })
 	_ = cb.Execute(func() error { return errService })
 
+	// Wait for first callback (closed -> open)
+	<-transitionCh
+
 	// Wait for half-open: open -> half-open
 	time.Sleep(20 * time.Millisecond)
 	_ = cb.State() // Triggers transition check
+
+	// Wait for second callback (open -> half-open)
+	<-transitionCh
 
 	mu.Lock()
 	require.Len(t, transitions, 2)
