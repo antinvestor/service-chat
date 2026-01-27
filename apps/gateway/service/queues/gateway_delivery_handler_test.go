@@ -49,7 +49,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ValidDelivery_DispatchesToC
 	handler := queues.NewGatewayEventsQueueHandler(s.cfg, nil, mockCM)
 
 	// Create a valid delivery payload
-	delivery := s.createTextDelivery(profileID, deviceID, "Hello, World!")
+	delivery := s.createTextDelivery("Hello, World!")
 	payload, err := proto.Marshal(delivery)
 	require.NoError(s.T(), err)
 
@@ -73,7 +73,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ConnectionNotFound_ReturnsN
 
 	handler := queues.NewGatewayEventsQueueHandler(s.cfg, nil, mockCM)
 
-	delivery := s.createTextDelivery("user123", "device456", "Hello")
+	delivery := s.createTextDelivery("Hello")
 	payload, err := proto.Marshal(delivery)
 	require.NoError(s.T(), err)
 
@@ -132,7 +132,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_DispatchChannelFull_Publish
 
 	handler := queues.NewGatewayEventsQueueHandler(s.cfg, mockQueueManager, mockCM)
 
-	delivery := s.createTextDelivery(profileID, deviceID, "Hello")
+	delivery := s.createTextDelivery("Hello")
 	payload, err := proto.Marshal(delivery)
 	require.NoError(s.T(), err)
 
@@ -209,9 +209,11 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_AllPayloadTypes() {
 		},
 	}
 
+	initialDispatchCount := mockConn.dispatchCount
+
 	for _, tc := range testCases {
 		s.Run(tc.name, func() {
-			delivery := s.createDeliveryWithPayload(profileID, deviceID, tc.payload)
+			delivery := s.createDeliveryWithPayload(tc.payload)
 			payload, err := proto.Marshal(delivery)
 			require.NoError(s.T(), err)
 
@@ -219,18 +221,20 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_AllPayloadTypes() {
 			assert.NoError(s.T(), err)
 		})
 	}
+
+	// Verify all payload types were dispatched
+	assert.Equal(s.T(), initialDispatchCount+len(testCases), mockConn.dispatchCount)
 }
 
 // Helper methods
-func (s *GatewayDeliveryHandlerTestSuite) createTextDelivery(profileID, deviceID, body string) *eventsv1.Delivery {
-	return s.createDeliveryWithPayload(profileID, deviceID, &chatv1.Payload{
+func (s *GatewayDeliveryHandlerTestSuite) createTextDelivery(body string) *eventsv1.Delivery {
+	return s.createDeliveryWithPayload(&chatv1.Payload{
 		Type: chatv1.PayloadType_PAYLOAD_TYPE_TEXT,
 		Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: body}},
 	})
 }
 
 func (s *GatewayDeliveryHandlerTestSuite) createDeliveryWithPayload(
-	_, _ string,
 	payload *chatv1.Payload,
 ) *eventsv1.Delivery {
 	return &eventsv1.Delivery{
