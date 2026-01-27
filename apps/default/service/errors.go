@@ -30,7 +30,7 @@ var (
 	)
 	ErrRoomDeleteDenied = connect.NewError(
 		connect.CodePermissionDenied,
-		errors.New("only room admins can delete the room"),
+		errors.New("only room owners can delete the room"),
 	)
 	ErrRoomAddMembersDenied = connect.NewError(
 		connect.CodePermissionDenied,
@@ -70,4 +70,23 @@ var (
 	)
 	ErrRoleRequired         = connect.NewError(connect.CodeInvalidArgument, errors.New("subscription Role is required"))
 	ErrSubscriptionNotFound = connect.NewError(connect.CodeNotFound, errors.New("subscription not found"))
+
+	// Proposal errors.
+	ErrProposalNotFound = connect.NewError(connect.CodeNotFound, errors.New("proposal not found"))
+	ErrProposalNotPending = connect.NewError(
+		connect.CodeFailedPrecondition,
+		errors.New("proposal is not in pending state"),
+	)
+	ErrProposalExpired = connect.NewError(
+		connect.CodeFailedPrecondition,
+		errors.New("proposal has expired"),
+	)
+	ErrProposalApprovalDenied = connect.NewError(
+		connect.CodePermissionDenied,
+		errors.New("you don't have permission to approve or reject proposals"),
+	)
+	ErrProposalRequired = connect.NewError(
+		connect.CodeFailedPrecondition,
+		errors.New("this operation requires approval; a proposal has been created"),
+	)
 )

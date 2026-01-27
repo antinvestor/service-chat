@@ -45,6 +45,7 @@ func (s *SubscriptionServiceTestSuite) setupBusinessLayer(
 		roomRepo,
 		eventRepo,
 		subRepo,
+		nil, // proposalRepo
 		subscriptionSvc,
 		messageBusiness,
 		nil,
@@ -154,8 +155,8 @@ func (s *SubscriptionServiceTestSuite) TestHasRole() {
 			room.GetId(),
 			3, // roleOwnerLevel
 		)
-		require.Error(t, err)
-		require.Nil(t, hasRole)
+		require.NoError(t, err)
+		require.Nil(t, hasRole, "member should not have owner-level role")
 
 		// Member should have member role
 		hasRole, err = subscriptionSvc.HasRole(

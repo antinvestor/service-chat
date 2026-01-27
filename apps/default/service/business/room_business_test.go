@@ -43,6 +43,7 @@ func (s *RoomBusinessTestSuite) setupBusinessLayer(
 		roomRepo,
 		eventRepo,
 		subRepo,
+		nil, // proposalRepo
 		subscriptionSvc,
 		messageBusiness,
 		nil,
@@ -467,6 +468,319 @@ func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRole() {
 			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 		)
 		require.NoError(t, err)
+	})
+}
+
+func (s *RoomBusinessTestSuite) TestDeleteRoomDeniedForNonOwner() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+
+		req := &chatv1.CreateRoomRequest{
+			Name:      "Room to Delete",
+			IsPrivate: false,
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
+		}
+
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Promote member to admin first
+		searchReq := &chatv1.SearchRoomSubscriptionsRequest{
+			RoomId: created.GetId(),
+		}
+		subs, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		var memberSubID string
+		for _, sub := range subs {
+			if sub.GetMember().GetProfileId() == memberID {
+				memberSubID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, memberSubID)
+
+		err = roomBusiness.UpdateSubscriptionRole(
+			ctx,
+			&chatv1.UpdateSubscriptionRoleRequest{
+				RoomId:         created.GetId(),
+				SubscriptionId: memberSubID,
+				Roles:          []string{"admin"},
+			},
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Admin should NOT be able to delete room (only owner can)
+		deleteReq := &chatv1.DeleteRoomRequest{
+			RoomId: created.GetId(),
+		}
+		err = roomBusiness.DeleteRoom(
+			ctx,
+			deleteReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.Error(t, err)
+		s.Contains(err.Error(), "only room owners")
+
+		// Regular member should also NOT be able to delete
+		newMemberID := util.IDString()
+		newMemberContactID := util.IDString()
+		err = roomBusiness.AddRoomSubscriptions(
+			ctx,
+			&chatv1.AddRoomSubscriptionsRequest{
+				RoomId: created.GetId(),
+				Members: []*chatv1.RoomSubscription{
+					{Member: &commonv1.ContactLink{ProfileId: newMemberID, ContactId: newMemberContactID}, Roles: []string{"member"}},
+				},
+			},
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		err = roomBusiness.DeleteRoom(
+			ctx,
+			deleteReq,
+			&commonv1.ContactLink{ProfileId: newMemberID, ContactId: newMemberContactID},
+		)
+		require.Error(t, err)
+	})
+}
+
+func (s *RoomBusinessTestSuite) TestAddRoomSubscriptionsDenied() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+
+		req := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
+		}
+
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Regular member should NOT be able to add members
+		addReq := &chatv1.AddRoomSubscriptionsRequest{
+			RoomId: created.GetId(),
+			Members: []*chatv1.RoomSubscription{
+				{Member: &commonv1.ContactLink{ProfileId: util.IDString()}, Roles: []string{"member"}},
+			},
+		}
+
+		err = roomBusiness.AddRoomSubscriptions(
+			ctx,
+			addReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.Error(t, err)
+	})
+}
+
+func (s *RoomBusinessTestSuite) TestRemoveRoomSubscriptionsDenied() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+		member2ID := util.IDString()
+		member2ContactID := util.IDString()
+
+		req := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+			Members: []*commonv1.ContactLink{
+				{ProfileId: memberID, ContactId: memberContactID},
+				{ProfileId: member2ID, ContactId: member2ContactID},
+			},
+		}
+
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Find member2's subscription ID
+		searchReq := &chatv1.SearchRoomSubscriptionsRequest{RoomId: created.GetId()}
+		subs, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		var member2SubID string
+		for _, sub := range subs {
+			if sub.GetMember().GetProfileId() == member2ID {
+				member2SubID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, member2SubID)
+
+		// Regular member should NOT be able to remove other members
+		removeReq := &chatv1.RemoveRoomSubscriptionsRequest{
+			RoomId:         created.GetId(),
+			SubscriptionId: []string{member2SubID},
+		}
+
+		err = roomBusiness.RemoveRoomSubscriptions(
+			ctx,
+			removeReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.Error(t, err)
+	})
+}
+
+func (s *RoomBusinessTestSuite) TestUpdateSubscriptionRoleDenied() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+		member2ID := util.IDString()
+		member2ContactID := util.IDString()
+
+		req := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+			Members: []*commonv1.ContactLink{
+				{ProfileId: memberID, ContactId: memberContactID},
+				{ProfileId: member2ID, ContactId: member2ContactID},
+			},
+		}
+
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Find member2's subscription ID
+		searchReq := &chatv1.SearchRoomSubscriptionsRequest{RoomId: created.GetId()}
+		subs, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		var member2SubID string
+		for _, sub := range subs {
+			if sub.GetMember().GetProfileId() == member2ID {
+				member2SubID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, member2SubID)
+
+		// Promote memberID to admin
+		var memberSubID string
+		for _, sub := range subs {
+			if sub.GetMember().GetProfileId() == memberID {
+				memberSubID = sub.GetId()
+				break
+			}
+		}
+		require.NotEmpty(t, memberSubID)
+
+		err = roomBusiness.UpdateSubscriptionRole(
+			ctx,
+			&chatv1.UpdateSubscriptionRoleRequest{
+				RoomId:         created.GetId(),
+				SubscriptionId: memberSubID,
+				Roles:          []string{"admin"},
+			},
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Admin should NOT be able to change roles (only owner can)
+		err = roomBusiness.UpdateSubscriptionRole(
+			ctx,
+			&chatv1.UpdateSubscriptionRoleRequest{
+				RoomId:         created.GetId(),
+				SubscriptionId: member2SubID,
+				Roles:          []string{"admin"},
+			},
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.Error(t, err)
+	})
+}
+
+func (s *RoomBusinessTestSuite) TestSubscriptionContactIDStored() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+
+		req := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
+		}
+
+		created, err := roomBusiness.CreateRoom(
+			ctx,
+			req,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Get subscriptions and verify ContactID is populated
+		searchReq := &chatv1.SearchRoomSubscriptionsRequest{RoomId: created.GetId()}
+		subs, err := roomBusiness.SearchRoomSubscriptions(
+			ctx,
+			searchReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(subs), 2)
+
+		for _, sub := range subs {
+			// Each member's subscription should have both ProfileID and ContactID
+			s.NotEmpty(sub.GetMember().GetProfileId(), "subscription should have profile ID")
+			s.NotEmpty(sub.GetMember().GetContactId(), "subscription should have contact ID")
+		}
 	})
 }
 

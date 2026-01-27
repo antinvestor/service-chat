@@ -5,6 +5,7 @@ import (
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
 	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 )
 
 // RoomBusiness defines the business logic for room operations.
@@ -74,6 +75,13 @@ type MessageBusiness interface {
 		sentBy *commonv1.ContactLink,
 	) ([]*chatv1.AckEvent, error)
 
+	// GetMessage retrieves a single message by ID with access control
+	GetMessage(
+		ctx context.Context,
+		messageID string,
+		gottenBy *commonv1.ContactLink,
+	) (*models.RoomEvent, error)
+
 	// GetHistory retrieves message history for a room with pagination
 	GetHistory(
 		ctx context.Context,
@@ -81,8 +89,40 @@ type MessageBusiness interface {
 		gottenBy *commonv1.ContactLink,
 	) ([]*chatv1.RoomEvent, error)
 
+	// DeleteMessage deletes a message (sender or admin/owner only)
+	DeleteMessage(ctx context.Context, messageID string, deletedBy *commonv1.ContactLink) error
+
 	// MarkMessagesAsRead updates the last read sequence for a user in a room
 	MarkMessagesAsRead(ctx context.Context, roomID string, eventID string, markedBy *commonv1.ContactLink) error
+}
+
+// ProposalManagement defines the business logic for a proposal approval/voting workflow.
+// Implementations are scoped to a specific entity type (e.g., rooms) but the interface
+// is generic enough to be reused for other voting processes.
+type ProposalManagement interface {
+	// Approve approves a pending proposal and executes the proposed change.
+	Approve(
+		ctx context.Context,
+		scopeID string,
+		proposalID string,
+		approvedBy *commonv1.ContactLink,
+	) error
+
+	// Reject rejects a pending proposal.
+	Reject(
+		ctx context.Context,
+		scopeID string,
+		proposalID string,
+		reason string,
+		rejectedBy *commonv1.ContactLink,
+	) error
+
+	// ListPending retrieves all pending proposals for a given scope.
+	ListPending(
+		ctx context.Context,
+		scopeID string,
+		searchedBy *commonv1.ContactLink,
+	) ([]*models.Proposal, error)
 }
 
 // ClientStateBusiness defines the business logic for real-time connection operations.

@@ -15,11 +15,12 @@ import (
 // Room represents a chat room entity.
 type Room struct {
 	data.BaseModel
-	RoomType    string `json:"room_type"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Properties  data.JSONMap
-	IsPublic    bool
+	RoomType         string `json:"room_type"`
+	Name             string `json:"name"`
+	Description      string `json:"description"`
+	Properties       data.JSONMap
+	IsPublic         bool
+	RequiresApproval bool
 }
 
 // ToAPI converts Room model to API representation.
@@ -33,7 +34,7 @@ func (r *Room) ToAPI() *chatv1.Room {
 		metadata, _ = structpb.NewStruct(r.Properties)
 	}
 
-	return &chatv1.Room{
+	protoRoom := &chatv1.Room{
 		Id:          r.GetID(),
 		Name:        r.Name,
 		Description: r.Description,
@@ -41,6 +42,16 @@ func (r *Room) ToAPI() *chatv1.Room {
 		Metadata:    metadata,
 		CreatedAt:   timestamppb.New(r.CreatedAt),
 	}
+
+	if r.RequiresApproval && metadata == nil {
+		protoRoom.Metadata, _ = structpb.NewStruct(map[string]any{
+			"requires_approval": true,
+		})
+	} else if r.RequiresApproval && metadata != nil {
+		metadata.Fields["requires_approval"] = structpb.NewBoolValue(true)
+	}
+
+	return protoRoom
 }
 
 // RoomCall represents a call session in a room.
@@ -171,4 +182,58 @@ func (rs *RoomSubscription) Matches(contactLink *commonv1.ContactLink) bool {
 	}
 
 	return true
+}
+
+// ProposalScopeType constants define the entity type a proposal applies to.
+const (
+	ProposalScopeRoom = "room"
+)
+
+// ProposalType represents the kind of change being proposed.
+// New types can be added for non-room proposals to reuse the voting framework.
+type ProposalType int
+
+const (
+	ProposalTypeUpdateRoom ProposalType = iota + 1
+	ProposalTypeDeleteRoom
+	ProposalTypeAddSubscriptions
+	ProposalTypeRemoveSubscriptions
+	ProposalTypeUpdateSubscriptionRole
+)
+
+// ProposalState represents the current state of a proposal.
+type ProposalState int
+
+const (
+	ProposalStatePending ProposalState = iota
+	ProposalStateApproved
+	ProposalStateRejected
+	ProposalStateExpired
+)
+
+// Proposal represents a pending change that requires approval before execution.
+// The ScopeType and ScopeID fields allow this model to be reused for different
+// kinds of proposals beyond room changes (e.g., org-level changes, policy votes).
+type Proposal struct {
+	data.BaseModel
+	ScopeType    string        `gorm:"type:varchar(50);index:idx_proposal_scope_state"`
+	ScopeID      string        `gorm:"type:varchar(50);index:idx_proposal_scope_state"`
+	ProposalType ProposalType  `gorm:"index:idx_proposal_type"`
+	RequestedBy  string        `gorm:"type:varchar(50)"`
+	Payload      data.JSONMap
+	State        ProposalState `gorm:"index:idx_proposal_scope_state"`
+	ResolvedBy   string        `gorm:"type:varchar(50)"`
+	ResolvedAt   *time.Time
+	Reason       string
+	ExpiresAt    time.Time     `gorm:"index:idx_proposal_expires"`
+}
+
+// IsPending returns true if the proposal is still pending.
+func (p *Proposal) IsPending() bool {
+	return p.State == ProposalStatePending
+}
+
+// IsExpired returns true if the proposal has passed its expiry time.
+func (p *Proposal) IsExpired() bool {
+	return time.Now().After(p.ExpiresAt)
 }

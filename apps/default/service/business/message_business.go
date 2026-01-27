@@ -184,7 +184,41 @@ func (mb *messageBusiness) SendEvents(
 		validEvents = append(validEvents, event)
 	}
 
-	// Phase 2: Bulk save all valid events
+	// Phase 2: Deduplicate and bulk save valid events
+	if len(validEvents) == 0 {
+		return responses, nil
+	}
+
+	// Check for already-existing events (idempotency)
+	candidateIDs := make([]string, 0, len(validEvents))
+	for _, evt := range validEvents {
+		candidateIDs = append(candidateIDs, evt.GetID())
+	}
+
+	existsMap, existsErr := mb.eventRepo.ExistsByIDs(ctx, candidateIDs)
+	if existsErr != nil {
+		util.Log(ctx).WithError(existsErr).Warn("idempotency check failed, proceeding with all events")
+		existsMap = nil
+	}
+
+	// Filter out already-existing events and ack them as success
+	if existsMap != nil {
+		var newEvents []*models.RoomEvent
+		for _, evt := range validEvents {
+			if existsMap[evt.GetID()] {
+				// Already exists - return success (idempotent)
+				responseIdx := eventToIndex[evt.GetID()]
+				responses[responseIdx] = &chatv1.AckEvent{
+					EventId: []string{evt.GetID()},
+					AckAt:   timestamppb.Now(),
+				}
+				continue
+			}
+			newEvents = append(newEvents, evt)
+		}
+		validEvents = newEvents
+	}
+
 	if len(validEvents) == 0 {
 		return responses, nil
 	}
@@ -309,10 +343,15 @@ func (mb *messageBusiness) GetHistory(
 		return nil, fmt.Errorf("failed to check room access: %w", err)
 	}
 
+	hasAccess := false
 	for _, sub := range accessList {
-		if sub.RoomID != req.GetRoomId() || !sub.IsActive() {
-			return nil, service.ErrRoomAccessDenied
+		if sub.RoomID == req.GetRoomId() && sub.IsActive() {
+			hasAccess = true
+			break
 		}
+	}
+	if !hasAccess {
+		return nil, service.ErrRoomAccessDenied
 	}
 
 	// Build the query - use cursor for pagination
@@ -326,21 +365,21 @@ func (mb *messageBusiness) GetHistory(
 	}
 
 	// Get messages
-	evts, err := mb.eventRepo.GetHistory(ctx, req.GetRoomId(), "", "", limit)
+	evts, err := mb.eventRepo.GetHistory(ctx, req.GetRoomId(), cursor, "", limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get message history: %w", err)
 	}
 
 	// Convert to proto
-	converter := models.NewPayloadConverter()
 	protoEvents := make([]*chatv1.RoomEvent, 0, len(evts))
 	for _, event := range evts {
-		protoEvents = append(protoEvents, event.ToAPI(ctx, converter))
+		protoEvents = append(protoEvents, event.ToAPI(ctx, mb.payloadConverter))
 	}
 
 	// Update last read sequence for the user if we have evts
+	// When cursor is empty (first load), events are sorted ASC so last element is newest
 	if len(evts) > 0 && cursor == "" {
-		_ = mb.MarkMessagesAsRead(ctx, req.GetRoomId(), evts[0].GetID(), gottenBy)
+		_ = mb.MarkMessagesAsRead(ctx, req.GetRoomId(), evts[len(evts)-1].GetID(), gottenBy)
 	}
 
 	return protoEvents, nil

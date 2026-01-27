@@ -27,7 +27,8 @@ func (rr *roomRepository) GetRoomsByProfileID(ctx context.Context, profileID str
 	var rooms []*models.Room
 	err := rr.Pool().DB(ctx, true).
 		Joins("JOIN room_subscriptions ON room_subscriptions.room_id = rooms.id").
-		Where("room_subscriptions.profile_id = ? AND room_subscriptions.is_active = ?", profileID, true).
+		Where("room_subscriptions.profile_id = ? AND room_subscriptions.subscription_state = ?",
+			profileID, models.RoomSubscriptionStateActive).
 		Find(&rooms).Error
 	return rooms, err
 }

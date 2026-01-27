@@ -171,6 +171,7 @@ func (s *RoomBusinessTestSuite) setupBusinessLayerWithProfileClient(
 		roomRepo,
 		eventRepo,
 		subRepo,
+		nil, // proposalRepo
 		subscriptionSvc,
 		messageBusiness,
 		profileCli,

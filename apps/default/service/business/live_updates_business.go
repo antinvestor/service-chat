@@ -214,6 +214,7 @@ func (cb *connectBusiness) UpdateReadMarker(
 	}
 
 	if subLastReadEventID != subscription.LastReadEventID {
+		subscription.LastReadEventID = subLastReadEventID
 		subscription.LastReadAt = time.Now().Unix()
 		if _, err = cb.subRepo.Update(ctx, subscription); err != nil {
 			return fmt.Errorf("failed to update subscription: %w", err)

@@ -2,7 +2,6 @@ package business
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -138,7 +137,7 @@ func (ss *subscriptionService) HasRole(
 		}
 	}
 
-	return nil, errors.New("no subscription found")
+	return nil, nil //nolint:nilnil // nil,nil means no matching subscription at the required role level
 }
 
 func (ss *subscriptionService) CanManageMembers(

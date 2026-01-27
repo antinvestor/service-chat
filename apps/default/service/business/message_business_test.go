@@ -44,6 +44,7 @@ func (s *MessageBusinessTestSuite) setupBusinessLayer(
 		roomRepo,
 		eventRepo,
 		subRepo,
+		nil, // proposalRepo
 		subscriptionSvc,
 		messageBusiness,
 		nil,
@@ -417,6 +418,287 @@ func (s *MessageBusinessTestSuite) TestMarkMessagesAsRead() {
 			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
 		)
 		require.NoError(t, err)
+	})
+}
+
+func (s *MessageBusinessTestSuite) TestSendMessageAccessDenied() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		// Create room with one member
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		roomReq := &chatv1.CreateRoomRequest{
+			Name:      "Private Room",
+			IsPrivate: true,
+		}
+
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Non-member tries to send a message
+		nonMemberID := util.IDString()
+		nonMemberContactID := util.IDString()
+		msgReq := &chatv1.SendEventRequest{
+			Event: []*chatv1.RoomEvent{
+				{
+					RoomId: room.GetId(),
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "unauthorized message"}},
+					},
+				},
+			},
+		}
+
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
+		)
+		require.NoError(t, err) // Returns acks with errors, not a top-level error
+		require.Len(t, acks, 1)
+		s.NotNil(acks[0].GetError(), "non-member should get error on send")
+	})
+}
+
+func (s *MessageBusinessTestSuite) TestGetHistoryAccessDenied() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		// Create room
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		roomReq := &chatv1.CreateRoomRequest{
+			Name:      "Private Room",
+			IsPrivate: true,
+		}
+
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Non-member tries to get history
+		nonMemberID := util.IDString()
+		nonMemberContactID := util.IDString()
+		historyReq := &chatv1.GetHistoryRequest{
+			RoomId: room.GetId(),
+			Cursor: &commonv1.PageCursor{Limit: 10, Page: ""},
+		}
+
+		_, err = messageBusiness.GetHistory(
+			ctx,
+			historyReq,
+			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
+		)
+		require.Error(t, err, "non-member should be denied history access")
+	})
+}
+
+func (s *MessageBusinessTestSuite) TestDeleteMessageDenied() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		// Create room with two members
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+
+		roomReq := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
+		}
+
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Creator sends a message
+		msgReq := &chatv1.SendEventRequest{
+			Event: []*chatv1.RoomEvent{
+				{
+					RoomId: room.GetId(),
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "test message"}},
+					},
+				},
+			},
+		}
+
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+		messageID := acks[0].GetEventId()[0]
+
+		// Regular member should NOT be able to delete the creator's message
+		err = messageBusiness.DeleteMessage(
+			ctx,
+			messageID,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.Error(t, err, "regular member should not be able to delete another user's message")
+	})
+}
+
+func (s *MessageBusinessTestSuite) TestDeleteMessageByAdmin() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		// Create room with member
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+
+		roomReq := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
+		}
+
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Member sends a message
+		msgReq := &chatv1.SendEventRequest{
+			Event: []*chatv1.RoomEvent{
+				{
+					RoomId: room.GetId(),
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "member's message"}},
+					},
+				},
+			},
+		}
+
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.NoError(t, err)
+		messageID := acks[0].GetEventId()[0]
+
+		// Owner (who is admin+) should be able to delete the member's message
+		err = messageBusiness.DeleteMessage(
+			ctx,
+			messageID,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err, "admin/owner should be able to delete any message")
+	})
+}
+
+func (s *MessageBusinessTestSuite) TestDeleteOwnMessage() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		// Create room with member
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		memberID := util.IDString()
+		memberContactID := util.IDString()
+
+		roomReq := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+			Members:   []*commonv1.ContactLink{{ProfileId: memberID, ContactId: memberContactID}},
+		}
+
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Member sends a message
+		msgReq := &chatv1.SendEventRequest{
+			Event: []*chatv1.RoomEvent{
+				{
+					RoomId: room.GetId(),
+					Type:   chatv1.RoomEventType_ROOM_EVENT_TYPE_MESSAGE,
+					Payload: &chatv1.Payload{
+						Data: &chatv1.Payload_Text{Text: &chatv1.TextContent{Body: "my message"}},
+					},
+				},
+			},
+		}
+
+		acks, err := messageBusiness.SendEvents(
+			ctx,
+			msgReq,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.NoError(t, err)
+		messageID := acks[0].GetEventId()[0]
+
+		// Member should be able to delete their own message
+		err = messageBusiness.DeleteMessage(
+			ctx,
+			messageID,
+			&commonv1.ContactLink{ProfileId: memberID, ContactId: memberContactID},
+		)
+		require.NoError(t, err, "user should be able to delete their own message")
+	})
+}
+
+func (s *MessageBusinessTestSuite) TestMarkMessagesAsReadDenied() {
+	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
+		ctx, svc := s.CreateService(t, dep)
+		messageBusiness, roomBusiness := s.setupBusinessLayer(ctx, svc)
+
+		// Create room
+		creatorID := util.IDString()
+		creatorContactID := util.IDString()
+		roomReq := &chatv1.CreateRoomRequest{
+			Name:      "Test Room",
+			IsPrivate: false,
+		}
+
+		room, err := roomBusiness.CreateRoom(
+			ctx,
+			roomReq,
+			&commonv1.ContactLink{ProfileId: creatorID, ContactId: creatorContactID},
+		)
+		require.NoError(t, err)
+
+		// Non-member tries to mark messages as read
+		nonMemberID := util.IDString()
+		nonMemberContactID := util.IDString()
+		err = messageBusiness.MarkMessagesAsRead(
+			ctx,
+			room.GetId(),
+			"some-event-id",
+			&commonv1.ContactLink{ProfileId: nonMemberID, ContactId: nonMemberContactID},
+		)
+		require.Error(t, err, "non-member should not be able to mark messages as read")
 	})
 }
 

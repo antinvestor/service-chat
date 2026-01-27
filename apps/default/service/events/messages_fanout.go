@@ -18,10 +18,11 @@ import (
 const RoomFanoutEventName = "room.message.fanout.event"
 
 type FanoutEventHandler struct {
-	cfg           *config.ChatConfig
-	eventRepo     repository.RoomEventRepository
-	queueMan      queue.Manager
-	deliveryTopic queue.Publisher
+	cfg              *config.ChatConfig
+	eventRepo        repository.RoomEventRepository
+	queueMan         queue.Manager
+	deliveryTopic    queue.Publisher
+	payloadConverter *models.PayloadConverter
 }
 
 func NewFanoutEventHandler(
@@ -32,9 +33,10 @@ func NewFanoutEventHandler(
 	queueMan queue.Manager,
 ) *FanoutEventHandler {
 	return &FanoutEventHandler{
-		cfg:       cfg,
-		queueMan:  queueMan,
-		eventRepo: repository.NewRoomEventRepository(ctx, dbPool, workMan),
+		cfg:              cfg,
+		queueMan:         queueMan,
+		eventRepo:        repository.NewRoomEventRepository(ctx, dbPool, workMan),
+		payloadConverter: models.NewPayloadConverter(),
 	}
 }
 
@@ -104,8 +106,7 @@ func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) error {
 	}
 
 	// Convert event content to typed payload
-	converter := models.NewPayloadConverter()
-	eventPayload, payloadErr := converter.ToProto(eventLinkData.Content)
+	eventPayload, payloadErr := feh.payloadConverter.ToProto(eventLinkData.Content)
 	if payloadErr != nil {
 		logger.WithError(payloadErr).Error("failed to convert event content to payload")
 		// Continue with nil payload rather than failing entirely

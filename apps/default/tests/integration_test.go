@@ -43,6 +43,7 @@ func (s *IntegrationTestSuite) setupBusinessLayer(
 		roomRepo,
 		eventRepo,
 		subRepo,
+		nil, // proposalRepo
 		subscriptionSvc,
 		messageBusiness,
 		nil,

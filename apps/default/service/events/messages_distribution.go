@@ -40,6 +40,7 @@ func NewRoomOutboxLoggingQueue(
 			chatv1.RoomEventType_ROOM_EVENT_TYPE_TYPING,
 			chatv1.RoomEventType_ROOM_EVENT_TYPE_DELIVERED,
 			chatv1.RoomEventType_ROOM_EVENT_TYPE_READ,
+			chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM, // moderation events
 		},
 	}
 }

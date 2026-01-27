@@ -37,12 +37,13 @@ const (
 )
 
 type ChatServer struct {
-	Service         *frame.Service
-	NotificationCli notificationv1connect.NotificationServiceClient
-	ProfileCli      profilev1connect.ProfileServiceClient
-	ConnectBusiness business.ClientStateBusiness
-	RoomBusiness    business.RoomBusiness
-	MessageBusiness business.MessageBusiness
+	Service              *frame.Service
+	NotificationCli      notificationv1connect.NotificationServiceClient
+	ProfileCli           profilev1connect.ProfileServiceClient
+	ConnectBusiness      business.ClientStateBusiness
+	RoomBusiness         business.RoomBusiness
+	MessageBusiness      business.MessageBusiness
+	ProposalManagement business.ProposalManagement
 
 	chatv1connect.UnimplementedChatServiceHandler
 }
@@ -62,6 +63,7 @@ func NewChatServer(
 	roomRepo := repository.NewRoomRepository(ctx, dbPool, workMan)
 	eventRepo := repository.NewRoomEventRepository(ctx, dbPool, workMan)
 	subRepo := repository.NewRoomSubscriptionRepository(ctx, dbPool, workMan)
+	proposalRepo := repository.NewProposalRepository(ctx, dbPool, workMan)
 
 	// Initialize business layers
 	subscriptionSvc := business.NewSubscriptionService(service, subRepo)
@@ -72,19 +74,22 @@ func NewChatServer(
 		roomRepo,
 		eventRepo,
 		subRepo,
+		proposalRepo,
 		subscriptionSvc,
 		messageBusiness,
 		profileCli,
 		authzMiddleware,
 	)
+	proposalManagement := business.NewRoomProposalManagement(proposalRepo, roomBusiness, subscriptionSvc)
 
 	return &ChatServer{
-		Service:         service,
-		NotificationCli: notificationCli,
-		ProfileCli:      profileCli,
-		ConnectBusiness: connectBusiness,
-		RoomBusiness:    roomBusiness,
-		MessageBusiness: messageBusiness,
+		Service:            service,
+		NotificationCli:    notificationCli,
+		ProfileCli:         profileCli,
+		ConnectBusiness:    connectBusiness,
+		RoomBusiness:       roomBusiness,
+		MessageBusiness:    messageBusiness,
+		ProposalManagement: proposalManagement,
 	}
 }
 
@@ -439,6 +444,10 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 		Members: subscriptions,
 	}), nil
 }
+
+// TODO: Add Approve, Reject, and ListPending proposal handler methods
+// once the corresponding proto definitions are available. The business logic is implemented
+// in business.ProposalManagement and wired up via ps.ProposalManagement.
 
 // Live handles client realtime updates (typing indicators, presence, read receipts).
 func (ps *ChatServer) Live(

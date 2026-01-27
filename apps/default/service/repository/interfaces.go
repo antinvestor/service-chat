@@ -64,6 +64,16 @@ type RoomSubscriptionRepository interface {
 	BulkCreate(ctx context.Context, subscriptions []*models.RoomSubscription) error
 }
 
+// ProposalRepository defines the interface for proposal data access operations.
+// Proposals are generic and scoped by ScopeType + ScopeID, enabling reuse
+// for any entity type that needs an approval/voting workflow.
+type ProposalRepository interface {
+	datastore.BaseRepository[*models.Proposal]
+	GetPendingByScope(ctx context.Context, scopeType string, scopeID string) ([]*models.Proposal, error)
+	UpdateState(ctx context.Context, id string, state models.ProposalState, resolvedBy string, reason string) error
+	ExpirePending(ctx context.Context) (int64, error)
+}
+
 // RoomCallRepository defines the interface for room call data access operations.
 type RoomCallRepository interface {
 	datastore.BaseRepository[*models.RoomCall]
