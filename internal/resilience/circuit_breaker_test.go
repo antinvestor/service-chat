@@ -1,3 +1,4 @@
+//nolint:testpackage // tests access unexported settings fields
 package resilience
 
 import (
@@ -346,14 +347,14 @@ func TestCircuitBreaker_FullCycle(t *testing.T) {
 
 	// Phase 3: Requests rejected
 	err := cb.Execute(func() error { return nil })
-	assert.ErrorIs(t, err, ErrCircuitOpen)
+	require.ErrorIs(t, err, ErrCircuitOpen)
 
 	// Phase 4: Wait for half-open
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, StateHalfOpen, cb.State())
 
 	// Phase 5: Recover
-	assert.NoError(t, cb.Execute(func() error { return nil }))
+	require.NoError(t, cb.Execute(func() error { return nil }))
 	assert.Equal(t, StateClosed, cb.State())
 
 	// Phase 6: Normal again
@@ -361,6 +362,6 @@ func TestCircuitBreaker_FullCycle(t *testing.T) {
 }
 
 func TestErrCircuitOpen(t *testing.T) {
-	assert.True(t, errors.Is(ErrCircuitOpen, ErrCircuitOpen))
+	assert.ErrorIs(t, ErrCircuitOpen, ErrCircuitOpen)
 	assert.Equal(t, "circuit breaker is open", ErrCircuitOpen.Error())
 }
