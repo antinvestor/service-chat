@@ -1,19 +1,20 @@
-package service
+package service_test
 
 import (
 	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPartialBatchError_Error(t *testing.T) {
-	pbe := &PartialBatchError{
+	pbe := &service.PartialBatchError{
 		Succeeded: 3,
 		Failed:    2,
-		Errors: []ItemError{
+		Errors: []service.ItemError{
 			{Index: 1, ItemID: "user1", Message: "validation failed"},
 			{Index: 3, ItemID: "user3", Message: "profile not found"},
 		},
@@ -26,7 +27,7 @@ func TestPartialBatchError_Error(t *testing.T) {
 }
 
 func TestPartialBatchError_ErrorNoItems(t *testing.T) {
-	pbe := &PartialBatchError{
+	pbe := &service.PartialBatchError{
 		Succeeded: 5,
 		Failed:    0,
 		Errors:    nil,
@@ -37,10 +38,10 @@ func TestPartialBatchError_ErrorNoItems(t *testing.T) {
 }
 
 func TestPartialBatchError_ErrorAllFailed(t *testing.T) {
-	pbe := &PartialBatchError{
+	pbe := &service.PartialBatchError{
 		Succeeded: 0,
 		Failed:    3,
-		Errors: []ItemError{
+		Errors: []service.ItemError{
 			{Index: 0, ItemID: "a", Message: "err1"},
 			{Index: 1, ItemID: "b", Message: "err2"},
 			{Index: 2, ItemID: "c", Message: "err3"},
@@ -54,46 +55,46 @@ func TestPartialBatchError_ErrorAllFailed(t *testing.T) {
 }
 
 func TestIsPartialBatchError_Match(t *testing.T) {
-	pbe := &PartialBatchError{
+	pbe := &service.PartialBatchError{
 		Succeeded: 1,
 		Failed:    1,
-		Errors:    []ItemError{{Index: 0, ItemID: "x", Message: "fail"}},
+		Errors:    []service.ItemError{{Index: 0, ItemID: "x", Message: "fail"}},
 	}
 
-	result, ok := IsPartialBatchError(pbe)
+	result, ok := service.IsPartialBatchError(pbe)
 	require.True(t, ok)
 	assert.Equal(t, 1, result.Succeeded)
 	assert.Equal(t, 1, result.Failed)
 }
 
 func TestIsPartialBatchError_Wrapped(t *testing.T) {
-	pbe := &PartialBatchError{
+	pbe := &service.PartialBatchError{
 		Succeeded: 2,
 		Failed:    1,
-		Errors:    []ItemError{{Index: 0, ItemID: "x", Message: "fail"}},
+		Errors:    []service.ItemError{{Index: 0, ItemID: "x", Message: "fail"}},
 	}
 
 	wrapped := fmt.Errorf("outer error: %w", pbe)
-	result, ok := IsPartialBatchError(wrapped)
+	result, ok := service.IsPartialBatchError(wrapped)
 	require.True(t, ok)
 	assert.Equal(t, 2, result.Succeeded)
 }
 
 func TestIsPartialBatchError_NoMatch(t *testing.T) {
 	err := errors.New("not a batch error")
-	result, ok := IsPartialBatchError(err)
+	result, ok := service.IsPartialBatchError(err)
 	assert.False(t, ok)
 	assert.Nil(t, result)
 }
 
 func TestIsPartialBatchError_Nil(t *testing.T) {
-	result, ok := IsPartialBatchError(nil)
+	result, ok := service.IsPartialBatchError(nil)
 	assert.False(t, ok)
 	assert.Nil(t, result)
 }
 
 func TestItemError_Fields(t *testing.T) {
-	ie := ItemError{
+	ie := service.ItemError{
 		Index:   5,
 		ItemID:  "item-123",
 		Message: "something went wrong",
