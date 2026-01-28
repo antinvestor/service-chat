@@ -8,6 +8,7 @@ import (
 	"github.com/pitabwire/frame/security"
 	"github.com/pitabwire/frame/security/authorizer"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPermissionDeniedError(t *testing.T) {
@@ -26,8 +27,8 @@ func TestPermissionDeniedError(t *testing.T) {
 	assert.Contains(t, err.Error(), "not a member")
 
 	// Test Is() method
-	assert.ErrorIs(t, err, authorizer.ErrPermissionDenied)
-	assert.NotErrorIs(t, err, authorizer.ErrInvalidObject)
+	require.ErrorIs(t, err, authorizer.ErrPermissionDenied)
+	require.NotErrorIs(t, err, authorizer.ErrInvalidObject)
 
 	// Test Unwrap() method
 	assert.Equal(t, authorizer.ErrPermissionDenied, err.Unwrap())
@@ -50,8 +51,8 @@ func TestAuthzServiceError(t *testing.T) {
 	assert.Contains(t, err.Error(), "connection refused")
 
 	// Test Is() method
-	assert.ErrorIs(t, err, authorizer.ErrAuthzServiceDown)
-	assert.NotErrorIs(t, err, authorizer.ErrPermissionDenied)
+	require.ErrorIs(t, err, authorizer.ErrAuthzServiceDown)
+	require.NotErrorIs(t, err, authorizer.ErrPermissionDenied)
 
 	// Test Unwrap() method
 	assert.Equal(t, cause, err.Unwrap())
@@ -77,9 +78,9 @@ func TestStandardErrors(t *testing.T) {
 	for i, err1 := range errs {
 		for j, err2 := range errs {
 			if i == j {
-				assert.ErrorIs(t, err1, err2)
+				require.ErrorIs(t, err1, err2)
 			} else {
-				assert.NotErrorIs(t, err1, err2, "error %d and %d should not match", i, j)
+				require.NotErrorIs(t, err1, err2, "error %d and %d should not match", i, j)
 			}
 		}
 	}

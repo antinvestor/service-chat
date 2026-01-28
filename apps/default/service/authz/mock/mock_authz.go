@@ -198,7 +198,9 @@ func (m *AuthzService) ListSubjectRelations(
 }
 
 // Expand implements security.Authorizer.
-func (m *AuthzService) Expand(_ context.Context, object security.ObjectRef, relation string) ([]security.SubjectRef, error) {
+func (m *AuthzService) Expand(
+	_ context.Context, object security.ObjectRef, relation string,
+) ([]security.SubjectRef, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var result []security.SubjectRef
