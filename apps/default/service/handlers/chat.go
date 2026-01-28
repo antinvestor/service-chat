@@ -345,6 +345,7 @@ func (ps *ChatServer) DeleteRoom(
 	return connect.NewResponse(&chatv1.DeleteRoomResponse{}), nil
 }
 
+//nolint:dupl // structurally similar to RemoveRoomSubscriptions but differs in types and business method
 func (ps *ChatServer) AddRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.AddRoomSubscriptionsRequest],
@@ -382,6 +383,7 @@ func (ps *ChatServer) AddRoomSubscriptions(
 	}), nil
 }
 
+//nolint:dupl // structurally similar to AddRoomSubscriptions but differs in types and business method
 func (ps *ChatServer) RemoveRoomSubscriptions(
 	ctx context.Context,
 	req *connect.Request[chatv1.RemoveRoomSubscriptionsRequest],
