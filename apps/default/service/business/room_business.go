@@ -73,8 +73,8 @@ func (rb *roomBusiness) CreateRoom(
 	ctx, span := chattel.RoomTracer.Start(ctx, "CreateRoom")
 	defer func() { chattel.RoomTracer.End(ctx, span, err) }()
 
-	if err := internal.IsValidContactLink(createdBy); err != nil {
-		return nil, err
+	if validErr := internal.IsValidContactLink(createdBy); validErr != nil {
+		return nil, validErr
 	}
 
 	// Validate request
@@ -269,8 +269,8 @@ func (rb *roomBusiness) DeleteRoom(
 		return service.ErrRoomIDRequired
 	}
 
-	if err := internal.IsValidContactLink(deletedBy); err != nil {
-		return err
+	if validErr := internal.IsValidContactLink(deletedBy); validErr != nil {
+		return validErr
 	}
 
 	roomID := req.GetRoomId()

@@ -1,9 +1,7 @@
 // Package telemetry provides OpenTelemetry metrics and tracing for the chat service.
 package telemetry
 
-import (
-	"github.com/pitabwire/frame/telemetry"
-)
+import "github.com/pitabwire/frame/telemetry"
 
 // Message metrics track message send/receive operations.
 //
@@ -120,4 +118,3 @@ var EventFanoutCounter = telemetry.DimensionlessMeasure(
 	"chat.events.fanout",
 	"Total event fanout operations",
 )
-
