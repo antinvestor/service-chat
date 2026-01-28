@@ -83,7 +83,7 @@ func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 	return deviceTopic, shardID, nil
 }
 
-//nolint:nonamedreturns // named return required for deferred tracing
+//nolint:nonamedreturns,gocognit // named return for tracing; delivery pipeline requires device search, retry logic, and worker pool coordination
 func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[string]string, payload []byte) (err error) {
 	ctx, span := chattel.DeliveryTracer.Start(ctx, "HotPathDelivery")
 	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
@@ -96,7 +96,9 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 		util.Log(ctx).WithError(err).Error("failed to unmarshal user delivery")
 		// Non-retryable: send raw payload to DLQ for diagnostics
 		if dq.dlp != nil {
-			if dlqErr := dq.dlp.Publish(ctx, payload, dq.cfg.QueueDeviceEventDeliveryName, err.Error(), headers); dlqErr != nil {
+			dlqErr := dq.dlp.Publish(
+				ctx, payload, dq.cfg.QueueDeviceEventDeliveryName, err.Error(), headers)
+			if dlqErr != nil {
 				util.Log(ctx).WithError(dlqErr).Error("failed to publish unmarshalable message to DLQ")
 			}
 		}

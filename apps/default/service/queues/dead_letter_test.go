@@ -1,3 +1,4 @@
+//nolint:testpackage // tests use unexported mock types for queue testing
 package queues
 
 import (
@@ -23,11 +24,11 @@ type mockPublished struct {
 	headers map[string]string
 }
 
-func (m *mockPublisher) Initiated() bool                       { return true }
-func (m *mockPublisher) Ref() string                           { return "mock" }
-func (m *mockPublisher) Init(_ context.Context) error          { return nil }
-func (m *mockPublisher) Stop(_ context.Context) error          { return nil }
-func (m *mockPublisher) As(_ any) bool                         { return false }
+func (m *mockPublisher) Initiated() bool              { return true }
+func (m *mockPublisher) Ref() string                  { return "mock" }
+func (m *mockPublisher) Init(_ context.Context) error { return nil }
+func (m *mockPublisher) Stop(_ context.Context) error { return nil }
+func (m *mockPublisher) As(_ any) bool                { return false }
 func (m *mockPublisher) Publish(_ context.Context, payload any, headers ...map[string]string) error {
 	if m.publishError != nil {
 		return m.publishError
@@ -58,7 +59,9 @@ func (m *mockQueueManager) AddSubscriber(_ context.Context, _ string, _ string, 
 	return nil
 }
 func (m *mockQueueManager) DiscardSubscriber(_ context.Context, _ string) error { return nil }
-func (m *mockQueueManager) GetSubscriber(_ string) (queue.Subscriber, error)    { return nil, nil }
+func (m *mockQueueManager) GetSubscriber(_ string) (queue.Subscriber, error) { //nolint:nilnil // mock returns nil for both values
+	return nil, nil
+}
 func (m *mockQueueManager) Publish(_ context.Context, _ string, _ any, _ ...map[string]string) error {
 	return nil
 }

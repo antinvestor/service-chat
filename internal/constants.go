@@ -6,7 +6,8 @@ const (
 	HeaderDeviceID  = "device_id"
 	HeaderShardID   = "shard_id"
 
-	// Dead-letter queue headers
+	// HeaderDLQOriginalQueue is the header key for the original queue name in dead-letter messages.
 	HeaderDLQOriginalQueue = "dlq_original_queue"
-	HeaderDLQErrorMessage  = "dlq_error_message"
+	// HeaderDLQErrorMessage is the header key for the error message in dead-letter messages.
+	HeaderDLQErrorMessage = "dlq_error_message"
 )
