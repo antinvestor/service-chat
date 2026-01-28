@@ -60,7 +60,8 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) createDeliveryWithPayload(profile
 		Payload: payload,
 	}
 
-	data, _ := proto.Marshal(delivery)
+	data, err := proto.Marshal(delivery)
+	require.NoError(s.T(), err)
 	return data
 }
 
@@ -407,7 +408,8 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_EmptyProfileID() {
 			},
 		},
 	}
-	data, _ := proto.Marshal(delivery)
+	data, marshalErr := proto.Marshal(delivery)
+	require.NoError(t, marshalErr)
 
 	err := handler.Handle(ctx, nil, data)
 	// Should succeed but skip notification
@@ -464,7 +466,8 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_NilPayload() {
 		},
 		Payload: nil,
 	}
-	data, _ := proto.Marshal(delivery)
+	data, marshalErr := proto.Marshal(delivery)
+	require.NoError(t, marshalErr)
 
 	err := handler.Handle(ctx, nil, data)
 	require.NoError(t, err)

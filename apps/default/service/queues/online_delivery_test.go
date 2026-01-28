@@ -53,7 +53,8 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) createDeliveryPayload(profileID s
 		},
 	}
 
-	data, _ := proto.Marshal(delivery)
+	data, err := proto.Marshal(delivery)
+	require.NoError(s.T(), err)
 	return data
 }
 
@@ -141,7 +142,8 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) TestHandle_DeliveryWithoutDestina
 				},
 			},
 		}
-		data, _ := proto.Marshal(delivery)
+		data, marshalErr := proto.Marshal(delivery)
+		require.NoError(t, marshalErr)
 
 		err := handler.Handle(ctx, nil, data)
 		// Should still call device service with empty profile ID
