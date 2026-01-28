@@ -411,7 +411,9 @@ func (s *ChatServerTestSuite) withSystemAuth(ctx context.Context, profileID stri
 	return claims.ClaimsToContext(ctx)
 }
 
-func (s *ChatServerTestSuite) setupLiveTest(t *testing.T, dep *definition.DependencyOption) (context.Context, *handlers.ChatServer) {
+func (s *ChatServerTestSuite) setupLiveTest(
+	t *testing.T, dep *definition.DependencyOption,
+) (context.Context, *handlers.ChatServer) {
 	ctx, svc := s.CreateService(t, dep)
 	chatServer := handlers.NewChatServer(ctx, svc, nil, nil, nil)
 	profileID := util.IDString()
