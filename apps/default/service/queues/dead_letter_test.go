@@ -59,8 +59,8 @@ func (m *mockQueueManager) AddSubscriber(_ context.Context, _ string, _ string, 
 	return nil
 }
 func (m *mockQueueManager) DiscardSubscriber(_ context.Context, _ string) error { return nil }
-func (m *mockQueueManager) GetSubscriber(_ string) (queue.Subscriber, error) { //nolint:nilnil // mock returns nil for both values
-	return nil, nil
+func (m *mockQueueManager) GetSubscriber(_ string) (queue.Subscriber, error) {
+	return nil, nil //nolint:nilnil // mock returns nil for both values
 }
 func (m *mockQueueManager) Publish(_ context.Context, _ string, _ any, _ ...map[string]string) error {
 	return nil
