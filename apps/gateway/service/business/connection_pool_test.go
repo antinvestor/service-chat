@@ -240,7 +240,7 @@ func TestConnectionPool_ConcurrentAddRemove(t *testing.T) {
 					fmt.Sprintf("user_%d_%d", gID, i),
 					fmt.Sprintf("dev_%d_%d", gID, i),
 				)
-				_ = pool.add(conn)
+				assert.NoError(t, pool.add(conn))
 			}
 		}(g)
 	}
@@ -276,7 +276,7 @@ func TestConnectionPool_ConcurrentAddAndGet(t *testing.T) {
 		defer wg.Done()
 		for i := range numOps {
 			conn := makeTestConnection(fmt.Sprintf("user%d", i), fmt.Sprintf("dev%d", i))
-			_ = pool.add(conn)
+			assert.NoError(t, pool.add(conn))
 		}
 	}()
 
@@ -346,6 +346,6 @@ func BenchmarkConnectionPool_Get(b *testing.B) {
 
 	b.ResetTimer()
 	for i := range b.N {
-		pool.get(keys[i%len(keys)])
+		pool.get(keys[i])
 	}
 }
