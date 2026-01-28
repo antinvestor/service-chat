@@ -333,7 +333,9 @@ func TestPayloadConverter_ModerationContent(t *testing.T) {
 	t.Run("ToProto - Moderation Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_MODERATION.Number()),
-			ContentField:     []byte(`{"body":"Member added to room","actor_subscription_id":"sub123","target_subscription_ids":["sub456","sub789"]}`),
+			ContentField: []byte(
+				`{"body":"Member added to room","actor_subscription_id":"sub123","target_subscription_ids":["sub456","sub789"]}`,
+			),
 		}
 
 		payload, err := converter.ToProto(content)
