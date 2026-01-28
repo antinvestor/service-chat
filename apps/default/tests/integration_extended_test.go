@@ -9,7 +9,6 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/business"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/apps/default/tests"
-	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/pitabwire/util"
@@ -27,7 +26,7 @@ func TestExtendedIntegrationTestSuite(t *testing.T) {
 
 func (s *ExtendedIntegrationTestSuite) setupBusiness(
 	t *testing.T, dep *definition.DependencyOption,
-) (*frame.Service, business.RoomBusiness, business.MessageBusiness, business.SubscriptionService) {
+) (business.RoomBusiness, business.MessageBusiness, business.SubscriptionService) {
 	ctx, svc := s.CreateService(t, dep)
 	workMan := svc.WorkManager()
 	evtsMan := svc.EventsManager()
@@ -40,9 +39,12 @@ func (s *ExtendedIntegrationTestSuite) setupBusiness(
 
 	subscriptionSvc := business.NewSubscriptionService(svc, subRepo)
 	messageBusiness := business.NewMessageBusiness(evtsMan, eventRepo, subRepo, subscriptionSvc)
-	roomBusiness := business.NewRoomBusiness(svc, roomRepo, eventRepo, subRepo, proposalRepo, subscriptionSvc, messageBusiness, nil, nil)
+	roomBusiness := business.NewRoomBusiness(
+		svc, roomRepo, eventRepo, subRepo, proposalRepo,
+		subscriptionSvc, messageBusiness, nil, nil,
+	)
 
-	return svc, roomBusiness, messageBusiness, subscriptionSvc
+	return roomBusiness, messageBusiness, subscriptionSvc
 }
 
 func (s *ExtendedIntegrationTestSuite) makeContactLink() *commonv1.ContactLink {
@@ -56,7 +58,7 @@ func (s *ExtendedIntegrationTestSuite) makeContactLink() *commonv1.ContactLink {
 // does not cause data races or database constraint violations.
 func (s *ExtendedIntegrationTestSuite) TestConcurrentRoomCreation() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, _, _ := s.setupBusiness(t, dep)
+		roomBusiness, _, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		const numRooms = 10
@@ -98,7 +100,7 @@ func (s *ExtendedIntegrationTestSuite) TestConcurrentRoomCreation() {
 // to the same room works correctly.
 func (s *ExtendedIntegrationTestSuite) TestConcurrentMessageSending() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
+		roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		creator := s.makeContactLink()
@@ -150,7 +152,7 @@ func (s *ExtendedIntegrationTestSuite) TestConcurrentMessageSending() {
 // the limit parameter and returns the correct number of events.
 func (s *ExtendedIntegrationTestSuite) TestLargeMessageHistoryWithLimit() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
+		roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		creator := s.makeContactLink()
@@ -171,8 +173,8 @@ func (s *ExtendedIntegrationTestSuite) TestLargeMessageHistoryWithLimit() {
 					},
 				}},
 			}
-			_, err := messageBusiness.SendEvents(ctx, req, creator)
-			require.NoError(t, err)
+			_, sendErr := messageBusiness.SendEvents(ctx, req, creator)
+			require.NoError(t, sendErr)
 		}
 
 		// Request with limit 10 should return exactly 10
@@ -211,7 +213,7 @@ func (s *ExtendedIntegrationTestSuite) TestLargeMessageHistoryWithLimit() {
 // TestMessageTypeVariations tests sending different message payload types.
 func (s *ExtendedIntegrationTestSuite) TestMessageTypeVariations() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
+		roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		creator := s.makeContactLink()
@@ -252,8 +254,8 @@ func (s *ExtendedIntegrationTestSuite) TestMessageTypeVariations() {
 					Payload: payload,
 				}},
 			}
-			acks, err := messageBusiness.SendEvents(ctx, req, creator)
-			require.NoError(t, err)
+			acks, sendErr := messageBusiness.SendEvents(ctx, req, creator)
+			require.NoError(t, sendErr)
 			s.Len(acks, 1, "expected 1 ack for payload type %s", payload.GetType())
 		}
 
@@ -270,7 +272,7 @@ func (s *ExtendedIntegrationTestSuite) TestMessageTypeVariations() {
 // TestRoomSearch verifies room search functionality.
 func (s *ExtendedIntegrationTestSuite) TestRoomSearch() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, _, _ := s.setupBusiness(t, dep)
+		roomBusiness, _, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		creator := s.makeContactLink()
@@ -306,7 +308,7 @@ func (s *ExtendedIntegrationTestSuite) TestRoomSearch() {
 // is handled gracefully.
 func (s *ExtendedIntegrationTestSuite) TestDuplicateMemberAddition() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, _, subscriptionSvc := s.setupBusiness(t, dep)
+		roomBusiness, _, subscriptionSvc := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		creator := s.makeContactLink()
@@ -344,7 +346,7 @@ func (s *ExtendedIntegrationTestSuite) TestDuplicateMemberAddition() {
 // returns all members in a room.
 func (s *ExtendedIntegrationTestSuite) TestSearchAllSubscriptionsInRoom() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, _, _ := s.setupBusiness(t, dep)
+		roomBusiness, _, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		creator := s.makeContactLink()
@@ -377,7 +379,7 @@ func (s *ExtendedIntegrationTestSuite) TestSearchAllSubscriptionsInRoom() {
 // system-generated moderation events (e.g. "Room created"), not user messages.
 func (s *ExtendedIntegrationTestSuite) TestNewRoomHistory() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
+		roomBusiness, messageBusiness, _ := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		creator := s.makeContactLink()
@@ -405,7 +407,7 @@ func (s *ExtendedIntegrationTestSuite) TestNewRoomHistory() {
 // and enforced correctly across multiple updates.
 func (s *ExtendedIntegrationTestSuite) TestMultipleMemberRoleEscalation() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, _, subscriptionSvc := s.setupBusiness(t, dep)
+		roomBusiness, _, subscriptionSvc := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		owner := s.makeContactLink()
@@ -464,7 +466,7 @@ func (s *ExtendedIntegrationTestSuite) TestMultipleMemberRoleEscalation() {
 // makes all subscriptions inaccessible.
 func (s *ExtendedIntegrationTestSuite) TestRoomDeletionCleansSubscriptions() {
 	s.WithTestDependencies(s.T(), func(t *testing.T, dep *definition.DependencyOption) {
-		_, roomBusiness, _, subscriptionSvc := s.setupBusiness(t, dep)
+		roomBusiness, _, subscriptionSvc := s.setupBusiness(t, dep)
 		ctx := t.Context()
 
 		owner := s.makeContactLink()
