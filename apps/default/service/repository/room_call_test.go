@@ -43,12 +43,17 @@ func (s *RoomCallRepositoryTestSuite) createCall(
 	return call
 }
 
-func (s *RoomCallRepositoryTestSuite) TestCreateAndGetByID() {
+func (s *RoomCallRepositoryTestSuite) withRepo(testFunc func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository)) {
 	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
 		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
+		testFunc(t, ctx, repo)
+	})
+}
 
+func (s *RoomCallRepositoryTestSuite) TestCreateAndGetByID() {
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		roomID := util.IDString()
 		callID := util.IDString()
 
@@ -63,11 +68,7 @@ func (s *RoomCallRepositoryTestSuite) TestCreateAndGetByID() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetByCallID() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		roomID := util.IDString()
 		callID := util.IDString()
 
@@ -81,11 +82,7 @@ func (s *RoomCallRepositoryTestSuite) TestGetByCallID() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetByRoomID() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		roomID := util.IDString()
 
 		// Create 3 calls in this room
@@ -108,11 +105,7 @@ func (s *RoomCallRepositoryTestSuite) TestGetByRoomID() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetActiveCallByRoomID() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		roomID := util.IDString()
 
 		// Create ended call
@@ -129,11 +122,7 @@ func (s *RoomCallRepositoryTestSuite) TestGetActiveCallByRoomID() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetActiveCallByRoomID_Ringing() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		roomID := util.IDString()
 
 		// Ringing counts as active
@@ -146,11 +135,7 @@ func (s *RoomCallRepositoryTestSuite) TestGetActiveCallByRoomID_Ringing() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetByStatus() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		// Create calls with different statuses
 		s.createCall(ctx, repo, util.IDString(), util.IDString(), repository.CallStatusRinging)
 		s.createCall(ctx, repo, util.IDString(), util.IDString(), repository.CallStatusRinging)
@@ -172,11 +157,7 @@ func (s *RoomCallRepositoryTestSuite) TestGetByStatus() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestUpdateStatus() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		call := s.createCall(ctx, repo, util.IDString(), util.IDString(), repository.CallStatusRinging)
 
 		err := repo.UpdateStatus(ctx, call.GetID(), repository.CallStatusActive)
@@ -189,11 +170,7 @@ func (s *RoomCallRepositoryTestSuite) TestUpdateStatus() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestUpdateSFUNode() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		call := s.createCall(ctx, repo, util.IDString(), util.IDString(), repository.CallStatusActive)
 
 		sfuNodeID := "sfu-node-001"
@@ -207,11 +184,7 @@ func (s *RoomCallRepositoryTestSuite) TestUpdateSFUNode() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestEndCall() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		call := s.createCall(ctx, repo, util.IDString(), util.IDString(), repository.CallStatusActive)
 
 		err := repo.EndCall(ctx, call.GetID())
@@ -225,11 +198,7 @@ func (s *RoomCallRepositoryTestSuite) TestEndCall() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetTimedOutCalls() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		// Create a ringing call with old start time
 		oldCall := &models.RoomCall{
 			RoomID:    util.IDString(),
@@ -252,11 +221,7 @@ func (s *RoomCallRepositoryTestSuite) TestGetTimedOutCalls() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetCallDuration() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		// Create a call with known start time and end it
 		call := &models.RoomCall{
 			RoomID:    util.IDString(),
@@ -270,7 +235,7 @@ func (s *RoomCallRepositoryTestSuite) TestGetCallDuration() {
 		// For active call, duration is calculated from now
 		duration, err := repo.GetCallDuration(ctx, call.GetID())
 		require.NoError(t, err)
-		s.GreaterOrEqual(duration, 4*time.Minute)
+		s.GreaterOrEqual(duration, 5*time.Minute-15*time.Second)
 
 		// End the call
 		require.NoError(t, repo.EndCall(ctx, call.GetID()))
@@ -278,16 +243,12 @@ func (s *RoomCallRepositoryTestSuite) TestGetCallDuration() {
 		// Duration should now be from start to end
 		duration, err = repo.GetCallDuration(ctx, call.GetID())
 		require.NoError(t, err)
-		s.GreaterOrEqual(duration, 4*time.Minute)
+		s.GreaterOrEqual(duration, 5*time.Minute-15*time.Second)
 	})
 }
 
 func (s *RoomCallRepositoryTestSuite) TestCountActiveCallsByRoomID() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		roomID := util.IDString()
 
 		// Create active and ringing calls (both count as active)
@@ -303,11 +264,7 @@ func (s *RoomCallRepositoryTestSuite) TestCountActiveCallsByRoomID() {
 }
 
 func (s *RoomCallRepositoryTestSuite) TestGetCallsBySFUNode() {
-	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
-		ctx, svc := s.CreateService(t, dep)
-		workMan, dbPool := s.GetRepoDeps(ctx, svc)
-		repo := repository.NewRoomCallRepository(ctx, dbPool, workMan)
-
+	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository) {
 		sfuNodeID := "sfu-node-test"
 
 		// Create active calls on this SFU node
