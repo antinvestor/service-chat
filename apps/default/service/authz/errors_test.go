@@ -27,7 +27,7 @@ func TestPermissionDeniedError(t *testing.T) {
 
 	// Test Is() method
 	assert.ErrorIs(t, err, authorizer.ErrPermissionDenied)
-	assert.False(t, errors.Is(err, authorizer.ErrInvalidObject))
+	assert.NotErrorIs(t, err, authorizer.ErrInvalidObject)
 
 	// Test Unwrap() method
 	assert.Equal(t, authorizer.ErrPermissionDenied, err.Unwrap())
@@ -50,8 +50,8 @@ func TestAuthzServiceError(t *testing.T) {
 	assert.Contains(t, err.Error(), "connection refused")
 
 	// Test Is() method
-	assert.True(t, errors.Is(err, authorizer.ErrAuthzServiceDown))
-	assert.False(t, errors.Is(err, authorizer.ErrPermissionDenied))
+	assert.ErrorIs(t, err, authorizer.ErrAuthzServiceDown)
+	assert.NotErrorIs(t, err, authorizer.ErrPermissionDenied)
 
 	// Test Unwrap() method
 	assert.Equal(t, cause, err.Unwrap())
@@ -77,9 +77,9 @@ func TestStandardErrors(t *testing.T) {
 	for i, err1 := range errs {
 		for j, err2 := range errs {
 			if i == j {
-				assert.True(t, errors.Is(err1, err2))
+				assert.ErrorIs(t, err1, err2)
 			} else {
-				assert.False(t, errors.Is(err1, err2), "error %d and %d should not match", i, j)
+				assert.NotErrorIs(t, err1, err2, "error %d and %d should not match", i, j)
 			}
 		}
 	}

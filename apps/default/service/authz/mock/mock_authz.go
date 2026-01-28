@@ -183,7 +183,9 @@ func (m *AuthzService) ListRelations(_ context.Context, object security.ObjectRe
 }
 
 // ListSubjectRelations implements security.Authorizer.
-func (m *AuthzService) ListSubjectRelations(_ context.Context, subject security.SubjectRef, namespace string) ([]security.RelationTuple, error) {
+func (m *AuthzService) ListSubjectRelations(
+	_ context.Context, subject security.SubjectRef, namespace string,
+) ([]security.RelationTuple, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var result []security.RelationTuple
