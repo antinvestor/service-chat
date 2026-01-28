@@ -226,7 +226,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_AllPayloadTypes() {
 	assert.Equal(s.T(), initialDispatchCount+len(testCases), mockConn.dispatchCount)
 }
 
-// Helper methods
+// Helper methods.
 func (s *GatewayDeliveryHandlerTestSuite) createTextDelivery(body string) *eventsv1.Delivery {
 	return s.createDeliveryWithPayload(&chatv1.Payload{
 		Type: chatv1.PayloadType_PAYLOAD_TYPE_TEXT,
