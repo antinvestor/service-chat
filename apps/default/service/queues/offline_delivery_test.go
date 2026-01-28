@@ -73,7 +73,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_TextMessage() {
 
 	// Create mock device client
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		// Verify notification content
 		require.Equal(t, deviceID, req.Msg.GetDeviceId())
 		require.Len(t, req.Msg.GetNotifications(), 1)
@@ -104,7 +106,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_AttachmentMessage() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		// Attachment with caption should use caption text
 		require.Equal(t, "Check out this photo", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
@@ -138,7 +142,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_AttachmentWithoutCapti
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		// Attachment without caption should have generic message
 		require.Equal(t, "Sent an attachment", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
@@ -171,7 +177,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_ReactionMessage() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		require.Equal(t, "Reacted with 👍", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
@@ -203,7 +211,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_CallMessage() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		require.Equal(t, "Started a call", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
@@ -234,7 +244,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_EncryptedMessage() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		require.Equal(t, "Sent an encrypted message", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
@@ -265,7 +277,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_ModerationMessage() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		require.Equal(t, "This message was removed for violating community guidelines", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
@@ -295,7 +309,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_MotionMessage() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		require.Equal(t, "Created a motion", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
@@ -326,7 +342,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_VoteMessage() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		require.Equal(t, "Voted", req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
@@ -440,7 +458,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_NilPayload() {
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		// With nil payload, body should be empty
 		require.Empty(t, req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
@@ -480,7 +500,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_UnspecifiedPayloadType
 	deviceID := util.IDString()
 
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
-	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
+	deviceCli.NotifyMock.Set(func(
+		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
+	) (*connect.Response[devicev1.NotifyResponse], error) {
 		// Unspecified type should have empty body
 		require.Empty(t, req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
