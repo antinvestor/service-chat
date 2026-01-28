@@ -19,6 +19,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/internal"
+	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/data"
 	"github.com/pitabwire/util"
@@ -64,13 +65,17 @@ func NewRoomBusiness(
 	}
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (rb *roomBusiness) CreateRoom(
 	ctx context.Context,
 	req *chatv1.CreateRoomRequest,
 	createdBy *commonv1.ContactLink,
-) (*chatv1.Room, error) {
-	if err := internal.IsValidContactLink(createdBy); err != nil {
-		return nil, err
+) (_ *chatv1.Room, err error) {
+	ctx, span := chattel.RoomTracer.Start(ctx, "CreateRoom")
+	defer func() { chattel.RoomTracer.End(ctx, span, err) }()
+
+	if validErr := internal.IsValidContactLink(createdBy); validErr != nil {
+		return nil, validErr
 	}
 
 	// Validate request
@@ -91,7 +96,7 @@ func (rb *roomBusiness) CreateRoom(
 	}
 
 	// Save the room
-	err := rb.roomRepo.Create(ctx, createdRoom)
+	err = rb.roomRepo.Create(ctx, createdRoom)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save room: %w", err)
 	}
@@ -145,6 +150,8 @@ func (rb *roomBusiness) CreateRoom(
 		util.Log(ctx).WithError(err).WithField("room_id", createdRoom.GetID()).
 			Warn("failed to emit room created event")
 	}
+
+	chattel.RoomsCreatedCounter.Add(ctx, 1)
 
 	// Return the created room as proto
 	return createdRoom.ToAPI(), nil
@@ -251,17 +258,21 @@ func (rb *roomBusiness) UpdateRoom(
 	return room.ToAPI(), nil
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (rb *roomBusiness) DeleteRoom(
 	ctx context.Context,
 	req *chatv1.DeleteRoomRequest,
 	deletedBy *commonv1.ContactLink,
-) error {
+) (err error) {
+	ctx, span := chattel.RoomTracer.Start(ctx, "DeleteRoom")
+	defer func() { chattel.RoomTracer.End(ctx, span, err) }()
+
 	if req.GetRoomId() == "" {
 		return service.ErrRoomIDRequired
 	}
 
-	if err := internal.IsValidContactLink(deletedBy); err != nil {
-		return err
+	if validErr := internal.IsValidContactLink(deletedBy); validErr != nil {
+		return validErr
 	}
 
 	roomID := req.GetRoomId()
@@ -294,6 +305,8 @@ func (rb *roomBusiness) DeleteRoom(
 	if deleteErr := rb.roomRepo.Delete(ctx, roomID); deleteErr != nil {
 		return fmt.Errorf("failed to delete room: %w", deleteErr)
 	}
+
+	chattel.RoomsDeletedCounter.Add(ctx, 1)
 
 	// Send room deleted event
 	if err = rb.sendRoomChangeEvent(ctx, req.GetRoomId(), deletedBy,

@@ -15,6 +15,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/internal"
+	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 	"github.com/pitabwire/frame/data"
 	frevents "github.com/pitabwire/frame/events"
 	"github.com/pitabwire/util"
@@ -48,19 +49,22 @@ func NewMessageBusiness(
 	}
 }
 
-//nolint:gocognit,funlen // Complex event validation and processing logic required for message delivery
+//nolint:gocognit,funlen,nonamedreturns // Complex event validation; named return needed for deferred tracing
 func (mb *messageBusiness) SendEvents(
 	ctx context.Context,
 	req *chatv1.SendEventRequest,
 	sentBy *commonv1.ContactLink,
-) ([]*chatv1.AckEvent, error) {
+) (_ []*chatv1.AckEvent, err error) {
+	ctx, span := chattel.MessageTracer.Start(ctx, "SendEvents")
+	defer func() { chattel.MessageTracer.End(ctx, span, err) }()
+
 	// Validate request
 	if len(req.GetEvent()) == 0 {
 		return nil, service.ErrMessageContentRequired
 	}
 
-	if err := internal.IsValidContactLink(sentBy); err != nil {
-		return nil, err
+	if validErr := internal.IsValidContactLink(sentBy); validErr != nil {
+		return nil, validErr
 	}
 
 	requestEvents := req.GetEvent()
@@ -149,14 +153,14 @@ func (mb *messageBusiness) SendEvents(
 		}
 
 		// Create the message event using PayloadConverter
-		content, err := mb.payloadConverter.FromProto(reqEvt.GetPayload())
-		if err != nil {
+		content, convertErr := mb.payloadConverter.FromProto(reqEvt.GetPayload())
+		if convertErr != nil {
 			responses[i] = &chatv1.AckEvent{
 				EventId: []string{reqEvt.GetId()},
 				AckAt:   timestamppb.Now(),
 				Error: &commonv1.ErrorDetail{
 					Code:    int32(connect.CodeInternal),
-					Message: fmt.Sprintf("failed to convert event: %v", err),
+					Message: fmt.Sprintf("failed to convert event: %v", convertErr),
 				},
 			}
 			continue
@@ -224,6 +228,9 @@ func (mb *messageBusiness) SendEvents(
 	}
 
 	bulkCreateErr := mb.eventRepo.BulkCreate(ctx, validEvents)
+	if bulkCreateErr == nil {
+		chattel.MessagesSentCounter.Add(ctx, int64(len(validEvents)))
+	}
 
 	// Phase 3: Process each valid event - emit to outbox or report errors
 	for _, event := range validEvents {
@@ -324,17 +331,21 @@ func (mb *messageBusiness) GetMessage(
 	return nil, service.ErrMessageAccessDenied
 }
 
+//nolint:nonamedreturns // named return needed for deferred tracing
 func (mb *messageBusiness) GetHistory(
 	ctx context.Context,
 	req *chatv1.GetHistoryRequest,
 	gottenBy *commonv1.ContactLink,
-) ([]*chatv1.RoomEvent, error) {
+) (_ []*chatv1.RoomEvent, err error) {
+	ctx, span := chattel.MessageTracer.Start(ctx, "GetHistory")
+	defer func() { chattel.MessageTracer.End(ctx, span, err) }()
+
 	if req.GetRoomId() == "" {
 		return nil, service.ErrMessageRoomIDRequired
 	}
 
-	if err := internal.IsValidContactLink(gottenBy); err != nil {
-		return nil, err
+	if validErr := internal.IsValidContactLink(gottenBy); validErr != nil {
+		return nil, validErr
 	}
 
 	// Check if the user has access to the room
@@ -385,13 +396,19 @@ func (mb *messageBusiness) GetHistory(
 	return protoEvents, nil
 }
 
-func (mb *messageBusiness) DeleteMessage(ctx context.Context, messageID string, deletedBy *commonv1.ContactLink) error {
+//nolint:nonamedreturns // named return needed for deferred tracing
+func (mb *messageBusiness) DeleteMessage(
+	ctx context.Context, messageID string, deletedBy *commonv1.ContactLink,
+) (err error) {
+	ctx, span := chattel.MessageTracer.Start(ctx, "DeleteMessage")
+	defer func() { chattel.MessageTracer.End(ctx, span, err) }()
+
 	if messageID == "" {
 		return service.ErrUnspecifiedID
 	}
 
-	if err := internal.IsValidContactLink(deletedBy); err != nil {
-		return err
+	if validErr := internal.IsValidContactLink(deletedBy); validErr != nil {
+		return validErr
 	}
 
 	// Get the message
