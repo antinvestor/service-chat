@@ -36,7 +36,7 @@ func TestChatConfig_ValidateSharding_SingleShard(t *testing.T) {
 
 func TestChatConfig_ValidateSharding_ZeroShardCount(t *testing.T) {
 	cfg := config.ChatConfig{
-		ShardCount: 0,
+		ShardCount:                   0,
 		QueueGatewayEventDeliveryURI: []string{},
 	}
 
@@ -47,7 +47,7 @@ func TestChatConfig_ValidateSharding_ZeroShardCount(t *testing.T) {
 
 func TestChatConfig_ValidateSharding_NegativeShardCount(t *testing.T) {
 	cfg := config.ChatConfig{
-		ShardCount: -1,
+		ShardCount:                   -1,
 		QueueGatewayEventDeliveryURI: []string{},
 	}
 
@@ -109,7 +109,7 @@ func TestChatConfig_ValidateSharding_LargeShardCount(t *testing.T) {
 	}
 
 	cfg := config.ChatConfig{
-		ShardCount: 16,
+		ShardCount:                   16,
 		QueueGatewayEventDeliveryURI: uris,
 	}
 
