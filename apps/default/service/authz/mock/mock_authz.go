@@ -29,8 +29,8 @@ var rolePermissions = map[string][]string{ //nolint:gochecknoglobals // lookup t
 	},
 }
 
-// MockAuthzService is an in-memory implementation of security.Authorizer for tests.
-type MockAuthzService struct {
+// AuthzService is an in-memory implementation of security.Authorizer for tests.
+type AuthzService struct {
 	mu     sync.RWMutex
 	tuples []security.RelationTuple
 
@@ -38,13 +38,13 @@ type MockAuthzService struct {
 	CheckFunc func(ctx context.Context, req security.CheckRequest) (security.CheckResult, error)
 }
 
-// NewMockAuthzService creates a new mock authorizer.
-func NewMockAuthzService() *MockAuthzService {
-	return &MockAuthzService{}
+// NewAuthzService creates a new mock authorizer.
+func NewAuthzService() *AuthzService {
+	return &AuthzService{}
 }
 
 // AddRoomMember is a convenience method to add a member tuple.
-func (m *MockAuthzService) AddRoomMember(roomID, profileID, role string) error {
+func (m *AuthzService) AddRoomMember(roomID, profileID, role string) error {
 	relation := authz.RoleToRelation(role)
 	return m.WriteTuple(context.Background(), security.RelationTuple{
 		Object:   security.ObjectRef{Namespace: authz.NamespaceRoom, ID: roomID},
@@ -54,7 +54,7 @@ func (m *MockAuthzService) AddRoomMember(roomID, profileID, role string) error {
 }
 
 // HasTuple checks if a specific tuple exists.
-func (m *MockAuthzService) HasTuple(tuple security.RelationTuple) bool {
+func (m *AuthzService) HasTuple(tuple security.RelationTuple) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, t := range m.tuples {
@@ -67,7 +67,7 @@ func (m *MockAuthzService) HasTuple(tuple security.RelationTuple) bool {
 }
 
 // GetTuples returns all stored tuples.
-func (m *MockAuthzService) GetTuples() []security.RelationTuple {
+func (m *AuthzService) GetTuples() []security.RelationTuple {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	result := make([]security.RelationTuple, len(m.tuples))
@@ -76,7 +76,7 @@ func (m *MockAuthzService) GetTuples() []security.RelationTuple {
 }
 
 // Reset clears all tuples and overrides.
-func (m *MockAuthzService) Reset() {
+func (m *AuthzService) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.tuples = nil
@@ -84,7 +84,7 @@ func (m *MockAuthzService) Reset() {
 }
 
 // Check implements security.Authorizer.
-func (m *MockAuthzService) Check(ctx context.Context, req security.CheckRequest) (security.CheckResult, error) {
+func (m *AuthzService) Check(ctx context.Context, req security.CheckRequest) (security.CheckResult, error) {
 	if m.CheckFunc != nil {
 		return m.CheckFunc(ctx, req)
 	}
@@ -109,7 +109,9 @@ func (m *MockAuthzService) Check(ctx context.Context, req security.CheckRequest)
 }
 
 // BatchCheck implements security.Authorizer.
-func (m *MockAuthzService) BatchCheck(ctx context.Context, requests []security.CheckRequest) ([]security.CheckResult, error) {
+func (m *AuthzService) BatchCheck(
+	ctx context.Context, requests []security.CheckRequest,
+) ([]security.CheckResult, error) {
 	results := make([]security.CheckResult, len(requests))
 	for i, req := range requests {
 		result, err := m.Check(ctx, req)
@@ -122,7 +124,7 @@ func (m *MockAuthzService) BatchCheck(ctx context.Context, requests []security.C
 }
 
 // WriteTuple implements security.Authorizer.
-func (m *MockAuthzService) WriteTuple(_ context.Context, tuple security.RelationTuple) error {
+func (m *AuthzService) WriteTuple(_ context.Context, tuple security.RelationTuple) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.tuples = append(m.tuples, tuple)
@@ -130,7 +132,7 @@ func (m *MockAuthzService) WriteTuple(_ context.Context, tuple security.Relation
 }
 
 // WriteTuples implements security.Authorizer.
-func (m *MockAuthzService) WriteTuples(_ context.Context, tuples []security.RelationTuple) error {
+func (m *AuthzService) WriteTuples(_ context.Context, tuples []security.RelationTuple) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.tuples = append(m.tuples, tuples...)
@@ -138,7 +140,7 @@ func (m *MockAuthzService) WriteTuples(_ context.Context, tuples []security.Rela
 }
 
 // DeleteTuple implements security.Authorizer.
-func (m *MockAuthzService) DeleteTuple(_ context.Context, tuple security.RelationTuple) error {
+func (m *AuthzService) DeleteTuple(_ context.Context, tuple security.RelationTuple) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i, t := range m.tuples {
@@ -152,7 +154,7 @@ func (m *MockAuthzService) DeleteTuple(_ context.Context, tuple security.Relatio
 }
 
 // DeleteTuples implements security.Authorizer.
-func (m *MockAuthzService) DeleteTuples(_ context.Context, tuples []security.RelationTuple) error {
+func (m *AuthzService) DeleteTuples(_ context.Context, tuples []security.RelationTuple) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, tuple := range tuples {
@@ -168,7 +170,7 @@ func (m *MockAuthzService) DeleteTuples(_ context.Context, tuples []security.Rel
 }
 
 // ListRelations implements security.Authorizer.
-func (m *MockAuthzService) ListRelations(_ context.Context, object security.ObjectRef) ([]security.RelationTuple, error) {
+func (m *AuthzService) ListRelations(_ context.Context, object security.ObjectRef) ([]security.RelationTuple, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var result []security.RelationTuple
@@ -181,7 +183,7 @@ func (m *MockAuthzService) ListRelations(_ context.Context, object security.Obje
 }
 
 // ListSubjectRelations implements security.Authorizer.
-func (m *MockAuthzService) ListSubjectRelations(_ context.Context, subject security.SubjectRef, namespace string) ([]security.RelationTuple, error) {
+func (m *AuthzService) ListSubjectRelations(_ context.Context, subject security.SubjectRef, namespace string) ([]security.RelationTuple, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var result []security.RelationTuple
@@ -194,7 +196,7 @@ func (m *MockAuthzService) ListSubjectRelations(_ context.Context, subject secur
 }
 
 // Expand implements security.Authorizer.
-func (m *MockAuthzService) Expand(_ context.Context, object security.ObjectRef, relation string) ([]security.SubjectRef, error) {
+func (m *AuthzService) Expand(_ context.Context, object security.ObjectRef, relation string) ([]security.SubjectRef, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	var result []security.SubjectRef

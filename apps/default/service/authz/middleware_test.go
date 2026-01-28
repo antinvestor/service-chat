@@ -17,7 +17,7 @@ import (
 
 type MiddlewareTestSuite struct {
 	suite.Suite
-	mockService *mock.MockAuthzService
+	mockService *mock.AuthzService
 	middleware  authz.Middleware
 }
 
@@ -26,7 +26,7 @@ func TestMiddlewareTestSuite(t *testing.T) {
 }
 
 func (s *MiddlewareTestSuite) SetupTest() {
-	s.mockService = mock.NewMockAuthzService()
+	s.mockService = mock.NewAuthzService()
 	s.middleware = authz.NewMiddleware(s.mockService)
 }
 
@@ -388,7 +388,7 @@ func (s *MiddlewareTestSuite) TestCanSendMessagesToRooms_EmptyList() {
 	s.Empty(allowed)
 }
 
-// AddRoomMember tests
+// AddRoomMember tests.
 func (s *MiddlewareTestSuite) TestAddRoomMember_CreatesMemberTuple() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -422,7 +422,7 @@ func (s *MiddlewareTestSuite) TestAddRoomMember_CreatesOwnerTuple() {
 	s.True(s.mockService.HasTuple(tuple))
 }
 
-// RemoveRoomMember tests
+// RemoveRoomMember tests.
 func (s *MiddlewareTestSuite) TestRemoveRoomMember_RemovesAllRelations() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -445,7 +445,7 @@ func (s *MiddlewareTestSuite) TestRemoveRoomMember_RemovesAllRelations() {
 	}
 }
 
-// UpdateRoomMemberRole tests
+// UpdateRoomMemberRole tests.
 func (s *MiddlewareTestSuite) TestUpdateRoomMemberRole_UpdatesRole() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -476,7 +476,7 @@ func (s *MiddlewareTestSuite) TestUpdateRoomMemberRole_UpdatesRole() {
 	s.False(s.mockService.HasTuple(memberTuple), "old member role should be removed")
 }
 
-// SetMessageSender tests
+// SetMessageSender tests.
 func (s *MiddlewareTestSuite) TestSetMessageSender_CreatesTuples() {
 	ctx := context.Background()
 	messageID := util.IDString()
@@ -503,14 +503,14 @@ func (s *MiddlewareTestSuite) TestSetMessageSender_CreatesTuples() {
 	s.True(s.mockService.HasTuple(roomTuple))
 }
 
-// Service error handling tests
+// Service error handling tests.
 func (s *MiddlewareTestSuite) TestCanViewRoom_ServiceError() {
 	ctx := context.Background()
 	roomID := util.IDString()
 	profileID := util.IDString()
 
 	// Configure mock to return error
-	s.mockService.CheckFunc = func(ctx context.Context, req security.CheckRequest) (security.CheckResult, error) {
+	s.mockService.CheckFunc = func(_ context.Context, req security.CheckRequest) (security.CheckResult, error) {
 		return security.CheckResult{}, errors.New("service unavailable")
 	}
 

@@ -26,7 +26,7 @@ func TestPermissionDeniedError(t *testing.T) {
 	assert.Contains(t, err.Error(), "not a member")
 
 	// Test Is() method
-	assert.True(t, errors.Is(err, authorizer.ErrPermissionDenied))
+	assert.ErrorIs(t, err, authorizer.ErrPermissionDenied)
 	assert.False(t, errors.Is(err, authorizer.ErrInvalidObject))
 
 	// Test Unwrap() method

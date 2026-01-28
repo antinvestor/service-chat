@@ -56,7 +56,9 @@ func TestValidRoles(t *testing.T) {
 
 func TestValidRelations(t *testing.T) {
 	relations := authz.ValidRelations()
-	assert.ElementsMatch(t, []string{authz.RelationOwner, authz.RelationAdmin, authz.RelationMember, authz.RelationViewer}, relations)
+	assert.ElementsMatch(t,
+		[]string{authz.RelationOwner, authz.RelationAdmin, authz.RelationMember, authz.RelationViewer},
+		relations)
 }
 
 func TestIsValidRole(t *testing.T) {
