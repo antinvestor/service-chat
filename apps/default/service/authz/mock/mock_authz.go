@@ -9,7 +9,7 @@ import (
 )
 
 // rolePermissions maps relation names to their allowed permissions.
-var rolePermissions = map[string][]string{
+var rolePermissions = map[string][]string{ //nolint:gochecknoglobals // lookup table for test mock
 	authz.RelationOwner: {
 		authz.PermissionView, authz.PermissionSendMessage, authz.PermissionUpdate,
 		authz.PermissionDelete, authz.PermissionManageMembers, authz.PermissionManageRoles,

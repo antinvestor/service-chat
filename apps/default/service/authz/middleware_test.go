@@ -41,7 +41,7 @@ func (s *MiddlewareTestSuite) actor(profileID string) *commonv1.ContactLink {
 	}
 }
 
-// CanViewRoom tests
+// CanViewRoom tests.
 func (s *MiddlewareTestSuite) TestCanViewRoom() {
 	testCases := []struct {
 		name            string
@@ -88,7 +88,7 @@ func (s *MiddlewareTestSuite) TestCanViewRoom_EmptyProfileIDDenied() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrInvalidSubject))
 }
 
-// CanSendMessage tests
+// CanSendMessage tests.
 func (s *MiddlewareTestSuite) TestCanSendMessage_MemberCanSend() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -149,7 +149,7 @@ func (s *MiddlewareTestSuite) TestCanSendMessage_NonMemberDenied() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
-// CanUpdateRoom tests
+// CanUpdateRoom tests.
 func (s *MiddlewareTestSuite) TestCanUpdateRoom_AdminCanUpdate() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -187,7 +187,7 @@ func (s *MiddlewareTestSuite) TestCanUpdateRoom_MemberCannotUpdate() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
-// CanDeleteRoom tests
+// CanDeleteRoom tests.
 func (s *MiddlewareTestSuite) TestCanDeleteRoom_OwnerCanDelete() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -213,7 +213,7 @@ func (s *MiddlewareTestSuite) TestCanDeleteRoom_AdminCannotDelete() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
-// CanManageMembers tests
+// CanManageMembers tests.
 func (s *MiddlewareTestSuite) TestCanManageMembers_AdminCanManage() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -251,7 +251,7 @@ func (s *MiddlewareTestSuite) TestCanManageMembers_MemberCannotManage() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
-// CanManageRoles tests
+// CanManageRoles tests.
 func (s *MiddlewareTestSuite) TestCanManageRoles_OwnerCanManage() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -277,7 +277,7 @@ func (s *MiddlewareTestSuite) TestCanManageRoles_AdminCannotManage() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
-// CanDeleteMessage tests
+// CanDeleteMessage tests.
 func (s *MiddlewareTestSuite) TestCanDeleteMessage_SenderCanDelete() {
 	ctx := context.Background()
 	roomID := util.IDString()
@@ -333,7 +333,7 @@ func (s *MiddlewareTestSuite) TestCanDeleteMessage_MemberCannotDeleteOthers() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
-// CanEditMessage tests
+// CanEditMessage tests.
 func (s *MiddlewareTestSuite) TestCanEditMessage_SenderCanEdit() {
 	ctx := context.Background()
 	messageID := util.IDString()
@@ -356,7 +356,7 @@ func (s *MiddlewareTestSuite) TestCanEditMessage_OthersCannotEdit() {
 	require.True(s.T(), errors.Is(err, authorizer.ErrPermissionDenied))
 }
 
-// CanSendMessagesToRooms tests
+// CanSendMessagesToRooms tests.
 func (s *MiddlewareTestSuite) TestCanSendMessagesToRooms_BatchCheck() {
 	ctx := context.Background()
 	profileID := util.IDString()
