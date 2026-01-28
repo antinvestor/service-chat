@@ -124,7 +124,9 @@ func TestPayloadConverter_AttachmentContent(t *testing.T) {
 	t.Run("Round Trip - Attachment Content", func(t *testing.T) {
 		original := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT.Number()),
-			ContentField:     []byte(`{"attachment_id":"attach789","filename":"report.pdf","mime_type":"application/pdf"}`),
+			ContentField: []byte(
+				`{"attachment_id":"attach789","filename":"report.pdf","mime_type":"application/pdf"}`,
+			),
 		}
 
 		payload, err := converter.ToProto(original)
@@ -522,7 +524,7 @@ func TestPayloadConverter_Concurrency(t *testing.T) {
 		// PayloadConverter should be stateless and safe for concurrent use
 		done := make(chan bool, 10)
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				content := data.JSONMap{
 					PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number()),
@@ -535,7 +537,7 @@ func TestPayloadConverter_Concurrency(t *testing.T) {
 			}()
 		}
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			<-done
 		}
 	})
@@ -543,7 +545,7 @@ func TestPayloadConverter_Concurrency(t *testing.T) {
 	t.Run("Concurrent FromProto", func(t *testing.T) {
 		done := make(chan bool, 10)
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				payload := &chatv1.Payload{}
 				payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_TEXT)
@@ -556,7 +558,7 @@ func TestPayloadConverter_Concurrency(t *testing.T) {
 			}()
 		}
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			<-done
 		}
 	})
