@@ -12,8 +12,6 @@ import (
 	"github.com/antinvestor/service-chat/apps/gateway/service/queues"
 	"github.com/antinvestor/service-chat/internal"
 	"github.com/pitabwire/frame/queue"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -51,7 +49,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ValidDelivery_DispatchesToC
 	// Create a valid delivery payload
 	delivery := s.createTextDelivery("Hello, World!")
 	payload, err := proto.Marshal(delivery)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	headers := map[string]string{
 		internal.HeaderProfileID: profileID,
@@ -60,10 +58,10 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ValidDelivery_DispatchesToC
 
 	// Handle the message
 	err = handler.Handle(context.Background(), headers, payload)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	// Verify message was dispatched
-	assert.Equal(s.T(), 1, mockConn.dispatchCount)
+	s.Equal(1, mockConn.dispatchCount)
 }
 
 func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ConnectionNotFound_ReturnsNil() {
@@ -75,7 +73,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ConnectionNotFound_ReturnsN
 
 	delivery := s.createTextDelivery("Hello")
 	payload, err := proto.Marshal(delivery)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	headers := map[string]string{
 		internal.HeaderProfileID: "user123",
@@ -84,7 +82,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ConnectionNotFound_ReturnsN
 
 	// Should return nil (message consumed) when connection not found
 	err = handler.Handle(context.Background(), headers, payload)
-	assert.NoError(s.T(), err)
+	s.NoError(err)
 }
 
 func (s *GatewayDeliveryHandlerTestSuite) TestHandle_MalformedPayload_ReturnsNil() {
@@ -101,7 +99,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_MalformedPayload_ReturnsNil
 
 	// Send invalid protobuf data
 	err := handler.Handle(context.Background(), headers, []byte("invalid protobuf data"))
-	assert.NoError(s.T(), err) // Should consume message even on parse error
+	s.NoError(err) // Should consume message even on parse error
 }
 
 func (s *GatewayDeliveryHandlerTestSuite) TestHandle_DispatchChannelFull_PublishesToOfflineQueue() {
@@ -134,7 +132,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_DispatchChannelFull_Publish
 
 	delivery := s.createTextDelivery("Hello")
 	payload, err := proto.Marshal(delivery)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	headers := map[string]string{
 		internal.HeaderProfileID: profileID,
@@ -142,10 +140,10 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_DispatchChannelFull_Publish
 	}
 
 	err = handler.Handle(context.Background(), headers, payload)
-	assert.NoError(s.T(), err)
+	s.NoError(err)
 
 	// Verify message was published to offline queue
-	assert.Equal(s.T(), 1, mockPub.publishCount)
+	s.Equal(1, mockPub.publishCount)
 }
 
 func (s *GatewayDeliveryHandlerTestSuite) TestHandle_AllPayloadTypes() {
@@ -215,15 +213,15 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_AllPayloadTypes() {
 		s.Run(tc.name, func() {
 			delivery := s.createDeliveryWithPayload(tc.payload)
 			payload, err := proto.Marshal(delivery)
-			require.NoError(s.T(), err)
+			s.Require().NoError(err)
 
 			err = handler.Handle(context.Background(), headers, payload)
-			assert.NoError(s.T(), err)
+			s.NoError(err)
 		})
 	}
 
 	// Verify all payload types were dispatched
-	assert.Equal(s.T(), initialDispatchCount+len(testCases), mockConn.dispatchCount)
+	s.Equal(initialDispatchCount+len(testCases), mockConn.dispatchCount)
 }
 
 // Helper methods.
@@ -357,7 +355,7 @@ func (m *mockQueueManager) DiscardSubscriber(_ context.Context, _ string) error 
 }
 
 func (m *mockQueueManager) GetSubscriber(_ string) (queue.Subscriber, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // mock returns nil when subscriber not found
 }
 
 func (m *mockQueueManager) Publish(_ context.Context, _ string, _ any, _ ...map[string]string) error {
