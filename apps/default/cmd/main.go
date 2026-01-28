@@ -106,35 +106,16 @@ func runService(ctx context.Context) error {
 		},
 	})
 
-	// Setup HTTP handlers
-	// Start with datastore option
-	serviceOptions := []frame.Option{frame.WithHTTPHandler(connectHandler)}
-
-	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
-		cfg.QueueDeviceEventDeliveryName,
-		cfg.QueueDeviceEventDeliveryURI,
-	)
-	serviceOptions = append(serviceOptions, eventDeliveryQueuePublisher)
-
-	eventDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
-		cfg.QueueDeviceEventDeliveryName,
-		cfg.QueueDeviceEventDeliveryURI,
-		queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli, deviceCB),
-	)
-	serviceOptions = append(serviceOptions, eventDeliveryQueueSubscriber)
-
-	offlineDeliveryQueuePublisher := frame.WithRegisterPublisher(
-		cfg.QueueOfflineEventDeliveryName,
-		cfg.QueueOfflineEventDeliveryURI,
-	)
-	serviceOptions = append(serviceOptions, offlineDeliveryQueuePublisher)
-
-	offlineDeliveryQueueSubscriber := frame.WithRegisterSubscriber(
-		cfg.QueueOfflineEventDeliveryName,
-		cfg.QueueOfflineEventDeliveryURI,
-		queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli, deviceCB),
-	)
-	serviceOptions = append(serviceOptions, offlineDeliveryQueueSubscriber)
+	// Setup service options with HTTP handler and queue publishers/subscribers
+	serviceOptions := []frame.Option{
+		frame.WithHTTPHandler(connectHandler),
+		frame.WithRegisterPublisher(cfg.QueueDeviceEventDeliveryName, cfg.QueueDeviceEventDeliveryURI),
+		frame.WithRegisterSubscriber(cfg.QueueDeviceEventDeliveryName, cfg.QueueDeviceEventDeliveryURI,
+			queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli, deviceCB)),
+		frame.WithRegisterPublisher(cfg.QueueOfflineEventDeliveryName, cfg.QueueOfflineEventDeliveryURI),
+		frame.WithRegisterSubscriber(cfg.QueueOfflineEventDeliveryName, cfg.QueueOfflineEventDeliveryURI,
+			queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli, deviceCB)),
+	}
 
 	for i := range cfg.ShardCount {
 		gatewayQueueName := fmt.Sprintf(cfg.QueueGatewayEventDeliveryName, i)

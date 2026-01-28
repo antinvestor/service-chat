@@ -52,7 +52,7 @@ func TestCircuitBreaker_ClosedState_Success(t *testing.T) {
 	cb := NewCircuitBreaker(DefaultSettings("test"))
 
 	err := cb.Execute(func() error { return nil })
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, StateClosed, cb.State())
 }
 
@@ -65,7 +65,7 @@ func TestCircuitBreaker_ClosedState_FailureBelowThreshold(t *testing.T) {
 	// Two failures - should stay closed
 	for range 2 {
 		err := cb.Execute(func() error { return errService })
-		assert.ErrorIs(t, err, errService)
+		require.ErrorIs(t, err, errService)
 	}
 
 	assert.Equal(t, StateClosed, cb.State())
@@ -337,7 +337,7 @@ func TestCircuitBreaker_FullCycle(t *testing.T) {
 
 	// Phase 1: Closed - normal operation
 	assert.Equal(t, StateClosed, cb.State())
-	assert.NoError(t, cb.Execute(func() error { return nil }))
+	require.NoError(t, cb.Execute(func() error { return nil }))
 
 	// Phase 2: Trip to open
 	_ = cb.Execute(func() error { return errService })

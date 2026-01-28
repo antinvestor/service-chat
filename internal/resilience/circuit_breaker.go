@@ -51,13 +51,19 @@ type Settings struct {
 	OnStateChange func(name string, from, to State)
 }
 
+const (
+	defaultMaxFailures         = 5
+	defaultResetTimeoutSeconds = 30
+	defaultHalfOpenMaxRequests = 3
+)
+
 // DefaultSettings returns sensible defaults for a circuit breaker.
 func DefaultSettings(name string) Settings {
 	return Settings{
 		Name:                name,
-		MaxFailures:         5,
-		ResetTimeout:        30 * time.Second,
-		HalfOpenMaxRequests: 3,
+		MaxFailures:         defaultMaxFailures,
+		ResetTimeout:        defaultResetTimeoutSeconds * time.Second,
+		HalfOpenMaxRequests: defaultHalfOpenMaxRequests,
 	}
 }
 
@@ -139,12 +145,12 @@ func (cb *CircuitBreaker) Metrics() CircuitBreakerMetrics {
 	cb.mu.Unlock()
 
 	return CircuitBreakerMetrics{
-		Name:               cb.settings.Name,
-		State:              state,
-		TotalRequests:      cb.totalRequests.Load(),
-		TotalRejected:      cb.totalRejected.Load(),
-		TotalSuccesses:     cb.totalSuccesses.Load(),
-		TotalFailures:      cb.totalFailures.Load(),
+		Name:                cb.settings.Name,
+		State:               state,
+		TotalRequests:       cb.totalRequests.Load(),
+		TotalRejected:       cb.totalRejected.Load(),
+		TotalSuccesses:      cb.totalSuccesses.Load(),
+		TotalFailures:       cb.totalFailures.Load(),
 		ConsecutiveFailures: failures,
 	}
 }
@@ -201,6 +207,8 @@ func (cb *CircuitBreaker) recordSuccess() {
 		if cb.successes >= cb.settings.HalfOpenMaxRequests {
 			cb.setState(StateClosed)
 		}
+	case StateOpen:
+		// No action needed - shouldn't reach here as open state rejects requests
 	}
 }
 
@@ -219,6 +227,8 @@ func (cb *CircuitBreaker) recordFailure() {
 	case StateHalfOpen:
 		// Any failure in half-open state reopens the circuit
 		cb.setState(StateOpen)
+	case StateOpen:
+		// No action needed - shouldn't reach here as open state rejects requests
 	}
 }
 
