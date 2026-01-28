@@ -334,7 +334,7 @@ func (m *mockQueueManager) AddPublisher(_ context.Context, _ string, _ string) e
 func (m *mockQueueManager) GetPublisher(reference string) (queue.Publisher, error) {
 	pub, ok := m.publishers[reference]
 	if !ok {
-		return nil, nil
+		return nil, nil //nolint:nilnil // mock returns nil when publisher not found
 	}
 	return pub, nil
 }
