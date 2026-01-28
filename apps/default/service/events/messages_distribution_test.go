@@ -89,7 +89,7 @@ func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_Validate_I
 
 		// Invalid payload type
 		err := queue.Validate(ctx, "invalid string payload")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid payload type")
 	})
 }
@@ -104,7 +104,7 @@ func (csqts *ClientSetupQueueTestSuite) TestClientConnectedSetupQueue_Execute_In
 
 		// Invalid payload type
 		err := queue.Execute(ctx, "invalid string payload")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid payload type")
 	})
 }
