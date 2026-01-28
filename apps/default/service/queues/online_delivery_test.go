@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/queues"
 	"github.com/antinvestor/service-chat/apps/default/tests"
@@ -54,7 +54,7 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) createDeliveryPayload(profileID s
 	}
 
 	data, err := proto.Marshal(delivery)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 	return data
 }
 
@@ -179,15 +179,18 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) TestDeliveryMessageSerialization(
 	}
 
 	data, err := proto.Marshal(original)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	parsed := &eventsv1.Delivery{}
 	err = proto.Unmarshal(data, parsed)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 
 	s.Equal(original.GetDeviceId(), parsed.GetDeviceId())
 	s.Equal(original.GetRetryCount(), parsed.GetRetryCount())
-	s.Equal(original.GetDestination().GetContactLink().GetProfileId(), parsed.GetDestination().GetContactLink().GetProfileId())
+	s.Equal(
+		original.GetDestination().GetContactLink().GetProfileId(),
+		parsed.GetDestination().GetContactLink().GetProfileId(),
+	)
 	s.Equal(original.GetPayload().GetText().GetBody(), parsed.GetPayload().GetText().GetBody())
 }
 
@@ -273,11 +276,11 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) TestDeliveryPayloadTypes() {
 			}
 
 			data, err := proto.Marshal(delivery)
-			require.NoError(s.T(), err)
+			s.Require().NoError(err)
 
 			parsed := &eventsv1.Delivery{}
 			err = proto.Unmarshal(data, parsed)
-			require.NoError(s.T(), err)
+			s.Require().NoError(err)
 
 			s.Equal(tc.payload.GetType(), parsed.GetPayload().GetType())
 		})

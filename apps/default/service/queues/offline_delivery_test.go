@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
-	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
+	commonv1 "buf.build/gen/go/antinvestor/common/protocolbuffers/go/common/v1"
 	devicev1 "buf.build/gen/go/antinvestor/device/protocolbuffers/go/device/v1"
 	"connectrpc.com/connect"
 	devicemocks "github.com/antinvestor/apis/go/device/mocks"
@@ -33,17 +33,15 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) SetupTest() {
 	s.ctrl = minimock.NewController(s.T())
 }
 
-func (s *OfflineDeliveryQueueHandlerTestSuite) TearDownTest() {
-	s.ctrl.Finish()
-}
-
 func (s *OfflineDeliveryQueueHandlerTestSuite) createConfig() *config.ChatConfig {
 	return &config.ChatConfig{
 		QueueOfflineEventDeliveryName: "offline.event.delivery",
 	}
 }
 
-func (s *OfflineDeliveryQueueHandlerTestSuite) createDeliveryWithPayload(profileID, deviceID string, payload *chatv1.Payload) []byte {
+func (s *OfflineDeliveryQueueHandlerTestSuite) createDeliveryWithPayload(
+	profileID, deviceID string, payload *chatv1.Payload,
+) []byte {
 	delivery := &eventsv1.Delivery{
 		DeviceId: deviceID,
 		Event: &eventsv1.Link{
@@ -61,7 +59,7 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) createDeliveryWithPayload(profile
 	}
 
 	data, err := proto.Marshal(delivery)
-	require.NoError(s.T(), err)
+	s.Require().NoError(err)
 	return data
 }
 
@@ -444,7 +442,7 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_NilPayload() {
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
 	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
 		// With nil payload, body should be empty
-		require.Equal(t, "", req.Msg.GetNotifications()[0].GetBody())
+		require.Empty(t, req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
 
@@ -484,7 +482,7 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_UnspecifiedPayloadType
 	deviceCli := devicemocks.NewDeviceServiceClientMock(s.ctrl)
 	deviceCli.NotifyMock.Set(func(_ context.Context, req *connect.Request[devicev1.NotifyRequest]) (*connect.Response[devicev1.NotifyResponse], error) {
 		// Unspecified type should have empty body
-		require.Equal(t, "", req.Msg.GetNotifications()[0].GetBody())
+		require.Empty(t, req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
 
