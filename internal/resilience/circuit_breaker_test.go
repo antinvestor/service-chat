@@ -362,6 +362,5 @@ func TestCircuitBreaker_FullCycle(t *testing.T) {
 }
 
 func TestErrCircuitOpen(t *testing.T) {
-	assert.ErrorIs(t, ErrCircuitOpen, ErrCircuitOpen)
 	assert.Equal(t, "circuit breaker is open", ErrCircuitOpen.Error())
 }
