@@ -96,7 +96,7 @@ func (s *FanoutEventHandlerTestSuite) TestValidate_InvalidPayload() {
 
 		// Invalid payload type
 		err := handler.Validate(ctx, "invalid string payload")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid payload type")
 	})
 }
@@ -133,7 +133,7 @@ func (s *FanoutEventHandlerTestSuite) TestExecute_InvalidPayload() {
 
 		// Invalid payload type
 		err := handler.Execute(ctx, "invalid string payload")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid payload type")
 	})
 }
