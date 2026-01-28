@@ -1,4 +1,4 @@
-package business
+package business //nolint:testpackage // Tests need access to unexported rate limiter and connection internals
 
 import (
 	"context"
@@ -141,7 +141,7 @@ func TestConnection_DispatchAndConsume(t *testing.T) {
 	ctx := context.Background()
 	received := conn.ConsumeDispatch(ctx)
 	require.NotNil(t, received)
-	assert.Equal(t, "evt1", received.Id)
+	assert.Equal(t, "evt1", received.GetId())
 }
 
 func TestConnection_ConsumeDispatch_CancelledContext(t *testing.T) {
@@ -234,7 +234,7 @@ func TestConnection_ChannelUtilization(t *testing.T) {
 	meta := &Metadata{ProfileID: "p1", DeviceID: "d1"}
 	conn := NewConnection(nil, meta).(*connection)
 
-	assert.Equal(t, 0.0, conn.ChannelUtilization())
+	assert.InDelta(t, 0.0, conn.ChannelUtilization(), 0.001)
 
 	// Fill half the channel
 	for range dispatchChannelSize / 2 {
@@ -260,8 +260,11 @@ func TestConnection_LockUnlock(t *testing.T) {
 	conn := NewConnection(nil, meta)
 
 	// Lock/Unlock should not deadlock
-	conn.Lock()
-	conn.Unlock()
+	assert.NotPanics(t, func() {
+		conn.Lock()
+		_ = conn.Metadata() // Access state under lock
+		conn.Unlock()
+	})
 }
 
 func TestConnection_MetadataKey(t *testing.T) {

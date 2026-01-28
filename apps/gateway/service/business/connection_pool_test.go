@@ -1,4 +1,4 @@
-package business
+package business //nolint:testpackage // Tests need access to unexported connectionPool internals
 
 import (
 	"fmt"
@@ -79,7 +79,7 @@ func TestConnectionPool_AddFull(t *testing.T) {
 	// Pool is full
 	conn := makeTestConnection("user_extra", "dev_extra")
 	err := pool.add(conn)
-	assert.ErrorIs(t, err, ErrConnectionPoolFull)
+	require.ErrorIs(t, err, ErrConnectionPoolFull)
 	assert.Equal(t, int32(3), pool.size())
 }
 
@@ -147,14 +147,14 @@ func TestConnectionPool_RemoveFreesCapacity(t *testing.T) {
 
 	// Pool is full
 	conn3 := makeTestConnection("user3", "dev3")
-	assert.ErrorIs(t, pool.add(conn3), ErrConnectionPoolFull)
+	require.ErrorIs(t, pool.add(conn3), ErrConnectionPoolFull)
 
 	// Remove one
 	pool.remove(conn1.Metadata().Key())
 
 	// Now can add
 	err := pool.add(conn3)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int32(2), pool.size())
 }
 
