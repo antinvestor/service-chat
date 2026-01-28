@@ -62,6 +62,7 @@ func (csq *RoomOutboxLoggingQueue) Validate(_ context.Context, payload any) erro
 	return nil
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (csq *RoomOutboxLoggingQueue) Execute(ctx context.Context, payload any) (err error) {
 	ctx, span := chattel.EventTracer.Start(ctx, "OutboxLogging")
 	defer func() { chattel.EventTracer.End(ctx, span, err) }()

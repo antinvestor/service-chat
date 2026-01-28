@@ -7,7 +7,7 @@ import (
 	chattel "github.com/antinvestor/service-chat/internal/telemetry"
 )
 
-func TestMetricsInitialization(t *testing.T) {
+func TestMetricsInitialization(_ *testing.T) {
 	ctx := context.Background()
 
 	// Smoke test: increment each metric without panicking
@@ -30,7 +30,7 @@ func TestMetricsInitialization(t *testing.T) {
 	chattel.DeliveryLatencyHistogram.Record(ctx, 42.0)
 }
 
-func TestTracersInitialization(t *testing.T) {
+func TestTracersInitialization(_ *testing.T) {
 	ctx := context.Background()
 
 	// Smoke test: start and end spans without panicking

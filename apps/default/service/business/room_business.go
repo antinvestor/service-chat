@@ -65,6 +65,7 @@ func NewRoomBusiness(
 	}
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (rb *roomBusiness) CreateRoom(
 	ctx context.Context,
 	req *chatv1.CreateRoomRequest,
@@ -257,6 +258,7 @@ func (rb *roomBusiness) UpdateRoom(
 	return room.ToAPI(), nil
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (rb *roomBusiness) DeleteRoom(
 	ctx context.Context,
 	req *chatv1.DeleteRoomRequest,

@@ -37,6 +37,7 @@ func NewOfflineDeliveryQueueHandler(
 	}
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) (err error) {
 	ctx, span := chattel.DeliveryTracer.Start(ctx, "OfflineDelivery")
 	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()

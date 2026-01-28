@@ -70,6 +70,7 @@ func (feh *FanoutEventHandler) Validate(_ context.Context, payload any) error {
 	return nil
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (feh *FanoutEventHandler) Execute(ctx context.Context, payload any) (err error) {
 	ctx, span := chattel.EventTracer.Start(ctx, "Fanout")
 	defer func() { chattel.EventTracer.End(ctx, span, err) }()

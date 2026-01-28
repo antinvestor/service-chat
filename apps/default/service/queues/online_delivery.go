@@ -80,6 +80,7 @@ func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 	return deviceTopic, shardID, nil
 }
 
+//nolint:nonamedreturns // named return required for deferred tracing
 func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, _ map[string]string, payload []byte) (err error) {
 	ctx, span := chattel.DeliveryTracer.Start(ctx, "HotPathDelivery")
 	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
