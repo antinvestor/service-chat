@@ -1,12 +1,14 @@
 package events_test
 
 import (
+	"context"
 	"testing"
 
 	eventsv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/events/v1"
 	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/antinvestor/service-chat/apps/default/service/events"
 	"github.com/antinvestor/service-chat/apps/default/tests"
+	"github.com/pitabwire/frame"
 	"github.com/pitabwire/frame/datastore"
 	"github.com/pitabwire/frame/frametests/definition"
 	"github.com/stretchr/testify/assert"
@@ -22,20 +24,26 @@ func TestFanoutEventHandlerSuite(t *testing.T) {
 	suite.Run(t, new(FanoutEventHandlerTestSuite))
 }
 
+func (s *FanoutEventHandlerTestSuite) createHandler(
+	ctx context.Context,
+	svc *frame.Service,
+) *events.FanoutEventHandler {
+	cfg := &config.ChatConfig{
+		QueueDeviceEventDeliveryName: "test.delivery",
+	}
+	workMan := svc.WorkManager()
+	queueMan := svc.QueueManager()
+	dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
+	return events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+}
+
 func (s *FanoutEventHandlerTestSuite) TestName() {
 	t := s.T()
 
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 		assert.Equal(t, events.RoomFanoutEventName, handler.Name())
 	})
 }
@@ -46,14 +54,7 @@ func (s *FanoutEventHandlerTestSuite) TestPayloadType() {
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 		payloadType := handler.PayloadType()
 
 		require.NotNil(t, payloadType)
@@ -68,14 +69,7 @@ func (s *FanoutEventHandlerTestSuite) TestValidate_ValidPayload() {
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 
 		broadcast := &eventsv1.Broadcast{
 			Event: &eventsv1.Link{
@@ -98,14 +92,7 @@ func (s *FanoutEventHandlerTestSuite) TestValidate_InvalidPayload() {
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 
 		// Invalid payload type
 		err := handler.Validate(ctx, "invalid string payload")
@@ -120,14 +107,7 @@ func (s *FanoutEventHandlerTestSuite) TestExecute_EmptyDestinations() {
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 
 		broadcast := &eventsv1.Broadcast{
 			Event: &eventsv1.Link{
@@ -149,14 +129,7 @@ func (s *FanoutEventHandlerTestSuite) TestExecute_InvalidPayload() {
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 
 		// Invalid payload type
 		err := handler.Execute(ctx, "invalid string payload")
@@ -171,14 +144,7 @@ func (s *FanoutEventHandlerTestSuite) TestExecute_EventNotFound() {
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 
 		broadcast := &eventsv1.Broadcast{
 			Event: &eventsv1.Link{
@@ -202,14 +168,7 @@ func (s *FanoutEventHandlerTestSuite) TestNewFanoutEventHandler() {
 	s.WithTestDependencies(t, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 
-		cfg := &config.ChatConfig{
-			QueueDeviceEventDeliveryName: "test.delivery",
-		}
-		workMan := svc.WorkManager()
-		queueMan := svc.QueueManager()
-		dbPool := svc.DatastoreManager().GetPool(ctx, datastore.DefaultPoolName)
-
-		handler := events.NewFanoutEventHandler(ctx, cfg, dbPool, workMan, queueMan)
+		handler := s.createHandler(ctx, svc)
 		require.NotNil(t, handler)
 	})
 }
