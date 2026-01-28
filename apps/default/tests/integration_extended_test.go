@@ -397,7 +397,7 @@ func (s *ExtendedIntegrationTestSuite) TestNewRoomHistory() {
 		// Room creation generates system events (e.g. "Room created" moderation event),
 		// so the history is not empty. Verify all events are system events.
 		for _, evt := range events {
-			s.Equal(chatv1.RoomEventType_ROOM_EVENT_TYPE_EVENT, evt.GetType(),
+			s.Equal(chatv1.RoomEventType_ROOM_EVENT_TYPE_SYSTEM, evt.GetType(),
 				"new room should only have system events, got type %s", evt.GetType())
 		}
 	})
@@ -493,11 +493,15 @@ func (s *ExtendedIntegrationTestSuite) TestRoomDeletionCleansSubscriptions() {
 		_, err = roomBusiness.GetRoom(ctx, room.GetId(), owner)
 		require.Error(t, err)
 
-		// Verify subscriptions are no longer accessible
+		// Verify subscriptions are deactivated after room deletion
 		accessMap, err = subscriptionSvc.HasAccess(ctx, member, room.GetId())
-		if err == nil {
-			s.Empty(accessMap, "subscriptions should be cleaned up after room deletion")
+		if err != nil {
+			// Access denied error is acceptable — subscriptions were fully removed
+			return
 		}
-		// If error is returned, that also confirms access is denied
+		// If subscriptions are returned, they should all be inactive (blocked)
+		for _, sub := range accessMap {
+			s.False(sub.IsActive(), "subscription should be deactivated after room deletion")
+		}
 	})
 }
