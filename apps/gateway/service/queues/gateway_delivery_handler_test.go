@@ -82,7 +82,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_ConnectionNotFound_ReturnsN
 
 	// Should return nil (message consumed) when connection not found
 	err = handler.Handle(context.Background(), headers, payload)
-	s.NoError(err)
+	s.Require().NoError(err)
 }
 
 func (s *GatewayDeliveryHandlerTestSuite) TestHandle_MalformedPayload_ReturnsNil() {
@@ -99,7 +99,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_MalformedPayload_ReturnsNil
 
 	// Send invalid protobuf data
 	err := handler.Handle(context.Background(), headers, []byte("invalid protobuf data"))
-	s.NoError(err) // Should consume message even on parse error
+	s.Require().NoError(err) // Should consume message even on parse error
 }
 
 func (s *GatewayDeliveryHandlerTestSuite) TestHandle_DispatchChannelFull_PublishesToOfflineQueue() {
@@ -140,7 +140,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_DispatchChannelFull_Publish
 	}
 
 	err = handler.Handle(context.Background(), headers, payload)
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// Verify message was published to offline queue
 	s.Equal(1, mockPub.publishCount)
@@ -216,7 +216,7 @@ func (s *GatewayDeliveryHandlerTestSuite) TestHandle_AllPayloadTypes() {
 			s.Require().NoError(err)
 
 			err = handler.Handle(context.Background(), headers, payload)
-			s.NoError(err)
+			s.Require().NoError(err)
 		})
 	}
 
