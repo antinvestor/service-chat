@@ -12,6 +12,11 @@ import (
 	"github.com/pitabwire/util"
 )
 
+const (
+	// dlqExtraHeaders is the number of DLQ-specific headers added to the original headers.
+	dlqExtraHeaders = 2
+)
+
 // DeadLetterPublisher publishes failed deliveries to the dead-letter queue
 // when they exceed the maximum retry count.
 type DeadLetterPublisher struct {
@@ -47,7 +52,7 @@ func (dlp *DeadLetterPublisher) Publish(
 	}
 
 	// Add DLQ context to headers
-	dlqHeaders := make(map[string]string, len(headers)+2)
+	dlqHeaders := make(map[string]string, len(headers)+dlqExtraHeaders)
 	maps.Copy(dlqHeaders, headers)
 	dlqHeaders[internal.HeaderDLQOriginalQueue] = originalQueue
 	dlqHeaders[internal.HeaderDLQErrorMessage] = errMsg
