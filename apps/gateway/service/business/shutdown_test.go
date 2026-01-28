@@ -1,4 +1,4 @@
-package business
+package business //nolint:testpackage // Tests need access to unexported connectionManager internals
 
 import (
 	"context"
@@ -14,11 +14,11 @@ func TestConnectionManager_Shutdown(t *testing.T) {
 	cm := newTestConnectionManager()
 
 	err := cm.Shutdown(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Shutdown should be idempotent
 	err = cm.Shutdown(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestConnectionManager_ShutdownRejectsNewConnections(t *testing.T) {
@@ -40,7 +40,7 @@ func TestConnectionManager_ActiveConnections(t *testing.T) {
 func TestConnectionManager_DrainConnections_Empty(t *testing.T) {
 	cm := newTestConnectionManager()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	// Should return immediately with no connections

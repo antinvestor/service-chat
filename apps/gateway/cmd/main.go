@@ -28,6 +28,8 @@ import (
 	"github.com/pitabwire/util"
 )
 
+const gracefulShutdownTimeout = 30 * time.Second
+
 func main() {
 	ctx := context.Background()
 
@@ -81,11 +83,11 @@ func main() {
 	// Graceful shutdown: drain connections and stop background tasks.
 	// Defers run LIFO: connectionManager shuts down before svc.Stop.
 	defer func() {
-		drainCtx, drainCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
 		defer drainCancel()
 		connectionManager.DrainConnections(drainCtx)
-		if err := connectionManager.Shutdown(drainCtx); err != nil {
-			util.Log(drainCtx).WithError(err).Error("connection manager shutdown error")
+		if shutdownErr := connectionManager.Shutdown(drainCtx); shutdownErr != nil {
+			util.Log(drainCtx).WithError(shutdownErr).Error("connection manager shutdown error")
 		}
 	}()
 

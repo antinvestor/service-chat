@@ -124,6 +124,7 @@ const (
 	healthCheckInterval   = 60 * time.Second
 	connectionAckTimeout  = 30 * time.Second
 	presenceUpdateTimeout = 3 * time.Second
+	drainPollInterval     = 500 * time.Millisecond
 
 	// Thresholds.
 	staleThresholdMultiplier = 3   // Multiplier for heartbeat interval to determine staleness
@@ -992,7 +993,7 @@ func (cm *connectionManager) DrainConnections(ctx context.Context) {
 	util.Log(ctx).WithField("active_connections", count).
 		Info("draining connections, waiting for clients to disconnect")
 
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(drainPollInterval)
 	defer ticker.Stop()
 
 	for {
