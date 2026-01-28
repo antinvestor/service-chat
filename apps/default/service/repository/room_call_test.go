@@ -43,7 +43,9 @@ func (s *RoomCallRepositoryTestSuite) createCall(
 	return call
 }
 
-func (s *RoomCallRepositoryTestSuite) withRepo(testFunc func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository)) {
+func (s *RoomCallRepositoryTestSuite) withRepo(
+	testFunc func(t *testing.T, ctx context.Context, repo repository.RoomCallRepository),
+) {
 	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)

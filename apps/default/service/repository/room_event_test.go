@@ -24,7 +24,9 @@ func TestEventRepositoryTestSuite(t *testing.T) {
 	suite.Run(t, new(EventRepositoryTestSuite))
 }
 
-func (s *EventRepositoryTestSuite) withRepo(testFunc func(t *testing.T, ctx context.Context, repo repository.RoomEventRepository)) {
+func (s *EventRepositoryTestSuite) withRepo(
+	testFunc func(t *testing.T, ctx context.Context, repo repository.RoomEventRepository),
+) {
 	frametests.WithTestDependencies(s.T(), nil, func(t *testing.T, dep *definition.DependencyOption) {
 		ctx, svc := s.CreateService(t, dep)
 		workMan, dbPool := s.GetRepoDeps(ctx, svc)
@@ -35,7 +37,6 @@ func (s *EventRepositoryTestSuite) withRepo(testFunc func(t *testing.T, ctx cont
 
 func (s *EventRepositoryTestSuite) TestCreateEvent() {
 	s.withRepo(func(t *testing.T, ctx context.Context, repo repository.RoomEventRepository) {
-
 		event := &models.RoomEvent{
 			RoomID:     util.IDString(),
 			SenderID:   util.IDString(),
@@ -191,7 +192,8 @@ func (s *EventRepositoryTestSuite) TestExistsByIDs() {
 		}
 
 		nonExistentID := util.IDString()
-		checkIDs := append(eventIDs, nonExistentID)
+		checkIDs := append([]string{}, eventIDs...)
+		checkIDs = append(checkIDs, nonExistentID)
 
 		existsMap, err := repo.ExistsByIDs(ctx, checkIDs)
 		require.NoError(t, err)
