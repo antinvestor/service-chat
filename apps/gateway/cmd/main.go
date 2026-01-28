@@ -42,7 +42,7 @@ func main() {
 	}
 
 	// Validate shard configuration at startup to catch mismatches early
-	if err := cfg.ValidateSharding(); err != nil {
+	if err = cfg.ValidateSharding(); err != nil {
 		util.Log(ctx).WithError(err).Fatal("invalid shard configuration")
 	}
 

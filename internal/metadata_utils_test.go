@@ -1,3 +1,4 @@
+//nolint:testpackage // testing internal metadata utility functions
 package internal
 
 import (

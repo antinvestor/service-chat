@@ -1,3 +1,4 @@
+//nolint:testpackage // testing internal sharding functions
 package internal
 
 import (
@@ -54,7 +55,9 @@ func TestShardForKey_EmptyKey(t *testing.T) {
 	assert.Less(t, result, 8)
 
 	// Empty key should produce consistent results
-	assert.Equal(t, ShardForKey("", 8), ShardForKey("", 8))
+	emptyResult1 := ShardForKey("", 8)
+	emptyResult2 := ShardForKey("", 8)
+	assert.Equal(t, emptyResult1, emptyResult2)
 }
 
 func TestShardForKey_DifferentKeysDifferentShards(t *testing.T) {

@@ -1,14 +1,15 @@
-package config
+package config_test
 
 import (
 	"testing"
 
+	"github.com/antinvestor/service-chat/apps/gateway/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGatewayConfig_ValidateSharding_Valid(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     0,
 		TotalShards: 4,
 	}
@@ -18,7 +19,7 @@ func TestGatewayConfig_ValidateSharding_Valid(t *testing.T) {
 }
 
 func TestGatewayConfig_ValidateSharding_LastShard(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     3,
 		TotalShards: 4,
 	}
@@ -28,7 +29,7 @@ func TestGatewayConfig_ValidateSharding_LastShard(t *testing.T) {
 }
 
 func TestGatewayConfig_ValidateSharding_SingleShard(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     0,
 		TotalShards: 1,
 	}
@@ -38,7 +39,7 @@ func TestGatewayConfig_ValidateSharding_SingleShard(t *testing.T) {
 }
 
 func TestGatewayConfig_ValidateSharding_ShardIDExceedsTotalShards(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     4,
 		TotalShards: 4,
 	}
@@ -49,7 +50,7 @@ func TestGatewayConfig_ValidateSharding_ShardIDExceedsTotalShards(t *testing.T) 
 }
 
 func TestGatewayConfig_ValidateSharding_ShardIDMuchLarger(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     100,
 		TotalShards: 4,
 	}
@@ -60,7 +61,7 @@ func TestGatewayConfig_ValidateSharding_ShardIDMuchLarger(t *testing.T) {
 }
 
 func TestGatewayConfig_ValidateSharding_NegativeShardID(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     -1,
 		TotalShards: 4,
 	}
@@ -71,7 +72,7 @@ func TestGatewayConfig_ValidateSharding_NegativeShardID(t *testing.T) {
 }
 
 func TestGatewayConfig_ValidateSharding_ZeroTotalShards(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     0,
 		TotalShards: 0,
 	}
@@ -82,7 +83,7 @@ func TestGatewayConfig_ValidateSharding_ZeroTotalShards(t *testing.T) {
 }
 
 func TestGatewayConfig_ValidateSharding_NegativeTotalShards(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     0,
 		TotalShards: -1,
 	}
@@ -94,7 +95,7 @@ func TestGatewayConfig_ValidateSharding_NegativeTotalShards(t *testing.T) {
 
 func TestGatewayConfig_ValidateSharding_DefaultValues(t *testing.T) {
 	// Default values from envDefault tags: ShardID=0, TotalShards=1
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     0,
 		TotalShards: 1,
 	}
@@ -104,7 +105,7 @@ func TestGatewayConfig_ValidateSharding_DefaultValues(t *testing.T) {
 }
 
 func TestGatewayConfig_ValidateSharding_LargeScale(t *testing.T) {
-	cfg := GatewayConfig{
+	cfg := config.GatewayConfig{
 		ShardID:     63,
 		TotalShards: 64,
 	}

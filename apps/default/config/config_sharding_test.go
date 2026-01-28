@@ -1,16 +1,17 @@
-package config
+package config_test
 
 import (
 	"strconv"
 	"testing"
 
+	"github.com/antinvestor/service-chat/apps/default/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChatConfig_ValidateSharding_Valid(t *testing.T) {
-	cfg := ChatConfig{
-		ShardCount:               2,
+	cfg := config.ChatConfig{
+		ShardCount: 2,
 		QueueGatewayEventDeliveryURI: []string{
 			"mem://gateway.event.delivery.0",
 			"mem://gateway.event.delivery.1",
@@ -22,8 +23,8 @@ func TestChatConfig_ValidateSharding_Valid(t *testing.T) {
 }
 
 func TestChatConfig_ValidateSharding_SingleShard(t *testing.T) {
-	cfg := ChatConfig{
-		ShardCount:               1,
+	cfg := config.ChatConfig{
+		ShardCount: 1,
 		QueueGatewayEventDeliveryURI: []string{
 			"mem://gateway.event.delivery.0",
 		},
@@ -34,8 +35,8 @@ func TestChatConfig_ValidateSharding_SingleShard(t *testing.T) {
 }
 
 func TestChatConfig_ValidateSharding_ZeroShardCount(t *testing.T) {
-	cfg := ChatConfig{
-		ShardCount:               0,
+	cfg := config.ChatConfig{
+		ShardCount: 0,
 		QueueGatewayEventDeliveryURI: []string{},
 	}
 
@@ -45,8 +46,8 @@ func TestChatConfig_ValidateSharding_ZeroShardCount(t *testing.T) {
 }
 
 func TestChatConfig_ValidateSharding_NegativeShardCount(t *testing.T) {
-	cfg := ChatConfig{
-		ShardCount:               -1,
+	cfg := config.ChatConfig{
+		ShardCount: -1,
 		QueueGatewayEventDeliveryURI: []string{},
 	}
 
@@ -56,8 +57,8 @@ func TestChatConfig_ValidateSharding_NegativeShardCount(t *testing.T) {
 }
 
 func TestChatConfig_ValidateSharding_URIMismatch_TooFew(t *testing.T) {
-	cfg := ChatConfig{
-		ShardCount:               3,
+	cfg := config.ChatConfig{
+		ShardCount: 3,
 		QueueGatewayEventDeliveryURI: []string{
 			"mem://gateway.event.delivery.0",
 			"mem://gateway.event.delivery.1",
@@ -71,8 +72,8 @@ func TestChatConfig_ValidateSharding_URIMismatch_TooFew(t *testing.T) {
 }
 
 func TestChatConfig_ValidateSharding_URIMismatch_TooMany(t *testing.T) {
-	cfg := ChatConfig{
-		ShardCount:               1,
+	cfg := config.ChatConfig{
+		ShardCount: 1,
 		QueueGatewayEventDeliveryURI: []string{
 			"mem://gateway.event.delivery.0",
 			"mem://gateway.event.delivery.1",
@@ -89,7 +90,7 @@ func TestChatConfig_ValidateSharding_URIMismatch_TooMany(t *testing.T) {
 func TestChatConfig_ValidateSharding_DefaultConfig(t *testing.T) {
 	// Default envDefault values: ShardCount=1, URIs has 2 entries
 	// This is actually a mismatch in the defaults - the test documents this
-	cfg := ChatConfig{
+	cfg := config.ChatConfig{
 		ShardCount: 1,
 		QueueGatewayEventDeliveryURI: []string{
 			"mem://gateway.event.delivery.0",
@@ -107,8 +108,8 @@ func TestChatConfig_ValidateSharding_LargeShardCount(t *testing.T) {
 		uris[i] = "mem://gateway.event.delivery." + strconv.Itoa(i)
 	}
 
-	cfg := ChatConfig{
-		ShardCount:               16,
+	cfg := config.ChatConfig{
+		ShardCount: 16,
 		QueueGatewayEventDeliveryURI: uris,
 	}
 
