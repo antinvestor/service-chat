@@ -280,7 +280,9 @@ func (s *OfflineDeliveryQueueHandlerTestSuite) TestHandle_ModerationMessage() {
 	deviceCli.NotifyMock.Set(func(
 		_ context.Context, req *connect.Request[devicev1.NotifyRequest],
 	) (*connect.Response[devicev1.NotifyResponse], error) {
-		require.Equal(t, "This message was removed for violating community guidelines", req.Msg.GetNotifications()[0].GetBody())
+		require.Equal(t,
+			"This message was removed for violating community guidelines",
+			req.Msg.GetNotifications()[0].GetBody())
 		return connect.NewResponse(&devicev1.NotifyResponse{}), nil
 	})
 
