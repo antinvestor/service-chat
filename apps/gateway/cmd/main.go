@@ -41,7 +41,7 @@ func main() {
 	}
 
 	// Validate configuration (fail-fast on invalid config)
-	if err := cfg.Validate(); err != nil {
+	if err = cfg.Validate(); err != nil {
 		util.Log(ctx).With("err", err).Error("invalid configuration")
 		return
 	}

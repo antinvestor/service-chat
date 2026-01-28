@@ -40,18 +40,13 @@ func runService(ctx context.Context) error {
 	}
 
 	// Validate configuration (fail-fast on invalid config)
-	if err := cfg.Validate(); err != nil {
+	if err = cfg.Validate(); err != nil {
 		util.Log(ctx).With("err", err).Error("invalid configuration")
 		return err
 	}
 
 	if cfg.Name() == "" {
 		cfg.ServiceName = "service_chat"
-	}
-
-	// Validate shard configuration at startup to catch mismatches early
-	if err = cfg.ValidateSharding(); err != nil {
-		util.Log(ctx).WithError(err).Fatal("invalid shard configuration")
 	}
 
 	// Create service
@@ -101,15 +96,27 @@ func runService(ctx context.Context) error {
 	// Setup Connect server
 	connectHandler := setupConnectServer(ctx, svc, notificationCli, profileCli, authzMiddleware)
 
-	// Setup service options with HTTP handler and queue publishers/subscribers
+	// Setup HTTP handlers and queue options
 	serviceOptions := []frame.Option{
 		frame.WithHTTPHandler(connectHandler),
-		frame.WithRegisterPublisher(cfg.QueueDeviceEventDeliveryName, cfg.QueueDeviceEventDeliveryURI),
-		frame.WithRegisterSubscriber(cfg.QueueDeviceEventDeliveryName, cfg.QueueDeviceEventDeliveryURI,
-			queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli)),
-		frame.WithRegisterPublisher(cfg.QueueOfflineEventDeliveryName, cfg.QueueOfflineEventDeliveryURI),
-		frame.WithRegisterSubscriber(cfg.QueueOfflineEventDeliveryName, cfg.QueueOfflineEventDeliveryURI,
-			queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli)),
+		frame.WithRegisterPublisher(
+			cfg.QueueDeviceEventDeliveryName,
+			cfg.QueueDeviceEventDeliveryURI,
+		),
+		frame.WithRegisterSubscriber(
+			cfg.QueueDeviceEventDeliveryName,
+			cfg.QueueDeviceEventDeliveryURI,
+			queues.NewHotPathDeliveryQueueHandler(&cfg, queueMan, workMan, deviceCli),
+		),
+		frame.WithRegisterPublisher(
+			cfg.QueueOfflineEventDeliveryName,
+			cfg.QueueOfflineEventDeliveryURI,
+		),
+		frame.WithRegisterSubscriber(
+			cfg.QueueOfflineEventDeliveryName,
+			cfg.QueueOfflineEventDeliveryURI,
+			queues.NewOfflineDeliveryQueueHandler(&cfg, deviceCli),
+		),
 	}
 
 	for i := range cfg.ShardCount {
