@@ -121,22 +121,24 @@ func TestPayloadConverter_AttachmentContent(t *testing.T) {
 		assert.Contains(t, string(content[ContentField].([]byte)), "attach123")
 	})
 
-	// TODO: Re-enable when validation methods are implemented
-	/*
-			t.Run("Validate Attachment Content", func(t *testing.T) {
-				validContent := data.JSONMap{
-					"attachmentId": "attach123",
-				}
-				err := converter.ValidateAttachmentContent(validContent)
-				require.NoError(t, err)
+	t.Run("Round Trip - Attachment Content", func(t *testing.T) {
+		original := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT.Number()),
+			ContentField: []byte(
+				`{"attachment_id":"attach789","filename":"report.pdf","mime_type":"application/pdf"}`,
+			),
+		}
 
-			invalidContent := data.JSONMap{
-				"fileId": "attach123",
-			}
-			err = converter.ValidateAttachmentContent(invalidContent)
-			require.Error(t, err)
-		})
-	*/
+		payload, err := converter.ToProto(original)
+		require.NoError(t, err)
+
+		result, err := converter.FromProto(payload)
+		require.NoError(t, err)
+
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT.Number(), result[PayloadTypeField])
+		contentBytes := result[ContentField].([]byte)
+		assert.Contains(t, string(contentBytes), "attach789")
+	})
 }
 
 func TestPayloadConverter_ReactionContent(t *testing.T) {
@@ -145,7 +147,7 @@ func TestPayloadConverter_ReactionContent(t *testing.T) {
 	t.Run("ToProto - Reaction Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_REACTION.Number()),
-			ContentField:     []byte(`{"reaction":"👍"}`),
+			ContentField:     []byte(`{"reaction":"👍","target_event_id":"evt123","add":true}`),
 		}
 
 		payload, err := converter.ToProto(content)
@@ -157,14 +159,17 @@ func TestPayloadConverter_ReactionContent(t *testing.T) {
 		reaction := payload.GetReaction()
 		require.NotNil(t, reaction)
 		assert.Equal(t, "👍", reaction.GetReaction())
+		assert.Equal(t, "evt123", reaction.GetTargetEventId())
+		assert.True(t, reaction.GetAdd())
 	})
 
 	t.Run("FromProto - Reaction Content", func(t *testing.T) {
 		payload := &chatv1.Payload{}
 		payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_REACTION)
 		payload.SetReaction(&chatv1.ReactionContent{
-			Reaction: "❤️",
-			Add:      true,
+			Reaction:      "❤️",
+			TargetEventId: "evt456",
+			Add:           true,
 		})
 
 		content, err := converter.FromProto(payload)
@@ -173,28 +178,30 @@ func TestPayloadConverter_ReactionContent(t *testing.T) {
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_REACTION.Number(), content[PayloadTypeField])
 
-		// Content is now stored as []byte in the JSONMap
 		contentBytes, ok := content[ContentField].([]byte)
 		require.True(t, ok, "ContentField should be []byte")
 		assert.Contains(t, string(contentBytes), "❤️")
+		assert.Contains(t, string(contentBytes), "evt456")
 	})
 
-	// TODO: Re-enable when validation methods are implemented
-	/*
-		t.Run("Validate Reaction Content", func(t *testing.T) {
-			validContent := data.JSONMap{
-				"emoji": "😀",
-			}
-			err := converter.ValidateReactionContent(validContent)
-			require.NoError(t, err)
+	t.Run("Round Trip - Reaction Content", func(t *testing.T) {
+		original := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_REACTION.Number()),
+			ContentField:     []byte(`{"reaction":"🎉","target_event_id":"msg123","add":true}`),
+		}
 
-			invalidContent := data.JSONMap{
-				"reaction": "😀",
-			}
-			err = converter.ValidateReactionContent(invalidContent)
-			require.Error(t, err)
-		})
-	*/
+		payload, err := converter.ToProto(original)
+		require.NoError(t, err)
+
+		result, err := converter.FromProto(payload)
+		require.NoError(t, err)
+
+		contentBytes := result[ContentField].([]byte)
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "🎉")
+		assert.Contains(t, contentStr, "msg123")
+		assert.Contains(t, contentStr, "true")
+	})
 }
 
 func TestPayloadConverter_CallContent(t *testing.T) {
@@ -203,7 +210,7 @@ func TestPayloadConverter_CallContent(t *testing.T) {
 	t.Run("ToProto - Call Content", func(t *testing.T) {
 		content := data.JSONMap{
 			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_CALL.Number()),
-			ContentField:     []byte(`{"sdp":"v=0\r\no=- 123..."}`),
+			ContentField:     []byte(`{"sdp":"v=0\r\no=- 123...","type":1}`),
 		}
 
 		payload, err := converter.ToProto(content)
@@ -223,7 +230,8 @@ func TestPayloadConverter_CallContent(t *testing.T) {
 		payload := &chatv1.Payload{}
 		payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_CALL)
 		payload.SetCall(&chatv1.CallContent{
-			Sdp: &sdp,
+			Sdp:  &sdp,
+			Type: chatv1.CallContent_CALL_TYPE_VIDEO,
 		})
 
 		content, err := converter.FromProto(payload)
@@ -232,28 +240,28 @@ func TestPayloadConverter_CallContent(t *testing.T) {
 
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_CALL.Number(), content[PayloadTypeField])
 
-		// Content is now stored as []byte in the JSONMap
 		contentBytes, ok := content[ContentField].([]byte)
 		require.True(t, ok, "ContentField should be []byte")
 		assert.Contains(t, string(contentBytes), `"v=0\r\no=- 789..."`)
 	})
 
-	// TODO: Re-enable when validation methods are implemented
-	/*
-		t.Run("Validate Call Content", func(t *testing.T) {
-			validContent := data.JSONMap{
-				"callId": "call123",
-			}
-			err := converter.ValidateCallContent(validContent)
-			require.NoError(t, err)
+	t.Run("Round Trip - Call Content", func(t *testing.T) {
+		original := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_CALL.Number()),
+			ContentField:     []byte(`{"sdp":"test-sdp-data","type":2}`),
+		}
 
-			invalidContent := data.JSONMap{
-				"sessionId": "call123",
-			}
-			err = converter.ValidateCallContent(invalidContent)
-			require.Error(t, err)
-		})
-	*/
+		payload, err := converter.ToProto(original)
+		require.NoError(t, err)
+
+		result, err := converter.FromProto(payload)
+		require.NoError(t, err)
+
+		contentBytes := result[ContentField].([]byte)
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "test-sdp-data")
+		assert.Contains(t, contentStr, `"type"`)
+	})
 }
 
 func TestPayloadConverter_EncryptedContent(t *testing.T) {
@@ -298,6 +306,154 @@ func TestPayloadConverter_EncryptedContent(t *testing.T) {
 		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED.Number(), content[PayloadTypeField])
 		assert.Contains(t, string(content[ContentField].([]byte)), `"ciphertext":"ZW5jcnlwdGVkX2RhdGE="`)
 	})
+
+	t.Run("Round Trip - Encrypted Content", func(t *testing.T) {
+		original := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_ENCRYPTED.Number()),
+			ContentField:     []byte(`{"ciphertext":"dGVzdA==","algorithm":"aes-256","session_id":"sess789"}`),
+		}
+
+		payload, err := converter.ToProto(original)
+		require.NoError(t, err)
+
+		result, err := converter.FromProto(payload)
+		require.NoError(t, err)
+
+		contentBytes := result[ContentField].([]byte)
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "aes-256")
+		assert.Contains(t, contentStr, "ciphertext")
+		assert.Contains(t, contentStr, "sess789")
+	})
+}
+
+func TestPayloadConverter_ModerationContent(t *testing.T) {
+	converter := models.NewPayloadConverter()
+
+	t.Run("ToProto - Moderation Content", func(t *testing.T) {
+		content := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_MODERATION.Number()),
+			ContentField: []byte(
+				`{"body":"Member added to room","actor_subscription_id":"sub123","target_subscription_ids":["sub456","sub789"]}`,
+			),
+		}
+
+		payload, err := converter.ToProto(content)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_MODERATION, payload.GetType())
+
+		moderation := payload.GetModeration()
+		require.NotNil(t, moderation)
+		assert.Equal(t, "Member added to room", moderation.GetBody())
+		assert.Equal(t, "sub123", moderation.GetActorSubscriptionId())
+		assert.Equal(t, []string{"sub456", "sub789"}, moderation.GetTargetSubscriptionIds())
+	})
+
+	t.Run("FromProto - Moderation Content", func(t *testing.T) {
+		payload := &chatv1.Payload{}
+		payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_MODERATION)
+		payload.SetModeration(&chatv1.ModerationContent{
+			Body:                  "Room deleted",
+			ActorSubscriptionId:   "admin123",
+			TargetSubscriptionIds: []string{"member456"},
+		})
+
+		content, err := converter.FromProto(payload)
+		require.NoError(t, err)
+		require.NotNil(t, content)
+
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_MODERATION.Number(), content[PayloadTypeField])
+		contentBytes := content[ContentField].([]byte)
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "Room deleted")
+		assert.Contains(t, contentStr, "admin123")
+		assert.Contains(t, contentStr, "member456")
+	})
+}
+
+func TestPayloadConverter_MotionContent(t *testing.T) {
+	converter := models.NewPayloadConverter()
+
+	t.Run("ToProto - Motion Content", func(t *testing.T) {
+		content := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_MOTION.Number()),
+			ContentField:     []byte(`{"title":"Proposal","description":"Test proposal"}`),
+		}
+
+		payload, err := converter.ToProto(content)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_MOTION, payload.GetType())
+
+		motion := payload.GetMotion()
+		require.NotNil(t, motion)
+		assert.Equal(t, "Proposal", motion.GetTitle())
+		assert.Equal(t, "Test proposal", motion.GetDescription())
+	})
+
+	t.Run("FromProto - Motion Content", func(t *testing.T) {
+		payload := &chatv1.Payload{}
+		payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_MOTION)
+		payload.SetMotion(&chatv1.MotionContent{
+			Id:          "motion123",
+			Title:       "Test Motion",
+			Description: "A test motion description",
+		})
+
+		content, err := converter.FromProto(payload)
+		require.NoError(t, err)
+		require.NotNil(t, content)
+
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_MOTION.Number(), content[PayloadTypeField])
+		contentBytes := content[ContentField].([]byte)
+		contentStr := string(contentBytes)
+		assert.Contains(t, contentStr, "motion123")
+		assert.Contains(t, contentStr, "Test Motion")
+		assert.Contains(t, contentStr, "A test motion description")
+	})
+}
+
+func TestPayloadConverter_VoteContent(t *testing.T) {
+	converter := models.NewPayloadConverter()
+
+	t.Run("ToProto - Vote Content", func(t *testing.T) {
+		content := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_VOTE.Number()),
+			ContentField:     []byte(`{"motion_id":"motion123","choice_id":"yes"}`),
+		}
+
+		payload, err := converter.ToProto(content)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_VOTE, payload.GetType())
+
+		vote := payload.GetVote()
+		require.NotNil(t, vote)
+		assert.Equal(t, "motion123", vote.GetMotionId())
+		assert.Equal(t, "yes", vote.GetChoiceId())
+	})
+
+	t.Run("FromProto - Vote Content", func(t *testing.T) {
+		payload := &chatv1.Payload{}
+		payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_VOTE)
+		payload.SetVote(&chatv1.VoteCast{
+			MotionId: "motion456",
+			ChoiceId: "no",
+		})
+
+		content, err := converter.FromProto(payload)
+		require.NoError(t, err)
+		require.NotNil(t, content)
+
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_VOTE.Number(), content[PayloadTypeField])
+		contentBytes := content[ContentField].([]byte)
+		assert.Contains(t, string(contentBytes), "motion456")
+		assert.Contains(t, string(contentBytes), "no")
+	})
 }
 
 func TestPayloadConverter_EdgeCases(t *testing.T) {
@@ -306,9 +462,11 @@ func TestPayloadConverter_EdgeCases(t *testing.T) {
 	t.Run("Nil Event", func(t *testing.T) {
 		_, err := converter.ToProto(nil)
 		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
 
 		_, err = converter.FromProto(nil)
 		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 
 	t.Run("Empty Content", func(t *testing.T) {
@@ -317,14 +475,93 @@ func TestPayloadConverter_EdgeCases(t *testing.T) {
 		payload, err := converter.ToProto(content)
 		require.NoError(t, err)
 		require.NotNil(t, payload)
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED, payload.GetType())
 	})
 
 	t.Run("Missing Content in Proto", func(t *testing.T) {
 		payload := &chatv1.Payload{}
-		payload.SetText(&chatv1.TextContent{Body: "Hello"})
+		payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_TEXT)
+		// No SetText call - content is nil
 
 		content, err := converter.FromProto(payload)
 		require.NoError(t, err)
 		require.NotNil(t, content)
+		assert.Equal(t, chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number(), content[PayloadTypeField])
+	})
+
+	t.Run("Invalid JSON Content", func(t *testing.T) {
+		content := data.JSONMap{
+			PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number()),
+			ContentField:     []byte(`{invalid json`),
+		}
+
+		_, err := converter.ToProto(content)
+		require.Error(t, err) // Should fail to unmarshal
+	})
+
+	t.Run("Unspecified Payload Type", func(t *testing.T) {
+		payload := &chatv1.Payload{}
+		payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_UNSPECIFIED)
+
+		content, err := converter.FromProto(payload)
+		require.NoError(t, err)
+		require.NotNil(t, content)
+	})
+
+	t.Run("Unknown Payload Type - Fallback to Default", func(t *testing.T) {
+		payload := &chatv1.Payload{}
+		// Use a high number that might not exist
+		payload.SetType(chatv1.PayloadType(999))
+
+		content, err := converter.FromProto(payload)
+		require.NoError(t, err)
+		require.NotNil(t, content)
+	})
+}
+
+func TestPayloadConverter_Concurrency(t *testing.T) {
+	converter := models.NewPayloadConverter()
+
+	t.Run("Concurrent ToProto", func(t *testing.T) {
+		// PayloadConverter should be stateless and safe for concurrent use
+		done := make(chan bool, 10)
+
+		for range 10 {
+			go func() {
+				content := data.JSONMap{
+					PayloadTypeField: float64(chatv1.PayloadType_PAYLOAD_TYPE_TEXT.Number()),
+					ContentField:     []byte(`{"body":"concurrent test"}`),
+				}
+				payload, err := converter.ToProto(content)
+				assert.NoError(t, err)
+				assert.NotNil(t, payload)
+				done <- true
+			}()
+		}
+
+		for range 10 {
+			<-done
+		}
+	})
+
+	t.Run("Concurrent FromProto", func(t *testing.T) {
+		done := make(chan bool, 10)
+
+		for range 10 {
+			go func() {
+				payload := &chatv1.Payload{}
+				payload.SetType(chatv1.PayloadType_PAYLOAD_TYPE_TEXT)
+				payload.SetText(&chatv1.TextContent{Body: "concurrent test"})
+
+				content, err := converter.FromProto(payload)
+				assert.NoError(t, err)
+				assert.NotNil(t, content)
+				done <- true
+			}()
+		}
+
+		for range 10 {
+			<-done
+		}
 	})
 }
