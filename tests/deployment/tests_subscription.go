@@ -154,7 +154,11 @@ func (t *RemoveMemberTest) Run(ctx context.Context, client *Client) error {
 	}
 
 	// Create a test profile to add and then remove
-	profile, err := client.GetOrCreateTestProfile(ctx, "test-remove-member@integration-test.local", "Test Remove Member")
+	profile, err := client.GetOrCreateTestProfile(
+		ctx,
+		"test-remove-member@integration-test.local",
+		"Test Remove Member",
+	)
 	if err != nil {
 		// Profile service may not be available, fall back to basic test
 		subs, err := client.SearchSubscriptions(ctx, room.GetId())

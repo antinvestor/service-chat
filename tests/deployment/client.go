@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -17,7 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// generateID generates a unique ID that matches the validation pattern [0-9a-z_-]{3,40}
+// generateID generates a unique ID that matches the validation pattern [0-9a-z_-]{3,40}.
 func generateID() string {
 	return util.IDString()
 }
@@ -201,7 +202,11 @@ func (c *Client) Cleanup(ctx context.Context) []error {
 // Helper methods for common operations
 
 // CreateTestRoom creates a room with test prefix and tracks it for cleanup.
-func (c *Client) CreateTestRoom(ctx context.Context, name string, members []*commonv1.ContactLink) (*chatv1.Room, error) {
+func (c *Client) CreateTestRoom(
+	ctx context.Context,
+	name string,
+	members []*commonv1.ContactLink,
+) (*chatv1.Room, error) {
 	fullName := c.config.TestDataPrefix + name
 	roomID := generateID()
 
@@ -224,7 +229,12 @@ func (c *Client) CreateTestRoom(ctx context.Context, name string, members []*com
 }
 
 // CreateTestRoomWithMetadata creates a room with metadata and tracks it for cleanup.
-func (c *Client) CreateTestRoomWithMetadata(ctx context.Context, name, description string, isPrivate bool, metadata map[string]any) (*chatv1.Room, error) {
+func (c *Client) CreateTestRoomWithMetadata(
+	ctx context.Context,
+	name, description string,
+	isPrivate bool,
+	metadata map[string]any,
+) (*chatv1.Room, error) {
 	fullName := c.config.TestDataPrefix + name
 	roomID := generateID()
 
@@ -312,7 +322,12 @@ func (c *Client) SendBatchMessages(ctx context.Context, roomID string, messages 
 }
 
 // GetHistory retrieves message history from a room.
-func (c *Client) GetHistory(ctx context.Context, roomID string, limit int32, cursor string) (*chatv1.GetHistoryResponse, error) {
+func (c *Client) GetHistory(
+	ctx context.Context,
+	roomID string,
+	limit int32,
+	cursor string,
+) (*chatv1.GetHistoryResponse, error) {
 	resp, err := c.chat.GetHistory(ctx, connect.NewRequest(&chatv1.GetHistoryRequest{
 		RoomId: roomID,
 		Cursor: &commonv1.PageCursor{
@@ -460,7 +475,7 @@ func (c *Client) GetOrCreateTestProfile(ctx context.Context, email, name string)
 
 	profileData := resp.Msg.GetData()
 	if profileData == nil {
-		return nil, fmt.Errorf("profile creation returned nil data")
+		return nil, errors.New("profile creation returned nil data")
 	}
 
 	// Extract contact ID from the first contact if available
@@ -496,7 +511,7 @@ func (c *Client) GetTestProfiles(ctx context.Context, count int) ([]*TestProfile
 	c.testEmailIndex = (c.testEmailIndex + count) % len(TestEmails)
 	c.testEmailIndexMu.Unlock()
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		idx := (startIndex + i) % len(TestEmails)
 		email := TestEmails[idx]
 		name := TestNames[idx]

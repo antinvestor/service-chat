@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -156,7 +157,7 @@ func QuickCheck(ctx context.Context, client *Client) error {
 		return fmt.Errorf("health check failed: cannot get history: %w", err)
 	}
 	if len(history.GetEvents()) == 0 {
-		return fmt.Errorf("health check failed: history is empty")
+		return errors.New("health check failed: history is empty")
 	}
 	fmt.Println("  ✓ History retrieval works")
 

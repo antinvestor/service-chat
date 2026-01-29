@@ -202,7 +202,7 @@ func (t *GatewayMultipleMessagesTest) Run(ctx context.Context, client *Client) e
 
 	// Send multiple messages
 	messageCount := 5
-	for i := 0; i < messageCount; i++ {
+	for i := range messageCount {
 		msg := fmt.Sprintf("Batch message %d at %d", i+1, time.Now().UnixNano())
 		_, err = client.SendTextMessage(ctx, room.GetId(), msg)
 		if err := a.NoError(err, "SendTextMessage should succeed"); err != nil {

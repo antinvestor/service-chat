@@ -185,7 +185,9 @@ func (t *ListProposalsRequiresRoomIDTest) Name() string { return "ListProposals_
 func (t *ListProposalsRequiresRoomIDTest) Description() string {
 	return "Verify ListProposals validates room_id is provided"
 }
-func (t *ListProposalsRequiresRoomIDTest) Tags() []string { return []string{"proposal", "api", "validation"} }
+func (t *ListProposalsRequiresRoomIDTest) Tags() []string {
+	return []string{"proposal", "api", "validation"}
+}
 
 func (t *ListProposalsRequiresRoomIDTest) Run(ctx context.Context, client *Client) error {
 	var a Assert

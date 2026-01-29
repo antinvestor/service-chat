@@ -2,7 +2,7 @@
 package deployment
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 	"time"
@@ -57,13 +57,13 @@ func ConfigFromEnv() (*Config, error) {
 
 	endpoint := os.Getenv("CHAT_SERVICE_ENDPOINT")
 	if endpoint == "" {
-		return nil, fmt.Errorf("CHAT_SERVICE_ENDPOINT environment variable is required")
+		return nil, errors.New("CHAT_SERVICE_ENDPOINT environment variable is required")
 	}
 	cfg.ServiceEndpoint = endpoint
 
 	token := os.Getenv("CHAT_AUTH_TOKEN")
 	if token == "" {
-		return nil, fmt.Errorf("CHAT_AUTH_TOKEN environment variable is required")
+		return nil, errors.New("CHAT_AUTH_TOKEN environment variable is required")
 	}
 	cfg.AuthToken = token
 
@@ -113,10 +113,10 @@ func (c *Config) GetGatewayEndpoint() string {
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
 	if c.ServiceEndpoint == "" {
-		return fmt.Errorf("service endpoint is required")
+		return errors.New("service endpoint is required")
 	}
 	if c.AuthToken == "" {
-		return fmt.Errorf("auth token is required")
+		return errors.New("auth token is required")
 	}
 	return nil
 }

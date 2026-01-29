@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
@@ -124,7 +125,7 @@ func (t *GetHistoryBasicTest) Run(ctx context.Context, client *Client) error {
 	}
 
 	// Send some messages
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		_, err = client.SendTextMessage(ctx, room.GetId(), fmt.Sprintf("Message %d", i+1))
 		if err := a.NoError(err, "SendEvent should succeed"); err != nil {
 			return err
@@ -137,7 +138,7 @@ func (t *GetHistoryBasicTest) Run(ctx context.Context, client *Client) error {
 	// Get history with retry for transient errors
 	var history *chatv1.GetHistoryResponse
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
+	for range 3 {
 		history, lastErr = client.GetHistory(ctx, room.GetId(), 10, "")
 		if lastErr == nil {
 			break
@@ -177,7 +178,7 @@ func (t *GetHistoryPaginationTest) Run(ctx context.Context, client *Client) erro
 	}
 
 	// Send 15 messages
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		_, err = client.SendTextMessage(ctx, room.GetId(), fmt.Sprintf("Message %d", i+1))
 		if err := a.NoError(err, "SendEvent should succeed"); err != nil {
 			return err
@@ -244,7 +245,7 @@ func (t *GetHistoryForwardBackwardTest) Run(ctx context.Context, client *Client)
 	}
 
 	// Send messages with slight delay to ensure ordering
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		_, err = client.SendTextMessage(ctx, room.GetId(), fmt.Sprintf("Message %d", i+1))
 		if err := a.NoError(err, "SendEvent should succeed"); err != nil {
 			return err
@@ -387,7 +388,7 @@ func (t *MessageValidationTest) Run(ctx context.Context, client *Client) error {
 	}
 
 	// Test empty message body - may or may not be allowed depending on implementation
-	_, err = client.Chat().SendEvent(ctx, connect.NewRequest(&chatv1.SendEventRequest{
+	_, _ = client.Chat().SendEvent(ctx, connect.NewRequest(&chatv1.SendEventRequest{
 		Event: []*chatv1.RoomEvent{{
 			Id:     util.IDString(),
 			RoomId: room.GetId(),
@@ -445,9 +446,11 @@ func (t *LargeMessageTest) Run(ctx context.Context, client *Client) error {
 
 	// Create a large message (5000 chars)
 	largeText := ""
-	for i := 0; i < 500; i++ {
-		largeText += "0123456789"
+	var largeTextSb448 strings.Builder
+	for range 500 {
+		largeTextSb448.WriteString("0123456789")
 	}
+	largeText += largeTextSb448.String()
 
 	acks, err := client.SendTextMessage(ctx, room.GetId(), largeText)
 	if err := a.NoError(err, "SendEvent with large message should succeed"); err != nil {
@@ -520,7 +523,7 @@ func (t *MessageOrderingTest) Run(ctx context.Context, client *Client) error {
 	// Get history with retry for eventual consistency
 	var history *chatv1.GetHistoryResponse
 	var events []*chatv1.RoomEvent
-	for attempt := 0; attempt < 5; attempt++ {
+	for range 5 {
 		history, err = client.GetHistory(ctx, room.GetId(), 50, "")
 		if err != nil {
 			if err := a.NoError(err, "GetHistory should succeed"); err != nil {

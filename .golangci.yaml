@@ -440,3 +440,20 @@ linters:
           - gosec
           - noctx
           - wrapcheck
+      # Deployment integration tests are CLI tools with different requirements
+      - path: 'tests/deployment/'
+        linters:
+          - forbidigo
+          - funlen
+          - gochecknoglobals
+          - gocognit
+          - goprintffuncname
+          - gosec
+          - govet
+          - ineffassign
+          - mnd
+          - nestif
+          - nilerr
+          - predeclared
+          - revive
+          - staticcheck

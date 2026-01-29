@@ -813,7 +813,7 @@ func (t *RoomChangeEventTest) Run(ctx context.Context, client *Client) error {
 	return nil
 }
 
-// Helper function to create a string pointer
+// Helper function to create a string pointer.
 func ptr(s string) *string {
 	return &s
 }

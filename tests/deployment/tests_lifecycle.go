@@ -108,11 +108,20 @@ func (t *CompleteRoomLifecycleTest) Run(ctx context.Context, client *Client) err
 	}
 
 	// === PHASE 5: Room Configuration Update ===
-	updated, err := client.UpdateRoom(ctx, roomID, client.Config().TestDataPrefix+"lifecycle-room-updated", "Updated description for active group")
+	updated, err := client.UpdateRoom(
+		ctx,
+		roomID,
+		client.Config().TestDataPrefix+"lifecycle-room-updated",
+		"Updated description for active group",
+	)
 	if err := a.NoError(err, "Phase 5: UpdateRoom should succeed"); err != nil {
 		return err
 	}
-	if err := a.Contains(updated.GetDescription(), "Updated description", "Phase 5: Description should be updated"); err != nil {
+	if err := a.Contains(
+		updated.GetDescription(),
+		"Updated description",
+		"Phase 5: Description should be updated",
+	); err != nil {
 		return err
 	}
 
@@ -273,7 +282,11 @@ func (t *MultiUserConversationTest) Run(ctx context.Context, client *Client) err
 		return err
 	}
 
-	if err := a.MinLen(len(history.GetEvents()), len(conversation), "Should have all conversation messages"); err != nil {
+	if err := a.MinLen(
+		len(history.GetEvents()),
+		len(conversation),
+		"Should have all conversation messages",
+	); err != nil {
 		return err
 	}
 
@@ -447,7 +460,7 @@ func (t *GroupGrowthAndShrinkTest) Run(ctx context.Context, client *Client) erro
 	// Verify at least the creator subscription exists with retry
 	var subs []*chatv1.RoomSubscription
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
+	for range 3 {
 		subs, lastErr = client.SearchSubscriptions(ctx, room.GetId())
 		if lastErr == nil {
 			break
@@ -515,7 +528,7 @@ func (t *RoomMetadataLifecycleTest) Run(ctx context.Context, client *Client) err
 	// Update room (metadata might be preserved or updated depending on implementation)
 	// Note: UpdateRoom may fail if subscription is not yet found - retry
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
+	for range 3 {
 		_, lastErr = client.UpdateRoom(ctx, room.GetId(), "", "Updated description with metadata")
 		if lastErr == nil {
 			break
@@ -553,8 +566,12 @@ func (t *ConcurrentActivityTest) Run(ctx context.Context, client *Client) error 
 
 	// Send burst of messages
 	messageCount := 20
-	for i := 0; i < messageCount; i++ {
-		_, err = client.SendTextMessage(ctx, room.GetId(), fmt.Sprintf("Concurrent message %d at %d", i+1, time.Now().UnixNano()))
+	for i := range messageCount {
+		_, err = client.SendTextMessage(
+			ctx,
+			room.GetId(),
+			fmt.Sprintf("Concurrent message %d at %d", i+1, time.Now().UnixNano()),
+		)
 		if err := a.NoError(err, "Send burst message should succeed"); err != nil {
 			return err
 		}
@@ -566,7 +583,7 @@ func (t *ConcurrentActivityTest) Run(ctx context.Context, client *Client) error 
 	// Read history with retry to handle eventual consistency
 	var history *chatv1.GetHistoryResponse
 	var lastErr error
-	for attempt := 0; attempt < 5; attempt++ {
+	for range 5 {
 		history, lastErr = client.GetHistory(ctx, room.GetId(), 50, "")
 		if lastErr == nil && len(history.GetEvents()) >= messageCount {
 			break

@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	chatv1 "buf.build/gen/go/antinvestor/chat/protocolbuffers/go/chat/v1"
@@ -117,7 +118,11 @@ func (t *CreateRoomWithMetadataTest) Run(ctx context.Context, client *Client) er
 	if room.GetMetadata() != nil {
 		fields := room.GetMetadata().GetFields()
 		if fields["category"] != nil {
-			if err := a.Equal("support", fields["category"].GetStringValue(), "category value should match"); err != nil {
+			if err := a.Equal(
+				"support",
+				fields["category"].GetStringValue(),
+				"category value should match",
+			); err != nil {
 				return err
 			}
 		}
@@ -201,7 +206,7 @@ func (t *UpdateRoomNameTest) Run(ctx context.Context, client *Client) error {
 	}
 
 	// Update the name
-	newName := client.Config().TestDataPrefix + "updated-name-" + fmt.Sprintf("%d", time.Now().Unix())
+	newName := client.Config().TestDataPrefix + "updated-name-" + strconv.FormatInt(time.Now().Unix(), 10)
 	updated, err := client.UpdateRoom(ctx, room.GetId(), newName, "")
 	if err := a.NoError(err, "UpdateRoom should succeed"); err != nil {
 		return err
