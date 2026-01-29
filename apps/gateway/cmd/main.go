@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"buf.build/gen/go/antinvestor/chat/connectrpc/go/chat/v1/chatv1connect"
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -26,6 +27,8 @@ import (
 	"github.com/pitabwire/frame/security/openid"
 	"github.com/pitabwire/util"
 )
+
+const gracefulShutdownTimeout = 30 * time.Second
 
 func main() {
 	ctx := context.Background()
@@ -77,6 +80,16 @@ func main() {
 		cfg.ConnectionTimeoutSec,
 		cfg.HeartbeatIntervalSec,
 	)
+	// Graceful shutdown: drain connections and stop background tasks.
+	// Defers run LIFO: connectionManager shuts down before svc.Stop.
+	defer func() {
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
+		defer drainCancel()
+		connectionManager.DrainConnections(drainCtx)
+		if shutdownErr := connectionManager.Shutdown(drainCtx); shutdownErr != nil {
+			util.Log(drainCtx).WithError(shutdownErr).Error("connection manager shutdown error")
+		}
+	}()
 
 	offlineDeliveryQueuePublisher := frame.WithRegisterPublisher(
 		cfg.QueueOfflineEventDeliveryName,

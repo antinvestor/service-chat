@@ -50,4 +50,13 @@ type ConnectionManager interface {
 		profileID string,
 		deviceID string,
 	) (Connection, bool)
+	// Shutdown signals all background goroutines to stop and waits for them
+	// to complete (with timeout). Active connections are terminated via context
+	// cancellation by the caller.
+	Shutdown(ctx context.Context) error
+	// DrainConnections sends a close notification to all connected clients
+	// and waits for them to disconnect or until the context is cancelled.
+	DrainConnections(ctx context.Context)
+	// ActiveConnections returns the number of currently active connections.
+	ActiveConnections() int32
 }
