@@ -16,6 +16,7 @@ import (
 	"github.com/antinvestor/service-chat/apps/default/service"
 	"github.com/antinvestor/service-chat/apps/default/service/authz"
 	"github.com/antinvestor/service-chat/apps/default/service/business"
+	"github.com/antinvestor/service-chat/apps/default/service/models"
 	"github.com/antinvestor/service-chat/apps/default/service/repository"
 	"github.com/antinvestor/service-chat/internal"
 	"github.com/pitabwire/frame"
@@ -24,6 +25,7 @@ import (
 	"github.com/pitabwire/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -473,9 +475,119 @@ func (ps *ChatServer) SearchRoomSubscriptions(
 	}), nil
 }
 
-// TODO: Add Approve, Reject, and ListPending proposal handler methods
-// once the corresponding proto definitions are available. The business logic is implemented
-// in business.ProposalManagement and wired up via ps.ProposalManagement.
+// ListProposals returns proposals for a room, optionally filtered by state.
+func (ps *ChatServer) ListProposals(
+	ctx context.Context,
+	req *connect.Request[chatv1.ListProposalsRequest],
+) (*connect.Response[chatv1.ListProposalsResponse], error) {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
+		)
+	}
+
+	if req.Msg.GetRoomId() == "" {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			errors.New("room_id must be specified"),
+		)
+	}
+
+	// Get pending proposals (business layer handles access checks)
+	proposals, err := ps.ProposalManagement.ListPending(ctx, req.Msg.GetRoomId(), authenticatedContact)
+	if err != nil {
+		return nil, ps.toAPIError(ctx, err)
+	}
+
+	// Convert models to API types
+	apiProposals := make([]*chatv1.Proposal, 0, len(proposals))
+	for _, p := range proposals {
+		apiProposals = append(apiProposals, proposalToAPI(p))
+	}
+
+	return connect.NewResponse(&chatv1.ListProposalsResponse{
+		Proposals: apiProposals,
+	}), nil
+}
+
+// SubmitProposal handles approval or rejection of a proposal.
+func (ps *ChatServer) SubmitProposal(
+	ctx context.Context,
+	req *connect.Request[chatv1.SubmitProposalRequest],
+) (*connect.Response[chatv1.SubmitProposalResponse], error) {
+	authenticatedContact, err := internal.AuthContactLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Input validation
+	if req.Msg == nil {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			errors.New("request cannot be nil"),
+		)
+	}
+
+	if req.Msg.GetRoomId() == "" {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			errors.New("room_id must be specified"),
+		)
+	}
+
+	if req.Msg.GetProposalId() == "" {
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			errors.New("proposal_id must be specified"),
+		)
+	}
+
+	// Process based on action
+	switch req.Msg.GetAction() {
+	case chatv1.ProposalAction_PROPOSAL_ACTION_APPROVE:
+		err = ps.ProposalManagement.Approve(
+			ctx,
+			req.Msg.GetRoomId(),
+			req.Msg.GetProposalId(),
+			authenticatedContact,
+		)
+	case chatv1.ProposalAction_PROPOSAL_ACTION_REJECT:
+		err = ps.ProposalManagement.Reject(
+			ctx,
+			req.Msg.GetRoomId(),
+			req.Msg.GetProposalId(),
+			req.Msg.GetReason(),
+			authenticatedContact,
+		)
+	case chatv1.ProposalAction_PROPOSAL_ACTION_UNSPECIFIED:
+		return nil, connect.NewError(
+			connect.CodeInvalidArgument,
+			errors.New("action must be APPROVE or REJECT"),
+		)
+	}
+
+	if err != nil {
+		// Return error in response for expected errors
+		if isProposalError(err) {
+			return connect.NewResponse(&chatv1.SubmitProposalResponse{
+				Error: &commonv1.ErrorDetail{
+					Code:    int32(connect.CodeOf(err)), //nolint:gosec // connect codes fit in int32
+					Message: err.Error(),
+				},
+			}), nil
+		}
+		return nil, ps.toAPIError(ctx, err)
+	}
+
+	return connect.NewResponse(&chatv1.SubmitProposalResponse{}), nil
+}
 
 // Live handles client realtime updates (typing indicators, presence, read receipts).
 func (ps *ChatServer) Live(
@@ -752,4 +864,79 @@ func (ps *ChatServer) processRoomEventState(
 	}
 
 	return nil
+}
+
+// proposalToAPI converts a models.Proposal to a chatv1.Proposal.
+func proposalToAPI(p *models.Proposal) *chatv1.Proposal {
+	proposal := &chatv1.Proposal{
+		Id:          p.ID,
+		RoomId:      p.ScopeID,
+		Type:        proposalTypeToAPI(p.ProposalType),
+		State:       proposalStateToAPI(p.State),
+		RequestedBy: p.RequestedBy,
+		CreatedAt:   timestamppb.New(p.CreatedAt),
+		ExpiresAt:   timestamppb.New(p.ExpiresAt),
+	}
+
+	// Convert payload map to structpb
+	if p.Payload != nil {
+		if payload, err := structpb.NewStruct(p.Payload); err == nil {
+			proposal.Payload = payload
+		}
+	}
+
+	// Set optional fields
+	if p.ResolvedBy != "" {
+		proposal.ResolvedBy = &p.ResolvedBy
+	}
+	if p.ResolvedAt != nil {
+		proposal.ResolvedAt = timestamppb.New(*p.ResolvedAt)
+	}
+	if p.Reason != "" {
+		proposal.Reason = &p.Reason
+	}
+
+	return proposal
+}
+
+// proposalTypeToAPI converts models.ProposalType to chatv1.ProposalType.
+func proposalTypeToAPI(t models.ProposalType) chatv1.ProposalType {
+	switch t {
+	case models.ProposalTypeUpdateRoom:
+		return chatv1.ProposalType_PROPOSAL_TYPE_UPDATE_ROOM
+	case models.ProposalTypeDeleteRoom:
+		return chatv1.ProposalType_PROPOSAL_TYPE_DELETE_ROOM
+	case models.ProposalTypeAddSubscriptions:
+		return chatv1.ProposalType_PROPOSAL_TYPE_ADD_SUBSCRIPTIONS
+	case models.ProposalTypeRemoveSubscriptions:
+		return chatv1.ProposalType_PROPOSAL_TYPE_REMOVE_SUBSCRIPTIONS
+	case models.ProposalTypeUpdateSubscriptionRole:
+		return chatv1.ProposalType_PROPOSAL_TYPE_UPDATE_SUBSCRIPTION_ROLE
+	default:
+		return chatv1.ProposalType_PROPOSAL_TYPE_UNSPECIFIED
+	}
+}
+
+// proposalStateToAPI converts models.ProposalState to chatv1.ProposalState.
+func proposalStateToAPI(s models.ProposalState) chatv1.ProposalState {
+	switch s {
+	case models.ProposalStatePending:
+		return chatv1.ProposalState_PROPOSAL_STATE_PENDING
+	case models.ProposalStateApproved:
+		return chatv1.ProposalState_PROPOSAL_STATE_APPROVED
+	case models.ProposalStateRejected:
+		return chatv1.ProposalState_PROPOSAL_STATE_REJECTED
+	case models.ProposalStateExpired:
+		return chatv1.ProposalState_PROPOSAL_STATE_EXPIRED
+	default:
+		return chatv1.ProposalState_PROPOSAL_STATE_UNSPECIFIED
+	}
+}
+
+// isProposalError returns true if the error is a known proposal error.
+func isProposalError(err error) bool {
+	return errors.Is(err, service.ErrProposalNotFound) ||
+		errors.Is(err, service.ErrProposalNotPending) ||
+		errors.Is(err, service.ErrProposalExpired) ||
+		errors.Is(err, service.ErrProposalApprovalDenied)
 }
