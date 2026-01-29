@@ -3,6 +3,8 @@ package tests
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"buf.build/gen/go/antinvestor/device/connectrpc/go/device/v1/devicev1connect"
@@ -40,6 +42,14 @@ const (
 
 type BaseTestSuite struct {
 	frametests.FrameBaseTestSuite
+}
+
+// migrationPath returns the absolute path to the SQL migration directory.
+// Uses runtime.Caller to resolve relative to this source file, so it works
+// regardless of which test package's working directory is active.
+func migrationPath() string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), "..", "migrations", "0001")
 }
 
 func initResources(_ context.Context) []definition.TestResource {
@@ -96,7 +106,7 @@ func (bs *BaseTestSuite) CreateService(
 
 	dbPool := dbManager.GetPool(ctx, datastore.DefaultPoolName)
 
-	err = repository.Migrate(ctx, dbManager, "../../migrations/0001")
+	err = repository.Migrate(ctx, dbManager, migrationPath())
 	require.NoError(t, err)
 
 	eventDeliveryQueuePublisher := frame.WithRegisterPublisher(
