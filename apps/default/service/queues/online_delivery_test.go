@@ -67,7 +67,7 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) TestHandle_ValidDelivery() {
 		workMan := svc.WorkManager()
 		deviceCli := s.GetDevice(t)
 
-		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli)
+		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli, nil)
 
 		profileID := util.IDString()
 		payload := s.createDeliveryPayload(profileID)
@@ -88,13 +88,15 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) TestHandle_MalformedPayload() {
 		workMan := svc.WorkManager()
 		deviceCli := s.GetDevice(t)
 
-		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli)
+		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli, nil)
 
 		// Send invalid protobuf data
 		invalidPayload := []byte("not a valid protobuf")
 		err := handler.Handle(ctx, nil, invalidPayload)
 
-		require.Error(t, err)
+		// Malformed payload is a non-retryable error; handler logs and returns nil
+		// (would send to DLQ if one were configured)
+		require.NoError(t, err)
 	})
 }
 
@@ -107,7 +109,7 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) TestHandle_EmptyPayload() {
 		workMan := svc.WorkManager()
 		deviceCli := s.GetDevice(t)
 
-		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli)
+		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli, nil)
 
 		// Send empty payload
 		err := handler.Handle(ctx, nil, []byte{})
@@ -127,7 +129,7 @@ func (s *HotPathDeliveryQueueHandlerTestSuite) TestHandle_DeliveryWithoutDestina
 		workMan := svc.WorkManager()
 		deviceCli := s.GetDevice(t)
 
-		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli)
+		handler := queues.NewHotPathDeliveryQueueHandler(cfg, qMan, workMan, deviceCli, nil)
 
 		// Create delivery without destination
 		delivery := &eventsv1.Delivery{
