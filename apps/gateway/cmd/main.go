@@ -40,13 +40,14 @@ func main() {
 		return
 	}
 
-	if cfg.Name() == "" {
-		cfg.ServiceName = "service_chat_gateway"
+	// Validate configuration (fail-fast on invalid config)
+	if err = cfg.Validate(); err != nil {
+		util.Log(ctx).With("err", err).Error("invalid configuration")
+		return
 	}
 
-	// Validate shard configuration at startup to catch mismatches early
-	if err = cfg.ValidateSharding(); err != nil {
-		util.Log(ctx).WithError(err).Fatal("invalid shard configuration")
+	if cfg.Name() == "" {
+		cfg.ServiceName = "service_chat_gateway"
 	}
 
 	rawCache, err := setupCache(ctx, cfg)

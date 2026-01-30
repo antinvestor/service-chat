@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/pitabwire/frame/config"
 )
@@ -44,21 +46,97 @@ type GatewayConfig struct {
 	TotalShards int `envDefault:"1" env:"TOTAL_SHARDS"`
 }
 
-// ValidateSharding checks that shard configuration is internally consistent.
-// TotalShards must be positive and ShardID must be within [0, TotalShards).
-// This must match the default service's ShardCount for correct message routing.
-func (c *GatewayConfig) ValidateSharding() error {
-	if c.TotalShards <= 0 {
-		return fmt.Errorf("TOTAL_SHARDS must be > 0, got %d", c.TotalShards)
+// Validate checks that the configuration is valid.
+// Returns an error if any validation fails.
+func (c *GatewayConfig) Validate() error {
+	var errs []error
+
+	// Validate service URIs
+	if c.ChatServiceURI == "" {
+		errs = append(errs, errors.New("ChatServiceURI cannot be empty"))
 	}
 
+	// Validate connection management settings
+	if c.MaxConnectionsPerDevice < 1 {
+		errs = append(errs, errors.New("MaxConnectionsPerDevice must be >= 1"))
+	}
+
+	if c.ConnectionTimeoutSec <= 0 {
+		errs = append(errs, errors.New("ConnectionTimeoutSec must be > 0"))
+	}
+
+	if c.HeartbeatIntervalSec <= 0 {
+		errs = append(errs, errors.New("HeartbeatIntervalSec must be > 0"))
+	}
+
+	if c.ConnectionTimeoutSec <= c.HeartbeatIntervalSec {
+		errs = append(errs, fmt.Errorf("ConnectionTimeoutSec (%d) must be > HeartbeatIntervalSec (%d)",
+			c.ConnectionTimeoutSec, c.HeartbeatIntervalSec))
+	}
+
+	// Validate rate limiting
+	if c.MaxEventsPerSecond <= 0 {
+		errs = append(errs, errors.New("MaxEventsPerSecond must be > 0"))
+	}
+
+	// Validate shard configuration
 	if c.ShardID < 0 {
-		return fmt.Errorf("SHARD_ID must be >= 0, got %d", c.ShardID)
+		errs = append(errs, errors.New("ShardID must be >= 0"))
 	}
 
-	if c.ShardID >= c.TotalShards {
-		return fmt.Errorf("SHARD_ID (%d) must be < TOTAL_SHARDS (%d)", c.ShardID, c.TotalShards)
+	if c.TotalShards <= 0 {
+		errs = append(errs, errors.New("TotalShards must be > 0"))
 	}
 
-	return nil
+	if c.TotalShards > 0 && c.ShardID >= c.TotalShards {
+		errs = append(errs, fmt.Errorf("ShardID (%d) must be < TotalShards (%d)",
+			c.ShardID, c.TotalShards))
+	}
+
+	// Validate cache configuration
+	if err := validateCacheURI(c.CacheURI, "CacheURI"); err != nil {
+		errs = append(errs, err)
+	}
+
+	// Validate queue URIs
+	if err := validateQueueURI(c.QueueOfflineEventDeliveryURI, "QueueOfflineEventDeliveryURI"); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateQueueURI(c.QueueGatewayEventDeliveryURI, "QueueGatewayEventDeliveryURI"); err != nil {
+		errs = append(errs, err)
+	}
+
+	return errors.Join(errs...)
+}
+
+// validateCacheURI checks that a cache URI has a valid scheme.
+func validateCacheURI(uri, name string) error {
+	if uri == "" {
+		return fmt.Errorf("%s cannot be empty", name)
+	}
+
+	validSchemes := []string{"redis://", "nats://", "mem://", "memory://"}
+	for _, scheme := range validSchemes {
+		if strings.HasPrefix(uri, scheme) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s has invalid scheme (must be one of: %s): %s", name, strings.Join(validSchemes, ", "), uri)
+}
+
+// validateQueueURI checks that a queue URI has a valid scheme.
+func validateQueueURI(uri, name string) error {
+	if uri == "" {
+		return fmt.Errorf("%s cannot be empty", name)
+	}
+
+	validSchemes := []string{"mem://", "redis://", "amqp://", "nats://", "kafka://"}
+	for _, scheme := range validSchemes {
+		if strings.HasPrefix(uri, scheme) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s has invalid scheme (must be one of: %s): %s", name, strings.Join(validSchemes, ", "), uri)
 }

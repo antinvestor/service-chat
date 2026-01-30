@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/pitabwire/frame/config"
 )
@@ -28,18 +30,50 @@ type ChatConfig struct {
 	ShardCount int `envDefault:"1" env:"SHARD_COUNT"`
 }
 
-// ValidateSharding checks that shard configuration is internally consistent.
-// ShardCount must be positive and must match the number of gateway queue URIs.
-func (c *ChatConfig) ValidateSharding() error {
+// Validate checks that the configuration is valid.
+// Returns an error if any validation fails.
+func (c *ChatConfig) Validate() error {
+	var errs []error
+
+	// Validate ShardCount
 	if c.ShardCount <= 0 {
-		return fmt.Errorf("SHARD_COUNT must be > 0, got %d", c.ShardCount)
+		errs = append(errs, errors.New("ShardCount must be > 0"))
 	}
 
+	// Validate ShardCount matches gateway queue URIs
 	if len(c.QueueGatewayEventDeliveryURI) != c.ShardCount {
-		return fmt.Errorf(
-			"SHARD_COUNT (%d) must match number of QUEUE_GATEWAY_EVENT_DELIVERY_URI entries (%d)",
-			c.ShardCount, len(c.QueueGatewayEventDeliveryURI))
+		errs = append(errs, fmt.Errorf("QueueGatewayEventDeliveryURI count (%d) must match ShardCount (%d)",
+			len(c.QueueGatewayEventDeliveryURI), c.ShardCount))
 	}
 
-	return nil
+	// Validate queue URIs
+	if err := validateQueueURI(c.QueueDeviceEventDeliveryURI, "QueueDeviceEventDeliveryURI"); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateQueueURI(c.QueueOfflineEventDeliveryURI, "QueueOfflineEventDeliveryURI"); err != nil {
+		errs = append(errs, err)
+	}
+	for i, uri := range c.QueueGatewayEventDeliveryURI {
+		if err := validateQueueURI(uri, fmt.Sprintf("QueueGatewayEventDeliveryURI[%d]", i)); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+// validateQueueURI checks that a queue URI has a valid scheme.
+func validateQueueURI(uri, name string) error {
+	if uri == "" {
+		return fmt.Errorf("%s cannot be empty", name)
+	}
+
+	validSchemes := []string{"mem://", "redis://", "amqp://", "nats://", "kafka://"}
+	for _, scheme := range validSchemes {
+		if strings.HasPrefix(uri, scheme) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s has invalid scheme (must be one of: %s): %s", name, strings.Join(validSchemes, ", "), uri)
 }
