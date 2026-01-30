@@ -157,5 +157,6 @@ func validGatewayConfig() config.GatewayConfig {
 		QueueGatewayEventDeliveryName: "gateway.event.delivery",
 		QueueGatewayEventDeliveryURI:  "mem://gateway.event.delivery",
 		ShardID:                       0,
+		TotalShards:                   1,
 	}
 }

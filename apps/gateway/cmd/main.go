@@ -50,11 +50,6 @@ func main() {
 		cfg.ServiceName = "service_chat_gateway"
 	}
 
-	// Validate shard configuration at startup to catch mismatches early
-	if err = cfg.ValidateSharding(); err != nil {
-		util.Log(ctx).WithError(err).Fatal("invalid shard configuration")
-	}
-
 	rawCache, err := setupCache(ctx, cfg)
 	if err != nil {
 		util.Log(ctx).WithError(err).Fatal("could not setup cache")
