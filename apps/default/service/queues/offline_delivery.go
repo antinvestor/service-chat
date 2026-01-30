@@ -43,8 +43,13 @@ func NewOfflineDeliveryQueueHandler(
 	}
 }
 
+//
 //nolint:nonamedreturns // named return required for deferred tracing
-func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, headers map[string]string, payload []byte) (err error) {
+func (dq *offlineDeliveryQueueHandler) Handle(
+	ctx context.Context,
+	headers map[string]string,
+	payload []byte,
+) (err error) {
 	ctx, span := chattel.DeliveryTracer.Start(ctx, "OfflineDelivery")
 	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
 
@@ -57,7 +62,9 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 			dlqErr := dq.dlp.Publish(
 				ctx, payload, dq.cfg.QueueOfflineEventDeliveryName, err.Error(), headers)
 			if dlqErr != nil {
-				util.Log(ctx).WithError(dlqErr).Error("failed to publish unmarshalable message to DLQ")
+				util.Log(ctx).
+					WithError(dlqErr).
+					Error("failed to publish unmarshalable message to DLQ")
 			}
 		}
 		return nil
@@ -113,7 +120,15 @@ func (dq *offlineDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 	if err != nil {
 		chattel.NotificationsFailedCounter.Add(ctx, 1)
 		// Retryable: increment retry count and republish
-		return RetryOrDeadLetter(ctx, dq.qMan, dq.dlp, dq.cfg.QueueOfflineEventDeliveryName, evtMsg, headers, err)
+		return RetryOrDeadLetter(
+			ctx,
+			dq.qMan,
+			dq.dlp,
+			dq.cfg.QueueOfflineEventDeliveryName,
+			evtMsg,
+			headers,
+			err,
+		)
 	}
 
 	chattel.NotificationsSentCounter.Add(ctx, 1)
@@ -143,7 +158,8 @@ func (dq *offlineDeliveryQueueHandler) bodyFromPayload(eventPayload *chatv1.Payl
 			return text.GetBody()
 		}
 	case chatv1.PayloadType_PAYLOAD_TYPE_ATTACHMENT:
-		if attachment := eventPayload.GetAttachment(); attachment != nil && attachment.GetCaption() != nil {
+		if attachment := eventPayload.GetAttachment(); attachment != nil &&
+			attachment.GetCaption() != nil {
 			return attachment.GetCaption().GetBody()
 		}
 		return "Sent an attachment"

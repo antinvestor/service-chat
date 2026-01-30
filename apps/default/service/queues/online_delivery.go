@@ -83,8 +83,13 @@ func (dq *hotPathDeliveryQueueHandler) getOnlineDeliveryTopic(
 	return deviceTopic, shardID, nil
 }
 
+//
 //nolint:nonamedreturns,gocognit // named return for tracing; delivery pipeline requires device search, retry logic, and worker pool coordination
-func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[string]string, payload []byte) (err error) {
+func (dq *hotPathDeliveryQueueHandler) Handle(
+	ctx context.Context,
+	headers map[string]string,
+	payload []byte,
+) (err error) {
 	ctx, span := chattel.DeliveryTracer.Start(ctx, "HotPathDelivery")
 	defer func() { chattel.DeliveryTracer.End(ctx, span, err) }()
 
@@ -99,7 +104,9 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 			dlqErr := dq.dlp.Publish(
 				ctx, payload, dq.cfg.QueueDeviceEventDeliveryName, err.Error(), headers)
 			if dlqErr != nil {
-				util.Log(ctx).WithError(dlqErr).Error("failed to publish unmarshalable message to DLQ")
+				util.Log(ctx).
+					WithError(dlqErr).
+					Error("failed to publish unmarshalable message to DLQ")
 			}
 		}
 		return nil
@@ -128,7 +135,15 @@ func (dq *hotPathDeliveryQueueHandler) Handle(ctx context.Context, headers map[s
 	if err != nil {
 		util.Log(ctx).WithError(err).Error("failed to query user devices")
 		// Retryable: increment retry count and republish
-		return RetryOrDeadLetter(ctx, dq.qMan, dq.dlp, dq.cfg.QueueDeviceEventDeliveryName, eventDelivery, headers, err)
+		return RetryOrDeadLetter(
+			ctx,
+			dq.qMan,
+			dq.dlp,
+			dq.cfg.QueueDeviceEventDeliveryName,
+			eventDelivery,
+			headers,
+			err,
+		)
 	}
 
 	for response.Receive() {
@@ -161,21 +176,23 @@ func (dq *hotPathDeliveryQueueHandler) createDeviceJob(
 	dev *devicev1.DeviceObject,
 	eventDelivery *eventsv1.Delivery,
 ) workerpool.Job[any] {
-	return workerpool.NewJob[any](func(ctx context.Context, resultPipe workerpool.JobResultPipe[any]) error {
-		eventCopy, ok := proto.Clone(eventDelivery).(*eventsv1.Delivery)
-		if !ok {
-			return resultPipe.WriteError(ctx, errors.New("failed to clone event delivery"))
-		}
-		eventCopy.DeviceId = dev.GetId()
+	return workerpool.NewJob[any](
+		func(ctx context.Context, resultPipe workerpool.JobResultPipe[any]) error {
+			eventCopy, ok := proto.Clone(eventDelivery).(*eventsv1.Delivery)
+			if !ok {
+				return resultPipe.WriteError(ctx, errors.New("failed to clone event delivery"))
+			}
+			eventCopy.DeviceId = dev.GetId()
 
-		deliveryErr := dq.deliver(ctx, eventCopy, dev)
-		if deliveryErr != nil {
-			util.Log(ctx).WithError(deliveryErr).WithField("device_id", dev.GetId()).
-				Error("failed to deliver event")
-			return resultPipe.WriteError(ctx, deliveryErr)
-		}
-		return nil
-	})
+			deliveryErr := dq.deliver(ctx, eventCopy, dev)
+			if deliveryErr != nil {
+				util.Log(ctx).WithError(deliveryErr).WithField("device_id", dev.GetId()).
+					Error("failed to deliver event")
+				return resultPipe.WriteError(ctx, deliveryErr)
+			}
+			return nil
+		},
+	)
 }
 
 func (dq *hotPathDeliveryQueueHandler) deliver(
@@ -205,7 +222,10 @@ func (dq *hotPathDeliveryQueueHandler) deliver(
 	return offlineDeliveryTopic.Publish(ctx, msg, deviceHeader)
 }
 
-func (dq *hotPathDeliveryQueueHandler) deviceIsOnline(_ context.Context, dev *devicev1.DeviceObject) bool {
+func (dq *hotPathDeliveryQueueHandler) deviceIsOnline(
+	_ context.Context,
+	dev *devicev1.DeviceObject,
+) bool {
 	return dev.GetPresence() != devicev1.PresenceStatus_OFFLINE
 }
 
