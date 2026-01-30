@@ -1,0 +1,72 @@
+name: Auto-Merge Labeled PRs
+
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    workflows: ["Run Tests", "Lint"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' && 
+      contains(github.event.pull_request.labels.*.name, 'auto-merge')
+    steps:
+      - name: Enable auto-merge
+        run: gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+  auto-merge-on-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'check_suite' || github.event_name == 'workflow_run'
+    steps:
+      - name: Find and merge labeled PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open'
+            });
+            
+            for (const pr of prs) {
+              const hasLabel = pr.labels.some(l => l.name === 'auto-merge');
+              if (\!hasLabel) continue;
+              
+              // Check if all checks passed
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: pr.head.sha
+              });
+              
+              const allPassed = checks.check_runs.every(
+                c => c.status === 'completed' && c.conclusion === 'success'
+              );
+              
+              if (allPassed && checks.check_runs.length > 0) {
+                try {
+                  await github.rest.pulls.merge({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: pr.number,
+                    merge_method: 'squash'
+                  });
+                  console.log(`Merged PR #${pr.number}`);
+                } catch (e) {
+                  console.log(`Could not merge PR #${pr.number}: ${e.message}`);
+                }
+              }
+            }
+
