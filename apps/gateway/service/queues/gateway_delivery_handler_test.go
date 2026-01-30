@@ -321,6 +321,16 @@ func (m *mockConnectionManager) GetConnection(
 	return conn, ok
 }
 
+func (m *mockConnectionManager) Shutdown(_ context.Context) error {
+	return nil
+}
+
+func (m *mockConnectionManager) DrainConnections(_ context.Context) {}
+
+func (m *mockConnectionManager) ActiveConnections() int32 {
+	return int32(len(m.connections))
+}
+
 type mockQueueManager struct {
 	publishers map[string]queue.Publisher
 }
