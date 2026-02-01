@@ -18,10 +18,11 @@ const (
 	RoleGuest  = "guest"
 
 	// Role hierarchy levels (highest to lowest).
-	roleOwnerLevel  = 4
-	roleAdminLevel  = 3
-	roleMemberLevel = 2
-	roleGuestLevel  = 1
+	// Aligned with business/subscription_service.go for consistency.
+	roleOwnerLevel  = 3
+	roleAdminLevel  = 2
+	roleMemberLevel = 1
+	roleGuestLevel  = 0
 )
 
 type roomSubscriptionRepository struct {

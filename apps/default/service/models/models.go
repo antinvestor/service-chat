@@ -43,11 +43,19 @@ func (r *Room) ToAPI() *chatv1.Room {
 		CreatedAt:   timestamppb.New(r.CreatedAt),
 	}
 
-	if r.RequiresApproval && metadata == nil {
-		protoRoom.Metadata, _ = structpb.NewStruct(map[string]any{
-			"requires_approval": true,
-		})
-	} else if r.RequiresApproval && metadata != nil {
+	// Initialize metadata if needed for room_type or requires_approval
+	if metadata == nil && (r.RoomType != "" || r.RequiresApproval) {
+		protoRoom.Metadata, _ = structpb.NewStruct(map[string]any{})
+		metadata = protoRoom.GetMetadata()
+	}
+
+	// Include room_type in metadata
+	if r.RoomType != "" && metadata != nil {
+		metadata.Fields["room_type"] = structpb.NewStringValue(r.RoomType)
+	}
+
+	// Include requires_approval in metadata
+	if r.RequiresApproval && metadata != nil {
 		metadata.Fields["requires_approval"] = structpb.NewBoolValue(true)
 	}
 
